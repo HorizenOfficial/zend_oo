@@ -11,18 +11,18 @@
 
 namespace libzendoomc{
 
-    bool IsValidScProof(const ScProof& scProof)
+    bool IsValidScProof(const ScProof& scProof, const bool semanticChecks)
     {
-        auto scProofDeserialized = zendoo_deserialize_sc_proof(scProof.begin());
+        auto scProofDeserialized = zendoo_deserialize_sc_proof(scProof.begin(), semanticChecks);
         if (scProofDeserialized == nullptr)
             return false;
         zendoo_sc_proof_free(scProofDeserialized);
         return true;
     }
 
-    bool IsValidScVk(const ScVk& scVk)
+    bool IsValidScVk(const ScVk& scVk, const bool semanticChecks)
     {
-        auto scVkDeserialized = zendoo_deserialize_sc_vk(scVk.begin());
+        auto scVkDeserialized = zendoo_deserialize_sc_vk(scVk.begin(), semanticChecks);
         if (scVkDeserialized == nullptr)
             return false;
         zendoo_sc_vk_free(scVkDeserialized);

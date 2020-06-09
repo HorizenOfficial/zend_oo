@@ -90,14 +90,16 @@ void create_verify(int argc, char** argv)
         // Deserialize proof
         sc_proof_t* proof = zendoo_deserialize_sc_proof_from_file(
             (path_char_t*)proof_path.c_str(),
-            proof_path_len
+            proof_path_len,
+            false
         );
         assert(proof != NULL);
 
         // Deserialize vk
         sc_vk_t* vk = zendoo_deserialize_sc_vk_from_file(
             (path_char_t*)vk_path.c_str(),
-            vk_path_len
+            vk_path_len,
+            false
         );
         assert(vk != NULL);
 

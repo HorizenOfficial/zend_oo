@@ -18,12 +18,12 @@ namespace libzendoomc{
     typedef base_blob<SC_PROOF_SIZE * 8> ScProof;
 
     /* Check if scProof is a valid zendoo-mc-cryptolib's sc_proof */
-    bool IsValidScProof(const ScProof& scProof);
+    bool IsValidScProof(const ScProof& scProof, const bool semanticChecks = false);
 
     typedef base_blob<SC_VK_SIZE * 8> ScVk;
     
     /* Check if scVk is a valid zendoo-mc-cryptolib's sc_vk */
-    bool IsValidScVk(const ScVk& scVk);
+    bool IsValidScVk(const ScVk& scVk, const bool semanticChecks = false);
 
     typedef std::vector<unsigned char> ScConstant;
     
@@ -60,12 +60,12 @@ namespace libzendoomc{
                 return zendoo_deserialize_field(field_bytes);
             }
 
-            virtual sc_proof_t* deserialize_sc_proof(const unsigned char* sc_proof_bytes) const {
-                return zendoo_deserialize_sc_proof(sc_proof_bytes);
+            virtual sc_proof_t* deserialize_sc_proof(const unsigned char* sc_proof_bytes, const bool enforce_membership = false) const {
+                return zendoo_deserialize_sc_proof(sc_proof_bytes, enforce_membership);
             }
 
-            virtual sc_vk_t* deserialize_sc_vk(const unsigned char* sc_vk_bytes) const {
-                return zendoo_deserialize_sc_vk(sc_vk_bytes);
+            virtual sc_vk_t* deserialize_sc_vk(const unsigned char* sc_vk_bytes, const bool enforce_membership = false) const {
+                return zendoo_deserialize_sc_vk(sc_vk_bytes, enforce_membership);
             }
 
             virtual bool verify_sc_proof(

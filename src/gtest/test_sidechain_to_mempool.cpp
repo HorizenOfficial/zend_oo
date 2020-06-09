@@ -12,6 +12,7 @@
 #include <script/sign.h>
 
 #include "tx_creation_utils.h"
+#include "libzendoo_test_files.h"
 #include <consensus/validation.h>
 
 #include <sc/sidechain.h>
@@ -502,6 +503,7 @@ CTransaction SidechainsInMempoolTestSuite::GenerateScTx(const CAmount & creation
     scTx.vsc_ccout.resize(1);
     scTx.vsc_ccout[0].nValue = creationTxAmount;
     scTx.vsc_ccout[0].withdrawalEpochLength = getScMinWithdrawalEpochLength();
+    scTx.vsc_ccout[0].wCertVk = libzendoomc::ScVk(ParseHex(SAMPLE_VK));
 
     SignSignature(keystore, coinData.second.coins.vout[0].scriptPubKey, scTx, 0);
 

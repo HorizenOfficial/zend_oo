@@ -121,7 +121,7 @@ TEST(ZendooLib, TestProof)
     //Deserialize zero knowledge proof
     auto proof_serialized = ParseHex(SAMPLE_PROOF);
     ASSERT_EQ(proof_serialized.size(), zendoo_get_sc_proof_size_in_bytes());
-    auto proof = zendoo_deserialize_sc_proof(proof_serialized.data());
+    auto proof = zendoo_deserialize_sc_proof(proof_serialized.data(), true);
     ASSERT_TRUE(proof != NULL);
 
     //Inputs
@@ -153,7 +153,7 @@ TEST(ZendooLib, TestProof)
     //Deserialize vk
     auto vk_serialized = ParseHex(SAMPLE_VK);
     ASSERT_EQ(vk_serialized.size(), zendoo_get_sc_vk_size_in_bytes());
-    auto vk = zendoo_deserialize_sc_vk(vk_serialized.data());
+    auto vk = zendoo_deserialize_sc_vk(vk_serialized.data(), true);
     ASSERT_TRUE(vk != NULL);
 
     //Verify zkproof
@@ -194,7 +194,7 @@ TEST(ZendooLib, TestProofNoBwt){
     //Deserialize zero knowledge proof
     auto proof_serialized = ParseHex(SAMPLE_PROOF_NO_BWT);
     ASSERT_EQ(proof_serialized.size(), zendoo_get_sc_proof_size_in_bytes());
-    auto proof = zendoo_deserialize_sc_proof(proof_serialized.data());
+    auto proof = zendoo_deserialize_sc_proof(proof_serialized.data(), true);
     ASSERT_TRUE(proof != NULL);
 
     //Inputs
@@ -226,7 +226,7 @@ TEST(ZendooLib, TestProofNoBwt){
     //Deserialize vk
     auto vk_serialized = ParseHex(SAMPLE_VK_NO_BWT);
     ASSERT_EQ(vk_serialized.size(), zendoo_get_sc_vk_size_in_bytes());
-    auto vk = zendoo_deserialize_sc_vk(vk_serialized.data());
+    auto vk = zendoo_deserialize_sc_vk(vk_serialized.data(), true);
     ASSERT_TRUE(vk != NULL);
 
     //Verify zkproof

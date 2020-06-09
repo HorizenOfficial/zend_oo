@@ -114,7 +114,7 @@ bool Sidechain::checkTxSemanticValidity(const CTransaction& tx, CValidationState
                 __func__), REJECT_INVALID, "sidechain-sc-creation-amount-outside-range");
         }
 
-        if (!libzendoomc::IsValidScVk(sc.wCertVk))
+        if (!libzendoomc::IsValidScVk(sc.wCertVk, true))
         {
             LogPrint("sc", "%s():%d - Invalid tx[%s] : invalid wCert verification key\n",
                 __func__, __LINE__, txHash.ToString());
@@ -172,7 +172,7 @@ bool Sidechain::checkCertSemanticValidity(const CScCertificate& cert, CValidatio
             __func__), REJECT_INVALID, "bad-cert-quality-negative");
     }
 
-    if(!libzendoomc::IsValidScProof(cert.scProof))
+    if(!libzendoomc::IsValidScProof(cert.scProof, true))
     {
         LogPrint("sc", "%s():%d - Invalid cert[%s] : invalid scProof\n",
             __func__, __LINE__, certHash.ToString() );
