@@ -84,6 +84,19 @@ bool CScCertificate::IsVersionStandard(int nHeight) const
     return true;
 }
 
+bool CScCertificate::CheckSerializedSize(CValidationState &state) const
+{
+    BOOST_STATIC_ASSERT(MAX_BLOCK_SIZE >= MAX_CERT_SIZE); // sanity
+    unsigned int sz = GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
+    if (sz > MAX_CERT_SIZE)
+    {
+        return state.DoS(100, error("%s(): size limits failed: size %u, limit %u",
+           __func__, sz, MAX_CERT_SIZE ), REJECT_INVALID, "bad-txns-oversize");
+    }
+
+    return true;
+}
+
 bool CScCertificate::CheckAmounts(CValidationState &state) const
 {
     // Check for negative or overflow output values
