@@ -728,6 +728,14 @@ bool CCoinsViewCache::UpdateScInfo(const CTransaction& tx, const CBlock& block, 
             __func__, __LINE__, maturityHeight, FormatMoney(cr.nValue), scId.ToString());
 
         LogPrint("sc", "%s():%d - scId[%s] added in scView\n", __func__, __LINE__, scId.ToString() );
+
+        if (!ScheduleSidechainEvent(cr, blockHeight))
+        {
+            LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed scheduling event\n", __func__, __LINE__);
+            return false;
+            //state.DoS(100, error("ConnectBlock(): error scheduling maturing height for sidechain [%s]", scCreation.GetScId().ToString()),
+            //                                     REJECT_INVALID, "bad-sc-not-recorded");
+        }
     }
 
     // forward transfer ccout
@@ -749,6 +757,14 @@ bool CCoinsViewCache::UpdateScInfo(const CTransaction& tx, const CBlock& block, 
 
         LogPrint("sc", "%s():%d - immature balance added in scView (h=%d, amount=%s) %s\n",
             __func__, __LINE__, maturityHeight, FormatMoney(ft.nValue), ft.scId.ToString());
+
+        if (!ScheduleSidechainEvent(ft, blockHeight))
+        {
+            LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed scheduling event\n", __func__, __LINE__);
+            return false;
+            //state.DoS(100, error("ConnectBlock(): error scheduling maturing height for sidechain [%s]", fwdTransfer.GetScId().ToString()),
+            //                 REJECT_INVALID, "bad-fwd-not-recorded");
+        }
     }
 
     return true;
@@ -762,6 +778,12 @@ bool CCoinsViewCache::RevertTxOutputs(const CTransaction& tx, int nHeight)
     // revert forward transfers
     for(const auto& entry: tx.GetVftCcOut())
     {
+        if (!CancelSidechainEvent(entry, nHeight))
+        {
+            LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed cancelling scheduled event\n", __func__, __LINE__);
+            return error("DisconnectBlock(): ceasing height cannot be reverted: data inconsistent");
+        }
+
         const uint256& scId = entry.scId;
         LogPrint("sc", "%s():%d - removing fwt for scId=%s\n", __func__, __LINE__, scId.ToString());
 
@@ -785,6 +807,12 @@ bool CCoinsViewCache::RevertTxOutputs(const CTransaction& tx, int nHeight)
     // remove sidechain if the case
     for(const auto& entry: tx.GetVscCcOut())
     {
+        if (!CancelSidechainEvent(entry, nHeight))
+        {
+            LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed cancelling scheduled event\n", __func__, __LINE__);
+            return error("DisconnectBlock(): ceasing height cannot be reverted: data inconsistent");
+        }
+
         const uint256& scId = entry.GetScId();
         LogPrint("sc", "%s():%d - removing scId=%s\n", __func__, __LINE__, scId.ToString());
 
@@ -1044,11 +1072,26 @@ bool CCoinsViewCache::UpdateScInfo(const CScCertificate& cert, CTxUndo& certUndo
     LogPrint("cert", "%s():%d - amount removed from scView (amount=%s, resulting bal=%s) %s\n",
         __func__, __LINE__, FormatMoney(totalAmount), FormatMoney(scIt->second.scInfo.balance), scId.ToString());
 
+    if (!ScheduleSidechainEvent(cert))
+    {
+        LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed scheduling event\n", __func__, __LINE__);
+        return false;
+        //state.DoS(100, error("ConnectBlock(): Error updating ceasing heights with certificate [%s]", cert.GetHash().ToString()),
+        //                 REJECT_INVALID, "bad-sc-cert-not-recorded");
+
+    }
+
     return true;
 }
 
 bool CCoinsViewCache::RevertCertOutputs(const CScCertificate& cert, const CTxUndo &certUndoEntry)
 {
+    if (!CancelSidechainEvent(cert))
+    {
+        LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed cancelling scheduled event\n", __func__, __LINE__);
+        return error("DisconnectBlock(): ceasing height cannot be reverted: data inconsistent");
+    }
+
     const uint256& scId = cert.GetScId();
     const CAmount& totalAmount = cert.GetValueOfBackwardTransfers();
 

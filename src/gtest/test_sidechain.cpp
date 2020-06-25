@@ -31,18 +31,37 @@ public:
     CInMemorySidechainDb()  = default;
     virtual ~CInMemorySidechainDb() = default;
 
-    bool HaveSidechain(const uint256& scId) const override { return inMemoryMap.count(scId); }
-    bool GetSidechain(const uint256& scId, CSidechain& info) const override {
-        if(!inMemoryMap.count(scId))
+    bool HaveSidechain(const uint256& scId)                  const override
+    {
+        return sidechainInMemoryMap.count(scId);
+    }
+
+    bool GetSidechain(const uint256& scId, CSidechain& info) const override
+    {
+        if(!sidechainInMemoryMap.count(scId))
             return false;
-        info = inMemoryMap[scId];
+        info = sidechainInMemoryMap[scId];
         return true;
     }
 
-    virtual void GetScIds(std::set<uint256>& scIdsList) const override {
-        for (auto& entry : inMemoryMap)
+    void GetScIds(std::set<uint256>& scIdsList)              const override
+    {
+        for (auto& entry : sidechainInMemoryMap)
             scIdsList.insert(entry.first);
         return;
+    }
+
+    bool HaveSidechainEvents(int height)                     const override
+    {
+        return eventsInMemoryMap.count(height);
+    }
+
+    bool GetSidechainEvents(int height, CSidechainEvents& scEvents) const override
+    {
+        if(!eventsInMemoryMap.count(height))
+            return false;
+        scEvents = eventsInMemoryMap[height];
+        return true;
     }
 
     bool BatchWrite(CCoinsMap &mapCoins, const uint256 &hashBlock,
@@ -50,13 +69,14 @@ public:
                     CNullifiersMap &mapNullifiers, CSidechainsMap& sidechainMap, CSidechainEventsMap& mapSidechainEvents) override
     {
         for (auto& entry : sidechainMap)
-            switch (entry.second.flag) {
+            switch (entry.second.flag)
+            {
                 case CSidechainsCacheEntry::Flags::FRESH:
                 case CSidechainsCacheEntry::Flags::DIRTY:
-                    inMemoryMap[entry.first] = entry.second.scInfo;
+                    sidechainInMemoryMap[entry.first] = entry.second.scInfo;
                     break;
                 case CSidechainsCacheEntry::Flags::ERASED:
-                    inMemoryMap.erase(entry.first);
+                    sidechainInMemoryMap.erase(entry.first);
                     break;
                 case CSidechainsCacheEntry::Flags::DEFAULT:
                     break;
@@ -64,11 +84,28 @@ public:
                     return false;
             }
         sidechainMap.clear();
+
+        for (auto& entry : mapSidechainEvents)
+            switch (entry.second.flag)
+            {
+                case CSidechainEventsCacheEntry::Flags::FRESH:
+                case CSidechainEventsCacheEntry::Flags::DIRTY:
+                    eventsInMemoryMap[entry.first] = entry.second.scEvents;
+                    break;
+                case CSidechainEventsCacheEntry::Flags::ERASED:
+                    eventsInMemoryMap.erase(entry.first);
+                    break;
+                case CSidechainEventsCacheEntry::Flags::DEFAULT:
+                    break;
+                default:
+                    return false;
+            }
         return true;
     }
 
 private:
-    mutable boost::unordered_map<uint256, CSidechain, ObjectHasher> inMemoryMap;
+    mutable boost::unordered_map<uint256, CSidechain, ObjectHasher> sidechainInMemoryMap;
+    mutable boost::unordered_map<int, CSidechainEvents>             eventsInMemoryMap;
 };
 
 class SidechainTestSuite: public ::testing::Test {
@@ -373,7 +410,7 @@ TEST_F(SidechainTestSuite, RevertingAFwdTransferOnTheWrongHeightHasNoEffect) {
 }
 
 TEST_F(SidechainTestSuite, RevertCertOutputsRestoresLastCertHash) {
-    //Create sidechain and mature it to generate first block undo
+    //Create sidechain
     CTransaction aTransaction = txCreationUtils::createNewSidechainTxWith(CAmount(34));
     const uint256& scId = aTransaction.GetScIdFromScCcOut(0);
     int scCreationHeight = 71;
@@ -382,16 +419,13 @@ TEST_F(SidechainTestSuite, RevertCertOutputsRestoresLastCertHash) {
     CSidechain scInfoAtCreation;
     ASSERT_TRUE(sidechainsView->GetSidechain(scId, scInfoAtCreation));
 
+    //Mature creation amount to allow for a certificate to be created
     CBlockUndo dummyBlockUndo;
-    for(const CTxScCreationOut& scCreationOut: aTransaction.GetVscCcOut())
-        ASSERT_TRUE(sidechainsView->ScheduleSidechainEvent(scCreationOut, scCreationHeight));
-
     std::vector<uint256> dummy;
     ASSERT_TRUE(sidechainsView->HandleSidechainEvents(scCreationHeight + Params().ScCoinsMaturity(), dummyBlockUndo, &dummy));
 
-
     //Update sc with cert and create the associate blockUndo
-    int certEpoch = 19;
+    int certEpoch = 0;
     CScCertificate cert = txCreationUtils::createCertificate(scId, certEpoch, dummyBlock.GetHash());
     CTxUndo certUndoEntry;
     sidechainsView->UpdateScInfo(cert, certUndoEntry);

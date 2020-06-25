@@ -2355,11 +2355,6 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
             outs->Clear();
         }
 
-        if (!view.CancelSidechainEvent(cert)) {
-            LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed cancelling scheduled event\n", __func__, __LINE__);
-            return error("DisconnectBlock(): ceasing height cannot be reverted: data inconsistent");
-        }
-
         const CTxUndo &certUndo = blockUndo.vtxundo[certOffset + i];
         if (!view.RevertCertOutputs(cert, certUndo) ) {
             LogPrint("sc", "%s():%d - ERROR undoing certificate\n", __func__, __LINE__);
@@ -2411,20 +2406,6 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         BOOST_FOREACH(const JSDescription &joinsplit, tx.GetVjoinsplit()) {
             BOOST_FOREACH(const uint256 &nf, joinsplit.nullifiers) {
                 view.SetNullifier(nf, false);
-            }
-        }
-
-        for (const CTxForwardTransferOut& fwdTransfer: tx.GetVftCcOut()) {
-            if (!view.CancelSidechainEvent(fwdTransfer, pindex->nHeight)) {
-                LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed cancelling scheduled event\n", __func__, __LINE__);
-                return error("DisconnectBlock(): ceasing height cannot be reverted: data inconsistent");
-            }
-        }
-
-        for (const CTxScCreationOut& scCreation: tx.GetVscCcOut()) {
-            if (!view.CancelSidechainEvent(scCreation, pindex->nHeight)) {
-                LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed cancelling scheduled event\n", __func__, __LINE__);
-                return error("DisconnectBlock(): ceasing height cannot be reverted: data inconsistent");
             }
         }
 
@@ -2716,30 +2697,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if ( i > 0)
         {
             if (!view.UpdateScInfo(tx, block, pindex->nHeight) )
-            {
                 return state.DoS(100, error("ConnectBlock(): could not add sidechain in view: tx[%s]", tx.GetHash().ToString()),
                                  REJECT_INVALID, "bad-sc-tx");
-            }
-
-            for (const CTxScCreationOut& scCreation: tx.GetVscCcOut()) {
-                if (!view.ScheduleSidechainEvent(scCreation, pindex->nHeight))
-                {
-                    LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed scheduling event\n", __func__, __LINE__);
-                    return state.DoS(100, error("ConnectBlock(): error scheduling maturing height for sidechain [%s]", scCreation.GetScId().ToString()),
-                                                         REJECT_INVALID, "bad-sc-not-recorded");
-                }
-
-            }
-
-            for (const CTxForwardTransferOut& fwdTransfer: tx.GetVftCcOut()) {
-                if (!view.ScheduleSidechainEvent(fwdTransfer, pindex->nHeight))
-                {
-                    LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed scheduling event\n", __func__, __LINE__);
-                    return state.DoS(100, error("ConnectBlock(): error scheduling maturing height for sidechain [%s]", fwdTransfer.GetScId().ToString()),
-                                     REJECT_INVALID, "bad-fwd-not-recorded");
-                }
-            }
-
         }
 
         BOOST_FOREACH(const JSDescription &joinsplit, tx.GetVjoinsplit()) {
@@ -2803,15 +2762,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             return state.DoS(100, error("ConnectBlock(): could not add in scView: cert[%s]", cert.GetHash().ToString()),
                              REJECT_INVALID, "bad-sc-cert-not-updated");
         }
-
-        if (!view.ScheduleSidechainEvent(cert))
-        {
-            LogPrint("cert", "%s():%d - SIDECHAIN-EVENT: failed scheduling event\n", __func__, __LINE__);
-            return state.DoS(100, error("ConnectBlock(): Error updating ceasing heights with certificate [%s]", cert.GetHash().ToString()),
-                             REJECT_INVALID, "bad-sc-cert-not-recorded");
-
-        }
-
 
         if (certIdx == 0) {
             // we are processing the first certificate, add the size of the vcert to the offset
