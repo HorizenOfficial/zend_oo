@@ -519,8 +519,6 @@ TEST_F(SidechainTestSuite, CertificateUpdatesLastCertificateHash) {
     EXPECT_TRUE(scInfo.lastCertificateHash.IsNull());
 
     //Fully mature initial Sc balance
-    for(const CTxScCreationOut& scCreationOut: scCreationTx.GetVscCcOut())
-        ASSERT_TRUE(sidechainsView->ScheduleSidechainEvent(scCreationOut, scCreationHeight));
     int coinMaturityHeight = scCreationHeight + Params().ScCoinsMaturity();
     CBlockUndo dummyBlockUndo;
     std::vector<uint256> dummy;
@@ -923,8 +921,6 @@ TEST_F(SidechainTestSuite, CSidechainFromMempoolRetrievesUnconfirmedInformation)
 
     //Fully mature initial Sc balance
     CBlockUndo anEmptyBlockUndo;
-    for(const CTxScCreationOut& scCreationOut: scTx.GetVscCcOut())
-        ASSERT_TRUE(sidechainsView->ScheduleSidechainEvent(scCreationOut, scCreationHeight));
     int coinMaturityHeight = scCreationHeight + Params().ScCoinsMaturity();
     CBlockUndo dummyBlockUndo;
     std::vector<uint256> dummy;
