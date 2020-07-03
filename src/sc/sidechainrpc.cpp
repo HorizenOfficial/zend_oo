@@ -365,13 +365,20 @@ ScRpcCmd::ScRpcCmd(
 
 void ScRpcCmd::addInputs()
 {
+    if (_fee == 0)
+    {
+        LogPrint("sc", "%s():%d - No fee therefore no inputs are added to cert, exiting\n", __func__, __LINE__);
+        return;
+    }
+
     std::vector<COutput> vAvailableCoins;
     std::vector<SelectedUTXO> vInputUtxo;
 
     static const bool fOnlyConfirmed = false;
     static const bool fIncludeZeroValue = false;
-    static const bool fIncludeCoinBase = true;
-    static const bool fIncludeCommunityFund = true;
+    bool fProtectCoinbase = !Params().GetConsensus().fCoinbaseMustBeProtected;
+    static const bool fIncludeCoinBase = fProtectCoinbase;
+    static const bool fIncludeCommunityFund = fProtectCoinbase;
 
     pwalletMain->AvailableCoins(vAvailableCoins, fOnlyConfirmed, NULL, fIncludeZeroValue, fIncludeCoinBase, fIncludeCommunityFund);
 

@@ -589,7 +589,7 @@ UniValue sendtoaddress(const UniValue& params, bool fHelp)
 
     SendMoney(address.Get(), nAmount, fSubtractFeeFromAmount, wtx);
 
-    return wtx.GetHash().GetHex();
+    return wtx.getWrappedTx().GetHash().GetHex();
 }
 
 UniValue sc_send(const UniValue& params, bool fHelp)
@@ -785,7 +785,7 @@ UniValue sc_create(const UniValue& params, bool fHelp)
     CWalletTx wtx;
     ScHandleTransaction(wtx, vecCcSend, nAmount);
 
-    return wtx.GetHash().GetHex();
+    return wtx.getWrappedTx().GetHash().GetHex();
 }
 
 UniValue create_sidechain(const UniValue& params, bool fHelp)
@@ -1726,7 +1726,7 @@ UniValue sendfrom(const UniValue& params, bool fHelp)
 
     SendMoney(address.Get(), nAmount, false, wtx);
 
-    return wtx.GetHash().GetHex();
+    return wtx.getWrappedTx().GetHash().GetHex();
 }
 
 
@@ -1839,7 +1839,7 @@ UniValue sendmany(const UniValue& params, bool fHelp)
     if (!pwalletMain->CommitTransaction(wtx, keyChange))
         throw JSONRPCError(RPC_WALLET_ERROR, "Transaction commit failed");
 
-    return wtx.GetHash().GetHex();
+    return wtx.getWrappedTx().GetHash().GetHex();
 }
 
 // Defined in rpcmisc.cpp
@@ -4673,7 +4673,7 @@ UniValue sc_sendmany(const UniValue& params, bool fHelp)
 
     ScHandleTransaction(wtx, vecSend, nTotalOut);
 
-    return wtx.GetHash().GetHex();
+    return wtx.getWrappedTx().GetHash().GetHex();
 }
 
 UniValue send_certificate(const UniValue& params, bool fHelp)
@@ -4681,7 +4681,7 @@ UniValue send_certificate(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    if (fHelp || params.size() != 7  )
+    if (fHelp || params.size() < 6  )
         throw runtime_error(
             "send_certificate scid epochNumber quality endEpochBlockHash scProof [{\"pubkeyhash\":... ,\"amount\":...},...] (subtractfeefromamount) (fee)\n"
             "\nSend cross chain backward transfers from SC to MC as a certificate."
@@ -4696,7 +4696,7 @@ UniValue send_certificate(const UniValue& params, bool fHelp)
             "      \"pubkeyhash\":\"pkh\"    (string, required) The public key hash of the receiver\n"
             "      \"amount\":amount       (numeric, required) The numeric amount in ZEN\n"
             "    }, ... ]\n"
-            "7. fee                     (numeric, optional) The fee of the certificate in ZEN\n"
+            "7. fee                     (numeric, optional, default=" + strprintf("%s", FormatMoney(SC_RPC_OPERATION_DEFAULT_MINERS_FEE)) + ") The fee of the certificate in ZEN\n"
             "\nResult:\n"
             "  \"certificateId\"   (string) The resulting certificate id.\n"
             "\nExamples:\n"
@@ -4724,7 +4724,7 @@ UniValue send_certificate(const UniValue& params, bool fHelp)
     if (!scView.GetSidechain(scId,scInfo))
     {
         LogPrint("sc", "scid[%s] does not exists \n", scId.ToString() );
-        throw JSONRPCError(RPC_INVALID_PARAMETER, string("scid not exists: ") + scId.ToString());
+        throw JSONRPCError(RPC_INVALID_PARAMETER, string("scid does not exists: ") + scId.ToString());
     }
     cert.scId = scId;
 
@@ -4839,13 +4839,19 @@ UniValue send_certificate(const UniValue& params, bool fHelp)
         nTotalOut += nAmount;
     }
 
-    // fee
-    CAmount nCertFee = 0;
+    // fee, default to a small amount
+    CAmount nCertFee = SC_RPC_OPERATION_DEFAULT_MINERS_FEE;
     if (params.size() > 6)
     {
-        nCertFee = AmountFromValue(params[6]);
-        if (nCertFee <= 0)
-            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for fee, must be positive");
+        try {
+            nCertFee = AmountFromValue(params[6]);
+        } catch (const UniValue& error) {
+            UniValue errMsg  = find_value(error, "message");
+            throw JSONRPCError(RPC_TYPE_ERROR, ("Invalid fee param:" + errMsg.getValStr() ));
+        } 
+
+        if (nCertFee < 0)
+            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for fee, can not be negative");
         // any check for upper threshold is left to cert processing
     }
 
