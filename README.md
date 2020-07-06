@@ -85,7 +85,7 @@ cd zen
 # fetch key
 ./zcutil/fetch-params.sh
 # Run
-./src/zend
+./src/zend_oo
 ```
 
 * Install for Mac OS (using clang)
