@@ -3,8 +3,8 @@ $(package)_version=0.1.0
 $(package)_download_path=https://github.com/ZencashOfficial/zendoo-mc-cryptolib/archive/
 $(package)_file_name=$(package)-$($(package)_git_commit).tar.gz
 $(package)_download_file=$($(package)_git_commit).tar.gz
-$(package)_sha256_hash=f46dac88b1d704e91e4c18cf712202106e94b828fe024ea540dd6d43389a44e2
-$(package)_git_commit=71ed4d26ded2f63cfebc3a57a78a6d86c98c30b5
+$(package)_sha256_hash=720b1f87093cf23c6c9e531908a1c40e5c7d852d14e0b32d1f5d46deab2c4916
+$(package)_git_commit=294ed3d5e3f480ce1e6e471340aecdfc734e266f
 $(package)_dependencies=rust $(rust_crates_zendoo)
 $(package)_patches=cargo.config
 

@@ -75,6 +75,9 @@ namespace libzendoomc{
 
         ~WCertVerifierInputs(){
 
+            bt_list.clear();
+            bt_list.shrink_to_fit();
+
             zendoo_field_free(constant);
             constant = nullptr;
 
