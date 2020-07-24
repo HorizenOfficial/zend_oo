@@ -28,7 +28,7 @@ You can read more about the Zendoo protocol in our [whitepaper](https://www.hori
 - Extended rpc interface to create and dispatch Sidechain Declaration, Forward Transfer transactions and Withdrawal Certificates;
 - Extensive unit tests and integrations tests for verifying sidechain functionality;
 - Public Sidechain testnet separate from normal testnet3;
-- Graphical Wallet allowing easy sidechain creations, fordward transfers to sidechain, list of existing sidechains and more: [Sphere by Horizen](https://github.com/ZencashOfficial/Sphere_by_Horizen_Sidechain_Testnet/releases/tag/desktop-v2.0.0-beta-sidechain-testnet).
+- Graphical Wallet allowing easy sidechain creations, forward transfers to sidechain, list of existing sidechains and more: [Sphere by Horizen](https://github.com/ZencashOfficial/Sphere_by_Horizen_Sidechain_Testnet/releases/tag/desktop-v2.0.0-beta-sidechain-testnet).
 
 Branching strategy
 ----------------
