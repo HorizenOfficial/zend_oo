@@ -1,7 +1,9 @@
+#include "tx_creation_utils.h"
+#include <primitives/transaction.h>
+#include <primitives/certificate.h>
 #include <script/interpreter.h>
 #include <main.h>
 #include <pubkey.h>
-#include "tx_creation_utils.h"
 
 CMutableTransaction txCreationUtils::populateTx(int txVersion, const CAmount & creationTxAmount, const CAmount & fwdTxAmount, int epochLength)
 {
