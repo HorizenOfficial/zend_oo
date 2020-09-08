@@ -51,7 +51,8 @@ TEST(deadlock_test, deadlock) {
     walletMain.AddSpendingKey(sk);
 
     //number of concurrent SyncTransaction Thread -1
-    int size = 2;
+    //enum removes variable length buffer [-Wstack-protector] warning that simple const int would give
+    enum { size = 2 };
     std::atomic_int finished(0);
     std::thread myThreads[size];
 
