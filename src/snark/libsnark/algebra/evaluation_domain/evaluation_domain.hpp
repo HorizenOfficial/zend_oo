@@ -37,6 +37,8 @@ template<typename FieldT>
 class evaluation_domain {
 public:
 
+    virtual ~evaluation_domain() = default;
+
     const size_t m;
 
     /**
