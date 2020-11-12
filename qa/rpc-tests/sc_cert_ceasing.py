@@ -124,6 +124,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
                 quality, constant, [pkh_node1], [bwt_amount[0]])
 
             cert_1 = self.nodes[0].send_certificate(scids[0], epoch_number, quality, epoch_block_hash, proof, amounts, CERT_FEE)
+            self.sync_all()
             mark_logs("==> certificate is {}".format(cert_1), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -140,6 +141,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
                 quality, constant, [], [])
 
             cert_2 = self.nodes[0].send_certificate(scids[1], epoch_number, quality, epoch_block_hash, proof, [], CERT_FEE)
+            self.sync_all()
             mark_logs("==> certificate is {}".format(cert_2), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -147,7 +149,6 @@ class sc_cert_ceasing(BitcoinTestFramework):
             assert(False)
 
         # no certs for scid 3, let it cease without having one 
-        self.sync_all()
 
         mark_logs("Node0 generates 5 more blocks to achieve end of withdrawal epochs", self.nodes, DEBUG_MODE)
         self.nodes[0].generate(5)
