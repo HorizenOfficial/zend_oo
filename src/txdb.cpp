@@ -178,6 +178,15 @@ void CCoinsViewDB::GetScIds(std::set<uint256>& scIdsList) const
     return;
 }
 
+int64_t CCoinsViewDB::GetMinimalAllowedCertQuality(const uint256& scId) const
+{
+    CSidechain sidechain;
+    if (!GetSidechain(scId, sidechain))
+        return CScCertificate::QUALITY_NULL;
+
+    return sidechain.lastCertificateQuality + 1;
+}
+
 uint256 CCoinsViewDB::GetBestBlock() const {
     uint256 hashBestChain;
     if (!db.Read(DB_BEST_BLOCK, hashBestChain))

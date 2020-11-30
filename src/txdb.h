@@ -44,6 +44,7 @@ public:
     bool HaveSidechainEvents(int height)                               const override;
     bool GetSidechainEvents(int height, CSidechainEvents& ceasingScs)  const override;
     void GetScIds(std::set<uint256>& scIdsList)                        const override;
+    int64_t GetMinimalAllowedCertQuality(const uint256& scId)          const override;
     uint256 GetBestBlock()                                             const override;
     uint256 GetBestAnchor()                                            const override;
     bool BatchWrite(CCoinsMap &mapCoins,

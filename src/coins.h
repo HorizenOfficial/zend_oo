@@ -401,7 +401,10 @@ public:
 
     //! Retrieve all the known sidechain ids
     virtual void GetScIds(std::set<uint256>& scIdsList) const;
-    virtual bool CheckQuality(const CScCertificate& cert, CAmount certFee) const;
+
+    //! Retrieve minimal cert quality allowed in curret sidechain state
+    virtual int64_t GetMinimalAllowedCertQuality(const uint256& scId) const;
+
     virtual CAmount GetValueOfBackwardTransfers(const uint256& certHash) const;
     virtual int64_t GetTopQualityCert(const uint256& scId, int epochNumber, uint256& hash) const;
 
@@ -446,7 +449,7 @@ public:
     bool HaveSidechainEvents(int height)                               const override;
     bool GetSidechainEvents(int height, CSidechainEvents& scEvents)    const override;
     void GetScIds(std::set<uint256>& scIdsList)                        const override;
-    bool CheckQuality(const CScCertificate& cert, CAmount certFee)     const override;
+    int64_t GetMinimalAllowedCertQuality(const uint256& scId)          const override;
     CAmount GetValueOfBackwardTransfers(const uint256& certHash)       const override;
     int64_t GetTopQualityCert(const uint256& scId, int epochNumber, uint256& hash) const override;
     uint256 GetBestBlock()                                             const override;
@@ -564,6 +567,7 @@ public:
     bool HaveSidechain(const uint256& scId)                           const override;
     bool GetSidechain(const uint256 & scId, CSidechain& targetScInfo) const override;
     void GetScIds(std::set<uint256>& scIdsList)                       const override;
+    int64_t GetMinimalAllowedCertQuality(const uint256& scId)         const override;
     bool HaveScRequirements(const CTransaction& tx, int height);
     bool UpdateScInfo(const CTransaction& tx, const CBlock&, int nHeight);
     bool RevertTxOutputs(const CTransaction& tx, int nHeight);
@@ -573,7 +577,6 @@ public:
     bool isEpochDataValid(const CSidechain& scInfo, int epochNumber, const uint256& epochBlockHash) const;
     bool UpdateScInfo(const CScCertificate& cert, CTxUndo& certUndoEntry, std::map<uint256, bool>* pVoidedCertsMap = nullptr);
     bool RevertCertOutputs(const CScCertificate& cert, const CTxUndo &certUndoEntry, std::map<uint256, bool>* pVoidedCertsMap = nullptr);
-    bool CheckQuality(const CScCertificate& cert, CAmount certFee)  const override;
     CAmount GetValueOfBackwardTransfers(const uint256& certHash) const override;
     int64_t GetTopQualityCert(const uint256& scId, int epochNumber, uint256& hash) const override;
     void NullifyBackwardTransfers(const uint256& certHash, CTxUndo& certUndoEntry);

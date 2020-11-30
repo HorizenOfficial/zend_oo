@@ -188,7 +188,7 @@ bool CCoinsView::GetSidechain(const uint256& scId, CSidechain& info)           c
 bool CCoinsView::HaveSidechainEvents(int height)                               const { return false; }
 bool CCoinsView::GetSidechainEvents(int height, CSidechainEvents& scEvent)     const { return false; }
 void CCoinsView::GetScIds(std::set<uint256>& scIdsList)                        const { scIdsList.clear(); return; }
-bool CCoinsView::CheckQuality(const CScCertificate& cert, CAmount fee)         const { return false; }
+int64_t CCoinsView::GetMinimalAllowedCertQuality(const uint256& scId)          const { return CScCertificate::QUALITY_NULL;}
 CAmount CCoinsView::GetValueOfBackwardTransfers(const uint256& certHash)       const { return 0; }
 int64_t CCoinsView::GetTopQualityCert(const uint256& scId, int epochNumber, uint256& hash) const { return CScCertificate::QUALITY_NULL;}
 uint256 CCoinsView::GetBestBlock()                                             const { return uint256(); }
@@ -211,7 +211,7 @@ bool CCoinsViewBacked::GetSidechain(const uint256& scId, CSidechain& info)      
 bool CCoinsViewBacked::HaveSidechainEvents(int height)                               const { return base->HaveSidechainEvents(height); }
 bool CCoinsViewBacked::GetSidechainEvents(int height, CSidechainEvents& scEvents)    const { return base->GetSidechainEvents(height, scEvents); }
 void CCoinsViewBacked::GetScIds(std::set<uint256>& scIdsList)                        const { return base->GetScIds(scIdsList); }
-bool CCoinsViewBacked::CheckQuality(const CScCertificate& cert, CAmount fee)         const { return base->CheckQuality(cert, fee); }
+int64_t CCoinsViewBacked::GetMinimalAllowedCertQuality(const uint256& scId)          const { return base->GetMinimalAllowedCertQuality(scId);}
 CAmount CCoinsViewBacked::GetValueOfBackwardTransfers(const uint256& certHash)       const { return base->GetValueOfBackwardTransfers(certHash); }
 int64_t CCoinsViewBacked::GetTopQualityCert(const uint256& scId, int epochNumber, uint256& hash) const { return base->GetTopQualityCert(scId, epochNumber, hash); }
 uint256 CCoinsViewBacked::GetBestBlock()                                             const { return base->GetBestBlock(); }
@@ -703,32 +703,14 @@ void CCoinsViewCache::GetScIds(std::set<uint256>& scIdsList) const
     return;
 }
 
-bool CCoinsViewCache::CheckQuality(const CScCertificate& cert, CAmount unused) const
+int64_t CCoinsViewCache::GetMinimalAllowedCertQuality(const uint256& scId) const
 {
-    // check in blockchain if a better cert is already there for this epoch
-    CSidechain info;
-    if (GetSidechain(cert.GetScId(), info))
-    {
-        if (info.lastCertificateHash != cert.GetHash() &&
-            info.lastEpochReferencedByCertificate == cert.epochNumber &&
-            info.lastCertificateQuality >= cert.quality)
-        {
-            LogPrint("cert", "%s.%s():%d - NOK, cert %s q=%d : a cert q=%d for same sc/epoch is already in blockchain\n",
-                __FILE__, __func__, __LINE__, cert.GetHash().ToString(), cert.quality, info.lastCertificateQuality);
-            return false;
-        }
-    }
-    else
-    {
-        LogPrint("cert", "%s.%s():%d - cert %s has no scid in blockchain\n",
-            __FILE__, __func__, __LINE__, cert.GetHash().ToString());
-    }
+    CSidechain sidechain;
+    if (!GetSidechain(scId, sidechain))
+        return CScCertificate::QUALITY_NULL;
 
-    LogPrint("cert", "%s.%s():%d - cert %s q=%d : OK, no better quality certs for same sc/epoch are in blockchain\n",
-        __FILE__, __func__, __LINE__, cert.GetHash().ToString(), cert.quality);
-    return true;
+    return sidechain.lastCertificateQuality + 1;
 }
-
 
 int CCoinsViewCache::getInitScCoinsMaturity()
 {
