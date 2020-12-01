@@ -1134,7 +1134,7 @@ bool AcceptCertificateToMemoryPool(CTxMemPool& pool, CValidationState &state, co
             if (ancestorCert.quality >= cert.quality)
             {
                 return state.DoS(0,
-                     error("%s(): cert[%s]: it would spend the output %d of higher or equal quality cert[%s] that is in mempool",
+                     error("%s(): cert[%s] would spend the output of higher or equal quality cert[%s] already in mempool",
                          __func__, certHash.ToString(), ancestorCert.GetHash().ToString()),
                      REJECT_INVALID, "certificate unconfirmed output");
             }
@@ -1216,7 +1216,7 @@ bool AcceptCertificateToMemoryPool(CTxMemPool& pool, CValidationState &state, co
 
             if (cert.quality < view.GetMinimalAllowedCertQuality(cert.GetScId()))
             {
-                LogPrintf("%s():%d - Dropping cert %s : invalid quality\n", __func__, __LINE__, certHash.ToString());
+                LogPrintf("%s():%d - Dropping cert %s: invalid quality\n", __func__, __LINE__, certHash.ToString());
                 return error("invalid quality");
             }
 

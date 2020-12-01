@@ -302,7 +302,7 @@ class quality_nodes(BitcoinTestFramework):
         mark_logs("Height: {}. creation height {}".format(self.nodes[0].getblockcount(), sc_creating_height), self.nodes, DEBUG_MODE)
         mark_logs("Height: {}. Epoch {}".format(self.nodes[0].getblockcount(), epoch_number), self.nodes, DEBUG_MODE)
         mark_logs("Create Cert1 with quality 100 and place it in node0", self.nodes, DEBUG_MODE)
-        quality = 100
+        quality = 101
         amount_cert_0 = [{"pubkeyhash": pkh_node0, "amount": bwt_amount}]
         proof = mcTest.create_test_proof(
             "sc1", epoch_number, epoch_block_hash, prev_epoch_block_hash,
