@@ -220,7 +220,8 @@ TEST_F(SidechainMultipleCertsTestSuite, Cert_HigherQuality_SameEpoch_UndoDataChe
     ASSERT_TRUE(sidechainsView->UpdateScInfo(highQualityCert, scUndoData));
 
     //test
-    EXPECT_TRUE(sidechainsView->RevertCertOutputs(highQualityCert, scUndoData, &dummyVoidedCertMap));
+    CBlockUndo dummyBlockUndo;
+    EXPECT_TRUE(sidechainsView->RevertCertOutputs(highQualityCert, scUndoData, dummyBlockUndo, &dummyVoidedCertMap));
 
     CSidechain revertedSidechain;
     ASSERT_TRUE(sidechainsView->GetSidechain(scId,revertedSidechain));
@@ -249,7 +250,8 @@ TEST_F(SidechainMultipleCertsTestSuite, Cert_LowerQuality_DifferentEpoch_UndoDat
     ASSERT_TRUE(sidechainsView->UpdateScInfo(nextEpochCert, scUndoData));
 
     //test
-    EXPECT_TRUE(sidechainsView->RevertCertOutputs(nextEpochCert, scUndoData, &dummyVoidedCertMap));
+    CBlockUndo dummyBlockUndo;
+    EXPECT_TRUE(sidechainsView->RevertCertOutputs(nextEpochCert, scUndoData, dummyBlockUndo, &dummyVoidedCertMap));
 
     CSidechain revertedSidechain;
     ASSERT_TRUE(sidechainsView->GetSidechain(scId,revertedSidechain));

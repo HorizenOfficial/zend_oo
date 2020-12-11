@@ -2439,7 +2439,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         const CTxUndo &certUndo = blockUndo.vtxundo[certOffset + i];
         if (highQualityCertData.count(cert.GetHash()) != 0)
         {
-            if (!view.RevertCertOutputs(cert, certUndo, pVoidedCertsMap) ) {
+            if (!view.RevertCertOutputs(cert, certUndo, blockUndo, pVoidedCertsMap) ) {
                 LogPrint("sc", "%s():%d - ERROR undoing certificate\n", __func__, __LINE__);
                 return error("DisconnectBlock(): certificate can not be reverted: data inconsistent");
             }
@@ -2890,7 +2890,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                                  REJECT_INVALID, "bad-sc-cert-not-updated");
             }
 
-            view.NullifyBackwardTransfers(highQualityCertData[cert.GetHash()], blockundo.vtxundo.back().vBwts);
+            const auto& certUndoEntry = blockundo.vtxundo.back();
+            blockundo.vVoidedCertUndo.push_back(CVoidedCertUndo());
+            blockundo.vVoidedCertUndo.back().voidingType = CVoidedCertUndo::WORSE_QUALITY;
+            blockundo.vVoidedCertUndo.back().context = certUndoEntry.replacedLastCertHash;
+            view.NullifyBackwardTransfers(highQualityCertData[cert.GetHash()], blockundo.vVoidedCertUndo.back().voidedOuts);
 
             if (!view.ScheduleSidechainEvent(cert))
             {

@@ -571,11 +571,13 @@ public:
     bool IsCertApplicableToState(const CScCertificate& cert, int nHeight, CValidationState& state, libzendoomc::CScProofVerifier& scVerifier) const;
     bool isEpochDataValid(const CSidechain& scInfo, int epochNumber, const uint256& epochBlockHash) const;
     bool UpdateScInfo(const CScCertificate& cert, CTxUndo& certUndoEntry, std::map<uint256, bool>* pVoidedCertsMap = nullptr);
-    bool RevertCertOutputs(const CScCertificate& cert, const CTxUndo &certUndoEntry, std::map<uint256, bool>* pVoidedCertsMap = nullptr);
+    bool RevertCertOutputs(const CScCertificate& cert, const CTxUndo &certUndoEntry,
+        const CBlockUndo& blockUndo, std::map<uint256, bool>* pVoidedCertsMap = nullptr);
     bool CheckQuality(const CScCertificate& cert)  const override;
     void NullifyBackwardTransfers(const uint256& certHash, std::vector<CTxInUndo>& nullifiedOuts);
-    bool RestoreBackwardTransfers(const CTxUndo& certUndoEntry);
+    bool RestoreBackwardTransfers(const uint256& certHash, const CBlockUndo& blockUndo);
     std::map<uint256,uint256> HighQualityCertDataFor(const CBlock& blockToConnect);
+    void RestoreCoins(const uint256& coinHash, const std::vector<CTxInUndo>& voidedOuts, bool& fClean);
 
     //SIDECHAINS EVENTS RELATED MEMBERS
     bool HaveSidechainEvents(int height)                            const override;

@@ -93,16 +93,25 @@ public:
 
 class CVoidedCertUndo {
 public:
-    std::vector<CTxInUndo> voidedOuts;;
-    uint256 voidedCertScId;
+    enum eVoidingType {
+        UNDEFINED = 0,
+        CEASED,
+        WORSE_QUALITY
+    };
 
-    CVoidedCertUndo(): voidedOuts(),voidedCertScId() {};
+    std::vector<CTxInUndo> voidedOuts;
+    char voidingType;
+    // can be the ceased sidechain id for CEASED type or the certificate id for the WORSE_QUALITY type
+    uint256 context;
+
+    CVoidedCertUndo(): voidedOuts(), voidingType(UNDEFINED), context() {};
 
     ADD_SERIALIZE_METHODS;
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(voidedOuts);
-        READWRITE(voidedCertScId);
+        READWRITE(voidingType);
+        READWRITE(context);
     }
 
     std::string ToString() const
@@ -111,7 +120,8 @@ public:
         str += strprintf("    voidedOuts.size %u\n", voidedOuts.size());
         for (unsigned int i = 0; i < voidedOuts.size(); i++)
             str += "        " + voidedOuts[i].ToString() + "\n";
-        str += strprintf("    voidedCertScId       %s\n", voidedCertScId.ToString());
+        str += strprintf("    voidingType %s\n", voidingType==CEASED?"CEASED":(voidingType==WORSE_QUALITY?"WORSE_QUALITY":"UNDEFINED"));
+        str += strprintf("    context    %s\n", context.ToString());
         return str;
     }
 };
@@ -127,11 +137,10 @@ public:
     uint256 replacedLastCertHash;
     int64_t replacedLastCertQuality;
     CAmount replacedLastCertBwtAmount;
-    std::vector<CTxInUndo> vBwts; // undo information for bwt
 
     CTxUndo(): vprevout(), replacedLastCertEpoch(CScCertificate::EPOCH_NOT_INITIALIZED),
             replacedLastCertHash(), replacedLastCertQuality(CScCertificate::QUALITY_NOT_INITIALIZED),
-            replacedLastCertBwtAmount(0), vBwts() {}
+            replacedLastCertBwtAmount(0) {}
 
     size_t GetSerializeSize(int nType, int nVersion) const
     {
@@ -150,7 +159,6 @@ public:
             ::Serialize(s, replacedLastCertHash,      nType, nVersion);
             ::Serialize(s, replacedLastCertQuality,   nType, nVersion);
             ::Serialize(s, replacedLastCertBwtAmount, nType, nVersion);
-            ::Serialize(s, vBwts,                     nType, nVersion);
         }
         else {
             ::Serialize(s, vprevout, nType, nVersion);
@@ -166,7 +174,6 @@ public:
         replacedLastCertHash.SetNull();
         replacedLastCertQuality = CScCertificate::QUALITY_NOT_INITIALIZED;
         replacedLastCertBwtAmount = 0;
-        vBwts.clear();
 
         unsigned int nSize = ReadCompactSize(s);
         if (nSize == certAttributesMarker)
@@ -176,7 +183,6 @@ public:
             ::Unserialize(s, replacedLastCertHash,      nType, nVersion);
             ::Unserialize(s, replacedLastCertQuality,   nType, nVersion);
             ::Unserialize(s, replacedLastCertBwtAmount, nType, nVersion);
-            ::Unserialize(s, vBwts,                     nType, nVersion);
         }
         else
             ::AddEntriesInVector(s, vprevout, nType, nVersion, nSize);
@@ -192,9 +198,6 @@ public:
         str += strprintf("replacedLastCertHash      %s\n", replacedLastCertHash.ToString());
         str += strprintf("replacedLastCertQuality   %d\n", replacedLastCertQuality);
         str += strprintf("replacedLastCertBwtAmount %d\n", replacedLastCertBwtAmount);
-        str += strprintf("vBwts.size %u\n", vBwts.size());
-        for(const CTxInUndo& x: vBwts)
-            str += strprintf("\n  [%s]\n", x.ToString());
         return str;
     }
 
