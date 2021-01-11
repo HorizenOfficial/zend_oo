@@ -73,11 +73,11 @@ TEST(ZendooLib, PoseidonHashTest)
     digest.update(rhs_field); // Call to finalize keeps the state
 
     auto actual_hash = digest.finalize();
-    ASSERT_TRUE(("Expected hashes to be equal", zendoo_field_assert_eq(actual_hash, expected_hash)));
+    ASSERT_TRUE(zendoo_field_assert_eq(actual_hash, expected_hash));
     zendoo_field_free(actual_hash);
 
     auto actual_hash_2 = digest.finalize(); // finalize() is idempotent
-    ASSERT_TRUE(("Expected hashes to be equal", zendoo_field_assert_eq(actual_hash_2, expected_hash)));
+    ASSERT_TRUE(zendoo_field_assert_eq(actual_hash_2, expected_hash));
     zendoo_field_free(actual_hash_2);
 
     zendoo_field_free(expected_hash);
@@ -124,17 +124,17 @@ TEST(ZendooLib, PoseidonMerkleTreeTest)  {
 
     // Compute root and assert equality with expected one
     auto root = tree.root();
-    ASSERT_TRUE(("Expected roots to be equal", zendoo_field_assert_eq(root, expected_root)));
+    ASSERT_TRUE(zendoo_field_assert_eq(root, expected_root));
 
     // It is the same by calling finalize()
     auto tree_copy = tree.finalize();
     auto root_copy = tree_copy.root();
-    ASSERT_TRUE(("Expected roots to be equal", zendoo_field_assert_eq(root_copy, expected_root)));
+    ASSERT_TRUE(zendoo_field_assert_eq(root_copy, expected_root));
 
     // Test Merkle Paths
     for (int i = 0; i < leaves_len; i++) {
         auto path = tree.get_merkle_path(i);
-        ASSERT_TRUE(("Merkle Path must be verified", zendoo_verify_ginger_merkle_path(path, height, (field_t*)leaves[i], root)));
+        ASSERT_TRUE(zendoo_verify_ginger_merkle_path(path, height, (field_t*)leaves[i], root));
         zendoo_free_ginger_merkle_path(path);
     }
 
@@ -310,7 +310,9 @@ TEST(ScTxCommitmentTree, TreeCommitmentCalculation)
     uint256 scId = scCreationTx.GetScIdFromScCcOut(0);
     CTransaction fwdTx = txCreationUtils::createFwdTransferTxWith(scId, CAmount(7));
 
-    CScCertificate cert = txCreationUtils::createCertificate(scId, /*epochNum*/12, /*endEpochBlockHash*/uint256S("abc"));
+    CScCertificate cert = txCreationUtils::createCertificate(scId, /*epochNum*/12, /*endEpochBlockHash*/uint256S("abc"),
+            CAmount(0) /*changeTotalAmount*/, 0/*numChangeOut*/,
+            CAmount(1)/* bwtTotalAmount*/, 1/*numBwt*/);
 
     builder.add(scCreationTx);
     builder.add(fwdTx);
