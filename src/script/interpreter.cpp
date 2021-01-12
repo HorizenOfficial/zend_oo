@@ -239,6 +239,7 @@ bool static CheckMinimalPush(const valtype& data, opcodetype opcode) {
 
 bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, unsigned int flags, const BaseSignatureChecker& checker, ScriptError* serror)
 {
+    LogPrintf("%s: %s():%d - script[%s], flags=0x%x\n", __FILE__, __func__, __LINE__, script.ToString(), flags);
     static const CScriptNum bnZero(0);
     static const CScriptNum bnOne(1);
     static const CScriptNum bnFalse(0);
@@ -1468,13 +1469,19 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, unsigne
 
     vector<vector<unsigned char> > stack, stackCopy;
     if (!EvalScript(stack, scriptSig, flags, checker, serror))
+    {
+        LogPrintf("%s: %s():%d - script[%s], flags=0x%x\n", __FILE__, __func__, __LINE__, scriptSig.ToString(), flags);
         // serror is set
         return false;
+    }
     if (flags & SCRIPT_VERIFY_P2SH)
         stackCopy = stack;
     if (!EvalScript(stack, scriptPubKey, flags, checker, serror))
+    {
+        LogPrintf("%s: %s():%d - script[%s], flags=0x%x\n", __FILE__, __func__, __LINE__, scriptPubKey.ToString(), flags);
         // serror is set
         return false;
+    }
     if (stack.empty())
         return set_error(serror, SCRIPT_ERR_EVAL_FALSE);
     if (CastToBool(stack.back()) == false)

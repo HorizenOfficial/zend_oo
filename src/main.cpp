@@ -2351,6 +2351,9 @@ bool ContextualCheckTxInputs(const CTransaction& tx, CValidationState &state, co
                     // as to the correct behavior - we may want to continue
                     // peering with non-upgraded nodes even after a soft-fork
                     // super-majority vote has passed.
+                    const CScript& scriptPubKey(coins->vout[prevout.n].scriptPubKey);
+                    LogPrintf("%s: %s():%d - script[%s], flags=0x%x\n", __FILE__, __func__, __LINE__,
+                        scriptPubKey.ToString(), flags);
                     return state.DoS(100,false, REJECT_INVALID, strprintf("mandatory-script-verify-flag-failed (%s)", ScriptErrorString(check.GetScriptError())));
                 }
             }
@@ -2386,6 +2389,8 @@ bool ContextualCheckTxInputs(const CTransaction& tx, CValidationState &state, co
                     // as to the correct behavior - we may want to continue
                     // peering with non-upgraded nodes even after a soft-fork
                     // super-majority vote has passed.
+                    LogPrintf("%s: %s():%d - script[%s], flags=0x%x\n", __FILE__, __func__, __LINE__,
+                        scriptPubKey.ToString(), flags);
                     return state.DoS(100,false, REJECT_INVALID, strprintf("mandatory-script-verify-flag-failed (%s)", ScriptErrorString(check.GetScriptError())));
                 }
             }

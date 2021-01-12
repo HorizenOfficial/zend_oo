@@ -11,11 +11,13 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
-    start_nodes, connect_nodes_bi, assert_true
+    start_nodes, connect_nodes_bi, assert_true, mark_logs
 from test_framework.mc_test.mc_test import *
 
 from decimal import Decimal
+import pprint
 
+DEBUG_MODE = 1
 NUMB_OF_NODES=3
 
 # Create one-input, one-output, no-fee transaction:
@@ -179,9 +181,10 @@ class RawTransactionsTest(BitcoinTestFramework):
         #generate wCertVk and constant
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
         vk = mcTest.generate_params("sc1")
+        cswVk = mcTest.generate_params("csw1")
         constant = generate_random_field_element_hex()
 
-        sc_cr = [{"epoch_length": sc_epoch, "amount":sc_cr_amount, "address":sc_address, "wCertVk": vk, "constant": constant}]
+        sc_cr = [{"epoch_length": sc_epoch, "amount":sc_cr_amount, "address":sc_address, "wCertVk": vk, "wCeasedVk":cswVk, "constant": constant}]
 
         #Try create a SC with no inputs
         print("Try create a SC with no inputs...")
@@ -224,15 +227,15 @@ class RawTransactionsTest(BitcoinTestFramework):
         scinfo2=self.nodes[2].getscinfo(scid)['items'][0]
         assert_equal(scinfo0,scinfo1)
         assert_equal(scinfo0,scinfo2)
-        print(scinfo0)
-        print(scinfo1)
-        print(scinfo2)
+        #print(scinfo0)
+        #print(scinfo1)
+        #print(scinfo2)
 
         #Try decode the SC with decoderawtransaction function
         print("Decode the new SC with decoderawtransaction function...")
 
         decoded_tx=self.nodes[0].decoderawtransaction(self.nodes[0].gettransaction(finalRawtx)['hex'])
-        print(decoded_tx)
+        #print(decoded_tx)
 
         assert(len(decoded_tx['vsc_ccout'])==1)
         assert_equal(decoded_tx['vsc_ccout'][0]['scid'],scid)
@@ -262,9 +265,9 @@ class RawTransactionsTest(BitcoinTestFramework):
         scinfo2=self.nodes[2].getscinfo(scid)['items'][0]
         assert_equal(scinfo0,scinfo1)
         assert_equal(scinfo0,scinfo2)
-        print(scinfo0)
-        print(scinfo1)
-        print(scinfo2)
+        #print(scinfo0)
+        #print(scinfo1)
+        #print(scinfo2)
 
         decoded_tx=self.nodes[0].decoderawtransaction(self.nodes[0].gettransaction(finalRawtx)['hex'])
         assert(len(decoded_tx['vsc_ccout'])==0)
@@ -298,8 +301,19 @@ class RawTransactionsTest(BitcoinTestFramework):
         # Create Tx with a single CSW input
         print("Create Tx with a single CSW input")
         rawtx = self.nodes[0].createrawtransaction([], sc_csw_tx_outs, sc_csws, [], [])
+        mark_logs("Signing SIGALL", self.nodes, DEBUG_MODE)
         sigRawtx = self.nodes[0].signrawtransaction(rawtx)
-        finalRawtx = self.nodes[0].sendrawtransaction(sigRawtx['hex'])
+        decoded_tx=self.nodes[0].decoderawtransaction((sigRawtx)['hex'])
+        pprint.pprint(decoded_tx)
+        #raw_input("______________________")
+        mark_logs("Sending SIGALL", self.nodes, DEBUG_MODE)
+        try:
+            finalRawtx = self.nodes[0].sendrawtransaction(sigRawtx['hex'])
+        except JSONRPCException,e:
+            errorString = e.error['message']
+            mark_logs("failure with reason {}".format(errorString), self.nodes, DEBUG_MODE)
+            assert(False)
+
 
         self.sync_all()
 
@@ -317,9 +331,35 @@ class RawTransactionsTest(BitcoinTestFramework):
         print("Create Tx with a single CSW input and single output. CSW input signed as 'SINGLE'.")
         sc_csws[0]['nullifier'] = generate_random_field_element_hex()
         
+        pk_arr       = []
+        # get a UTXO for setting fee
+        utx = False
+        listunspent = self.nodes[0].listunspent()
+        for aUtx in listunspent:
+            if aUtx['amount'] > 0:
+                utx = aUtx
+                change = aUtx['amount'] - 0
+                break;
+
+        assert_equal(utx!=False, True)
+
+        pk_good = self.nodes[0].dumpprivkey(utx['address'])
+        pk_arr.append(pk_good)
+        pprint.pprint(pk_arr)
+
         rawtx = self.nodes[0].createrawtransaction([], sc_csw_tx_outs, sc_csws, [], [])
-        sigRawtx = self.nodes[0].signrawtransaction(rawtx, [], [], "SINGLE")
-        finalRawtx = self.nodes[0].sendrawtransaction(sigRawtx['hex'])
+        mark_logs("Signing SINGLE", self.nodes, DEBUG_MODE)
+        sigRawtx = self.nodes[0].signrawtransaction(rawtx, [], pk_arr, "SINGLE")
+        decoded_tx=self.nodes[0].decoderawtransaction((sigRawtx)['hex'])
+        pprint.pprint(decoded_tx)
+        #raw_input("______________________")
+        mark_logs("Sending SINGLE signed", self.nodes, DEBUG_MODE)
+        try:
+            finalRawtx = self.nodes[0].sendrawtransaction(sigRawtx['hex'])
+        except JSONRPCException,e:
+            errorString = e.error['message']
+            mark_logs("failure with reason {}".format(errorString), self.nodes, DEBUG_MODE)
+            assert(False)
 
         self.sync_all()
 
