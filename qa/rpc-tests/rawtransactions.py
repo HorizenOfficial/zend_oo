@@ -343,7 +343,9 @@ class RawTransactionsTest(BitcoinTestFramework):
 
         assert_equal(utx!=False, True)
 
-        pk_good = self.nodes[0].dumpprivkey(utx['address'])
+        #pk_good = self.nodes[0].dumpprivkey(utx['address'])
+        taddr = sc_csws[0]['senderAddress']
+        pk_good = self.nodes[0].dumpprivkey(taddr)
         pk_arr.append(pk_good)
         pprint.pprint(pk_arr)
 
