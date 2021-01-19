@@ -185,7 +185,7 @@ public:
         pchMessageStart[2] = 0xcd;
         pchMessageStart[3] = 0xe6;
         vAlertPubKey = ParseHex("048679fb891b15d0cada9692047fd0ae26ad8bfb83fabddbb50334ee5bc0683294deb410be20513c5af6e7b9cec717ade82b27080ee6ef9a245c36a795ab044bb3");
-        nDefaultPort = 20033;
+        nDefaultPort = 19033;
 //        nMinerThreads = 0;
         nPruneAfterHeight = 1000;
 
@@ -198,9 +198,11 @@ public:
 
         vFixedSeeds.clear();
         vSeeds.clear();
-
-        vSeeds.push_back(CDNSSeedData("sidechains-testnet.horizen.global", "dnsseed.sidechains-testnet.horizen.global")); //dns seeder
-        vSeeds.push_back(CDNSSeedData("horizen.global", "sidechains-testnet.horizen.global")); //fixed seeds, 4 nodes
+        vSeeds.push_back(CDNSSeedData("dnsseed.testnet.horizen.global", "dnsseed.testnet.horizen.global")); // dns seeder
+        vSeeds.push_back(CDNSSeedData("dnsseed.testnet.zensystem.io", "dnsseed.testnet.zensystem.io")); // dns seeder
+        vSeeds.push_back(CDNSSeedData("testnet.horizen.global", "testnet.horizen.global")); // fixed seed
+        vSeeds.push_back(CDNSSeedData("tesntet.zensytem.io", "tesntet.zensystem.io")); // fixed seed
+        vSeeds.push_back(CDNSSeedData("node1.zenchain.info", "node1.zenchain.info")); // fixed seed
 
         // guarantees the first 2 characters, when base58 encoded, are "zt"
         // guarantees the first 2 characters, when base58 encoded, are "tm"
