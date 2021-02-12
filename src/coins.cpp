@@ -1034,8 +1034,8 @@ bool CCoinsViewCache::IsTxCswApplicableToState(const CTransaction& tx, CValidati
             }
         }
 
-        libzendoomc::ScFieldElement certDataHash;
-        if (!this->GetActiveCertDataHash(csw.scId, certDataHash))
+        libzendoomc::ScFieldElement certDataHash = this->GetActiveCertDataHash(csw.scId);
+        if (!libzendoomc::IsValidScFieldElement(certDataHash))
             return state.Invalid(error("missing active cert data hash for required scId"),
                  REJECT_INVALID, "tx-csw-missing-active-cert-data-hash");
 

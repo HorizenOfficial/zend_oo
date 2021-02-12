@@ -154,7 +154,7 @@ TEST_F(SidechainConnectCertsBlockTestSuite, ConnectBlock_SingleCert_SameEpoch_Ce
     // ceasing height is 20% of epoch length (20) + 1; end of epoch 5 is h=199
     ceasingMap[204] = CSidechainEventsCacheEntry(event, CSidechainEventsCacheEntry::Flags::FRESH);
     txCreationUtils::storeSidechain(*sidechainsView, scId, initialScState, ceasingMap);
-    txCreationUtils::storeCertDataHash(*sidechainsView, scId, initialScState.prevBlockTopQualityCertReferencedEpoch);
+    txCreationUtils::storeCertDataHash(*sidechainsView, scId, initialScState.lastTopQualityCertReferencedEpoch);
 
     // create block with certificate ...
     CMutableScCertificate singleCert;
@@ -225,7 +225,7 @@ TEST_F(SidechainConnectCertsBlockTestSuite, ConnectBlock_SingleCert_DifferentEpo
     CSidechainEventsMap ceasingMap;
     ceasingMap[204] = CSidechainEventsCacheEntry(event, CSidechainEventsCacheEntry::Flags::FRESH);
     txCreationUtils::storeSidechain(*sidechainsView, scId, initialScState, ceasingMap);
-    txCreationUtils::storeCertDataHash(*sidechainsView,scId, initialScState.prevBlockTopQualityCertReferencedEpoch);
+    txCreationUtils::storeCertDataHash(*sidechainsView,scId, initialScState.lastTopQualityCertReferencedEpoch);
 
     // create block with certificate ...
     CMutableScCertificate singleCert;
@@ -297,7 +297,7 @@ TEST_F(SidechainConnectCertsBlockTestSuite, ConnectBlock_MultipleCerts_SameEpoch
     CSidechainEventsMap ceasingMap;
     ceasingMap[204] = CSidechainEventsCacheEntry(event, CSidechainEventsCacheEntry::Flags::FRESH);
     txCreationUtils::storeSidechain(*sidechainsView, scId, initialScState, ceasingMap);
-    txCreationUtils::storeCertDataHash(*sidechainsView, scId, initialScState.prevBlockTopQualityCertReferencedEpoch);
+    txCreationUtils::storeCertDataHash(*sidechainsView, scId, initialScState.lastTopQualityCertReferencedEpoch);
 
     // create block with certificates ...
     CMutableScCertificate lowQualityCert;
@@ -382,7 +382,7 @@ TEST_F(SidechainConnectCertsBlockTestSuite, ConnectBlock_MultipleCerts_Different
     CSidechainEventsMap ceasingMap;
     ceasingMap[204] = CSidechainEventsCacheEntry(event, CSidechainEventsCacheEntry::Flags::FRESH);
     txCreationUtils::storeSidechain(*sidechainsView, scId, initialScState, ceasingMap);
-    txCreationUtils::storeCertDataHash(*sidechainsView, scId, initialScState.prevBlockTopQualityCertReferencedEpoch);
+    txCreationUtils::storeCertDataHash(*sidechainsView, scId, initialScState.lastTopQualityCertReferencedEpoch);
 
     // create block with certificates ...
     CMutableScCertificate lowQualityCert;
@@ -454,7 +454,7 @@ TEST_F(SidechainConnectCertsBlockTestSuite, ConnectBlock_ScCreation_then_Mbtr_In
     CSidechain dummyScState;
     uint256 dummyScId = uint256();
     CSidechainEventsMap dummyCeasingMap;
-    storeSidechain(dummyScId, dummyScState, dummyCeasingMap); //Setup bestBlock
+    txCreationUtils::storeSidechain(*sidechainsView, dummyScId, dummyScState, dummyCeasingMap); //Setup bestBlock
 
     // create block with scCreation and mbtr ...
     CBlock block;
@@ -516,7 +516,7 @@ TEST_F(SidechainConnectCertsBlockTestSuite, ConnectBlock_Mbtr_then_ScCreation_In
     CSidechain dummyScState;
     uint256 dummyScId = uint256();
     CSidechainEventsMap dummyCeasingMap;
-    storeSidechain(dummyScId, dummyScState, dummyCeasingMap); //Setup bestBlock
+    txCreationUtils::storeSidechain(*sidechainsView, dummyScId, dummyScState, dummyCeasingMap); //Setup bestBlock
 
     // create faulty block with mbtr before scCreation ...
     CBlock block;

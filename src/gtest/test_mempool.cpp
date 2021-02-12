@@ -142,7 +142,7 @@ TEST(Mempool, TxInputLimit) {
     // Check it now fails due to exceeding the total inputs limit
     CValidationState state3csw;
     CTransaction txWithCsw(mtx);
-    EXPECT_FALSE(AcceptTxToMemoryPool(pool, state3csw, txWithCsw, false, &missingInputs));
+    EXPECT_FALSE(AcceptTxToMemoryPool(pool, state3csw, txWithCsw, eLimitFree::OFF, &missingInputs, eDisconnecting::OFF, eRejectAbsurdFee::OFF));
     // The -mempooltxinputlimit check doesn't set a reason
     EXPECT_EQ(state3csw.GetRejectReason(), "");
 
@@ -154,7 +154,7 @@ TEST(Mempool, TxInputLimit) {
     EXPECT_FALSE(AcceptTxToMemoryPool(pool, state4, tx3, eLimitFree::OFF, &missingInputs, eDisconnecting::OFF, eRejectAbsurdFee::OFF));
     EXPECT_EQ(state4.GetRejectReason(), "bad-txns-version-too-low");
     CValidationState state4csw;
-    EXPECT_FALSE(AcceptTxToMemoryPool(pool, state4csw, txWithCsw, false, &missingInputs));
+    EXPECT_FALSE(AcceptTxToMemoryPool(pool, state4csw, txWithCsw, eLimitFree::OFF, &missingInputs, eDisconnecting::OFF, eRejectAbsurdFee::OFF));
     EXPECT_EQ(state4.GetRejectReason(), "bad-txns-version-too-low");
 }
 //TO BE UPDATED WITH OUR TX VERSIONS

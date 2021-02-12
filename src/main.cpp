@@ -1419,18 +1419,17 @@ bool AcceptTxToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTran
                 return state.DoS(0, error("%s():%d - ERROR: sc-related tx [%s] is not applicable\n", __func__, __LINE__, hash.ToString()),
                                  REJECT_INVALID, "bad-sc-tx");
             }
- 
-            // are the joinsplit's requirements met?
-            if (!view.HaveJoinSplitRequirements(tx))
-                return state.Invalid(error("%s(): joinsplit requirements not met", __func__),
-                                     REJECT_DUPLICATE, "bad-txns-joinsplit-requirements-not-met");
 
-            auto scVerifier = disconnecting ? libzendoomc::CScProofVerifier::Strict() : libzendoomc::CScProofVerifier::Disabled();
             if (!view.IsTxCswApplicableToState(tx, state, scVerifier) ) {
                 LogPrint("sc", "%s():%d - ERROR: csw input for Tx [%s] is not applicable\n", __func__, __LINE__, tx.GetHash().ToString() );
                 return state.DoS(100, error("%s(): invalid csw input for Tx [%s]", __func__, tx.GetHash().ToString()),
                                  REJECT_INVALID, "bad-txns-csw-input-not-applicable");
             }
+
+            // are the joinsplit's requirements met?
+            if (!view.HaveJoinSplitRequirements(tx))
+                return state.Invalid(error("%s(): joinsplit requirements not met", __func__),
+                                     REJECT_DUPLICATE, "bad-txns-joinsplit-requirements-not-met");
  
             // Bring the best block into scope
             view.GetBestBlock();
@@ -2275,7 +2274,10 @@ bool ContextualCheckTxInputs(const CTransaction& tx, CValidationState &state, co
 
 bool ContextualCheckCertInputs(const CScCertificate& cert, CValidationState &state, const CCoinsViewCache &inputs, bool fScriptChecks, const CChain& chain, unsigned int flags, bool cacheStore, const Consensus::Params& consensusParams, std::vector<CScriptCheck> *pvChecks)
 {
-    if (!Consensus::CheckTxInputs(cert, state, inputs, GetSpendHeight(inputs), consensusParams)) {
+    // While checking, GetHeight() is the height of the parent block.
+    // This is also true for mempool checks.
+	int spendHeight = inputs.GetHeight() + 1;
+    if (!Consensus::CheckTxInputs(cert, state, inputs, spendHeight, consensusParams)) {
         return false;
     }
 
@@ -2831,6 +2833,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                                  REJECT_INVALID, "bad-sc-tx");
             }
 
+            if (!view.IsTxCswApplicableToState(tx, state, scVerifier) ) {
+                LogPrint("sc", "%s():%d - ERROR: tx=%s\n", __func__, __LINE__, tx.GetHash().ToString() );
+                return state.DoS(100, error("ConnectBlock(): invalid csw input for Tx [%s]", tx.GetHash().ToString()),
+                                 REJECT_INVALID, "bad-txns-csw-input-not-applicable");
+            }
+
             // are the JoinSplit's requirements met?
             if (!view.HaveJoinSplitRequirements(tx))
                 return state.DoS(100, error("ConnectBlock(): JoinSplit requirements not met"),
@@ -2851,13 +2859,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 return false;
 
             control.Add(vChecks);
-
-            auto scVerifier = fExpensiveChecks ? libzendoomc::CScProofVerifier::Strict() : libzendoomc::CScProofVerifier::Disabled();
-            if (!view.IsTxCswApplicableToState(tx, state, scVerifier) ) {
-                LogPrint("sc", "%s():%d - ERROR: tx=%s\n", __func__, __LINE__, tx.GetHash().ToString() );
-                return state.DoS(100, error("ConnectBlock(): invalid csw input for Tx [%s]", tx.GetHash().ToString()),
-                                 REJECT_INVALID, "bad-txns-csw-input-not-applicable");
-            }
         }
 
         CTxUndo undoDummy;

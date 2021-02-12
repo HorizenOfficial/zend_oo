@@ -917,8 +917,6 @@ UniValue sc_create(const UniValue& params, bool fHelp)
         }
     }
 
-    CcRecipientVariant r(sc);
-
     vector<CRecipientScCreation> vecScSend;
     vecScSend.push_back(sc);
 

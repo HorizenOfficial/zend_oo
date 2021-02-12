@@ -386,7 +386,7 @@ TEST_F(SidechainsEventsTestSuite, CeasingHeightUpdateForNoBwtCert) {
 
     //Checks
     ASSERT_TRUE(view->GetSidechain(scId, sidechain));
-    int newCeasingHeight = sidechain.StartHeightForEpoch(cert.epochNumber+2)+sidechain.SafeguardMargin();ì
+    int newCeasingHeight = sidechain.StartHeightForEpoch(cert.epochNumber+2)+sidechain.SafeguardMargin();
     CSidechainEvents updatedCeasingScIds;
     EXPECT_TRUE(view->GetSidechainEvents(newCeasingHeight, updatedCeasingScIds));
     EXPECT_TRUE(updatedCeasingScIds.ceasingScs.count(scId) != 0);

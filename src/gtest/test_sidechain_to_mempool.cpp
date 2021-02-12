@@ -753,13 +753,13 @@ TEST_F(SidechainsInMempoolTestSuite, CSWsToCeasedSidechainIsAccepted) {
     CSidechain sidechain;
     sidechain.balance = CAmount(100);
     sidechain.creationData.wCeasedVk = libzendoomc::ScVk(ParseHex(SAMPLE_VK));
-    sidechain.prevBlockTopQualityCertReferencedEpoch = 10;
+    sidechain.lastTopQualityCertReferencedEpoch = 10;
     sidechain.currentState = (uint8_t)CSidechain::State::CEASED;
 
     CSidechainEventsMap dummyCeasingMap;
     txCreationUtils::storeSidechain(*pcoinsTip, scId, sidechain, dummyCeasingMap);
     txCreationUtils::storeCertDataHash(*pcoinsTip, scId, 0);
-    txCreationUtils::storeCertDataHash(*pcoinsTip, scId, sidechain.prevBlockTopQualityCertReferencedEpoch-1);
+    txCreationUtils::storeCertDataHash(*pcoinsTip, scId, sidechain.lastTopQualityCertReferencedEpoch-1);
 
     CAmount cswTxCoins = sidechain.balance/2;
     CTxCeasedSidechainWithdrawalInput cswInput = GenerateCSWInput(scId, "aabb", cswTxCoins);
@@ -1066,7 +1066,7 @@ TEST_F(SidechainsInMempoolTestSuite, CSWsToCeasedSidechainWithoutVK) {
     CValidationState cswTxState;
     bool missingInputs = false;
 
-    EXPECT_FALSE(AcceptTxToMemoryPool(mempool, cswTxState, cswTx, false, &missingInputs));
+    EXPECT_FALSE(AcceptTxToMemoryPool(mempool, cswTxState, cswTx, eLimitFree::OFF, &missingInputs, eDisconnecting::OFF, eRejectAbsurdFee::OFF));
 }
 
 TEST_F(SidechainsInMempoolTestSuite, ConflictingCswRemovalFromMempool) {

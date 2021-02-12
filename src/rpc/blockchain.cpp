@@ -1208,7 +1208,6 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
                     ia.push_back(o);
                     sc.push_back(Pair("unconf immature amounts", ia));
                 }
->>>>>>> ceased_sidechain_withdrawal
             }
 
             addScUnconfCcData(scId, sc);
@@ -1310,10 +1309,9 @@ void FillCertDataHash(const uint256& scid, UniValue& ret)
         throw JSONRPCError(RPC_INVALID_PARAMETER, string("scid not yet created: ") + scid.ToString());
     }
 
-    libzendoomc::ScFieldElement certDataHash;
-    if (!scView.GetActiveCertDataHash(scid, certDataHash))
+    libzendoomc::ScFieldElement certDataHash = scView.GetActiveCertDataHash(scid);
+    if (!libzendoomc::IsValidScFieldElement(certDataHash))
     {
-        LogPrint("sc", "%s():%d - scid[%s] active cert data hash not in db\n", __func__, __LINE__, scid.ToString());
         throw JSONRPCError(RPC_INVALID_PARAMETER, string("missing active cert data hash for required scid"));
     }
 

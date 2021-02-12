@@ -215,12 +215,6 @@ bool CCoinsViewDB::HaveCswNullifier(const uint256& scId, const libzendoomc::ScFi
     return db.Exists(make_pair(DB_CSW_NULLIFIER, position));
 }
 
-bool CCoinsViewDB::GetActiveCertDataHash(const uint256& scId, libzendoomc::ScFieldElement& certDataHash) const {
-    // TODO: method real implementation will be integrated later from the MBTR branch.
-    certDataHash = libzendoomc::ScFieldElement();
-    return true;
-}
-
 bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins,
                               const uint256 &hashBlock,
                               const uint256 &hashAnchor,
