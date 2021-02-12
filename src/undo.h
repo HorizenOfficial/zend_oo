@@ -10,6 +10,7 @@
 #include "primitives/transaction.h"
 #include "serialize.h"
 #include "coins.h"
+#include "sc/proofverifier.h"
 
 /** Undo information for a CTxIn
  *
@@ -161,6 +162,9 @@ struct CSidechainUndoData
     // CEASED_CERTIFICATE_DATA
     std::vector<CTxInUndo> ceasedBwts;
 
+    // CERT DATA HASH SECTION
+    libzendoomc::ScFieldElement prevTopCommittedCertDataHash;
+
     CSidechainUndoData(): sidechainUndoDataVersion(0), contentBitMask(AvailableSections::UNDEFINED),
         appliedMaturedAmount(0), pastEpochTopQualityCertDataHash(),
         prevTopCommittedCertHash(), prevTopCommittedCertReferencedEpoch(CScCertificate::EPOCH_NULL),
@@ -250,7 +254,7 @@ struct CSidechainUndoData
             ::Unserialize(s, prevTopCommittedCertQuality,         nType, nVersion);
             ::Unserialize(s, prevTopCommittedCertBwtAmount,       nType, nVersion);
             ::Unserialize(s, lastTopQualityCertDataHash,          nType, nVersion);
-        }
+        } 
         if (contentBitMask & AvailableSections::SUPERSEDED_CERT_DATA)
         {
             ::Unserialize(s, lowQualityBwts, nType, nVersion);

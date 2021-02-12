@@ -109,15 +109,21 @@ struct CSidechainMemPoolEntry
 {
     uint256 scCreationTxHash;
     std::set<uint256> fwdTransfersSet; 
-    std::map<int64_t, uint256> mBackwardCertificates; //quality -> certHash
+    std::map<int64_t, uint256> mBackwardCertificates;             // cert quality  -> cert hash
     std::set<uint256> mcBtrSet;
+    std::map<libzendoomc::ScFieldElement, uint256> cswNullifiers; // csw nullifier -> containing Tx hash
+    CAmount cswTotalAmount;
 
     // Note: in fwdTransfersSet and mcBtrSet, a tx is registered only once,
     // even if sends multiple fwts/btrs founds to a sidechain.
     // Upon removal we will need to guard against potential double deletes.
     bool IsNull() const {
-        return  scCreationTxHash.IsNull() && fwdTransfersSet.empty() &&
-                mBackwardCertificates.empty() && mcBtrSet.empty();
+        return (fwdTransfersSet.empty()         &&
+                scCreationTxHash.IsNull()       &&
+                mBackwardCertificates.empty()   &&
+				mcBtrSet.empty()                &&
+                cswNullifiers.empty()           &&
+                cswTotalAmount == 0);
     }
 
     const std::map<int64_t, uint256>::const_reverse_iterator GetTopQualityCert() const;
@@ -179,6 +185,9 @@ public:
      * check does nothing.
      */
     void check(const CCoinsViewCache *pcoins) const;
+    bool checkIncomingTxConflicts(const CTransaction& incomingTx) const;
+    bool checkIncomingCertConflicts(const CScCertificate& incomingCert) const;
+
     void setSanityCheck(bool _fSanityCheck) { fSanityCheck = _fSanityCheck; }
 
     std::pair<uint256, CAmount> FindCertWithQuality(const uint256& scId, int64_t certQuality);
@@ -202,6 +211,8 @@ public:
                         std::list<CTransaction>& conflictingTxs, std::list<CScCertificate>& removedCerts, bool fCurrentEstimate = true);
     void removeConflicts(const CTransaction &tx,
                          std::list<CTransaction>& removedTxs, std::list<CScCertificate>& removedCerts);
+    void removeOutOfScBalanceCsw(const CCoinsViewCache * const pCoinsView,
+                                 std::list<CTransaction> &removedTxs, std::list<CScCertificate> &removedCerts);
     void removeStaleTransactions(const CCoinsViewCache * const pCoinsView, unsigned int nMemPoolHeight,
                                  std::list<CTransaction>& outdatedTxs, std::list<CScCertificate>& outdatedCerts);
     // END OF UNCONFIRMED TRANSACTIONS CLEANUP METHODS
@@ -311,6 +322,12 @@ public:
         return (mapSidechains.count(scId) != 0) && (!mapSidechains.at(scId).fwdTransfersSet.empty());
     }
 
+    bool HaveCswNullifier(const uint256& scId, const libzendoomc::ScFieldElement &nullifier) const
+    {
+    	LOCK(cs);
+    	return mapSidechains.count(scId) != 0 && mapSidechains.at(scId).cswNullifiers.count(nullifier) != 0;
+    }
+
     bool lookup(const uint256& hash, CTransaction& result) const;
     bool lookup(const uint256& hash, CScCertificate& result) const;
 
@@ -339,12 +356,14 @@ protected:
 public:
     CCoinsViewMemPool(CCoinsView *baseIn, CTxMemPool &mempoolIn);
 
-    bool GetNullifier(const uint256 &txid)                         const override;
-    bool GetCoins(const uint256 &txid, CCoins &coins)              const override;
-    bool HaveCoins(const uint256 &txid)                            const override;
-    bool GetSidechain(const uint256& scId, CSidechain& info)       const override;
-    bool HaveSidechain(const uint256& scId)                        const override;
-    void GetScIds(std::set<uint256>& scIdsList)                    const override;
+    bool GetNullifier(const uint256 &txid)                              const override;
+    bool GetCoins(const uint256 &txid, CCoins &coins)                   const override;
+    bool HaveCoins(const uint256 &txid)                                 const override;
+    bool GetSidechain(const uint256& scId, CSidechain& info)            const override;
+    bool HaveSidechain(const uint256& scId)                             const override;
+    void GetScIds(std::set<uint256>& scIdsList)                         const override;
+    bool HaveCswNullifier(const uint256& scId,
+    		              const libzendoomc::ScFieldElement &nullifier) const override;
 };
 
 #endif // BITCOIN_TXMEMPOOL_H

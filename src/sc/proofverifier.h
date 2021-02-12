@@ -12,6 +12,7 @@
 
 class CSidechain;
 class CScCertificate;
+class CTxCeasedSidechainWithdrawalInput;
 
 namespace libzendoomc{
     typedef base_blob<SC_FIELD_SIZE * 8> ScFieldElement;
@@ -39,6 +40,9 @@ namespace libzendoomc{
 
     /* Write scVk to file in vkPath. Returns true if operation succeeds, false otherwise. */
     bool SaveScVkToFile(const boost::filesystem::path& vkPath, const ScVk& scVk);
+
+    /* Calculate certificate data hash for given certificate. */
+    ScFieldElement CalculateCertDataHash(const CScCertificate& cert);
 
     /* Support class for WCert SNARK proof verification. */
     class CScWCertProofVerification {
@@ -130,6 +134,14 @@ namespace libzendoomc{
                 const libzendoomc::ScProof& scProof,
                 const boost::optional<libzendoomc::ScVk>& wMbtrVk,
 				const libzendoomc::ScFieldElement& certDataHash
+            ) const;
+
+            // Returns false if proof verification has failed or deserialization of CSW's elements
+            // into libzendoomc's elements has failed.
+            bool verifyCTxCeasedSidechainWithdrawalInput(
+                const ScFieldElement& certDataHash,
+                const ScVk& wCeasedVk,
+                const CTxCeasedSidechainWithdrawalInput& csw
             ) const;
     };
 }

@@ -283,6 +283,22 @@ public:
     }
 };
 
+class CCswNullifiersKeyHasher
+{
+private:
+    static const size_t BUF_LEN = 32 + SC_FIELD_SIZE;
+    uint32_t salt[BUF_LEN/4];
+public:
+    CCswNullifiersKeyHasher();
+
+    /**
+     * This *must* return size_t. With Boost 1.46 on 32-bit systems the
+     * unordered_map will behave unpredictably if the custom hasher returns a
+     * uint64_t, resulting in failures when syncing the chain (#4634).
+     */
+    size_t operator()(const std::pair<uint256, libzendoomc::ScFieldElement>& key) const;
+};
+
 struct CCoinsCacheEntry
 {
     CCoins coins; // The actual cached data.
@@ -315,6 +331,7 @@ struct CNullifiersCacheEntry
     unsigned char flags;
 
     enum Flags {
+        DEFAULT = 0,
         DIRTY = (1 << 0), // This cache entry is potentially different from the version in the parent view.
     };
 
@@ -424,12 +441,18 @@ struct CSidechainEventsCacheEntry: public CMutableSidechainCacheEntry
     bool ContentCheck(const CSidechainEventsCacheEntry& rhs) {return this->scEvents == rhs.scEvents;}
 };
 
+struct CCswNullifiersCacheEntry: public CImmutableSidechainCacheEntry
+{
+    CCswNullifiersCacheEntry(Flags _flag = Flags::DEFAULT): CImmutableSidechainCacheEntry(_flag) {}
+};
+
 typedef boost::unordered_map<uint256, CCoinsCacheEntry, CCoinsKeyHasher>      CCoinsMap;
 typedef boost::unordered_map<uint256, CAnchorsCacheEntry, CCoinsKeyHasher>    CAnchorsMap;
 typedef boost::unordered_map<uint256, CNullifiersCacheEntry, CCoinsKeyHasher> CNullifiersMap;
 
 typedef boost::unordered_map<uint256, CSidechainsCacheEntry, CCoinsKeyHasher> CSidechainsMap;
 typedef boost::unordered_map<int, CSidechainEventsCacheEntry> CSidechainEventsMap;
+typedef boost::unordered_map<std::pair<uint256, libzendoomc::ScFieldElement>, CCswNullifiersCacheEntry, CCswNullifiersKeyHasher> CCswNullifiersMap;
 
 struct CCoinsStats
 {
@@ -465,7 +488,7 @@ public:
     //! Just check whether we have data for a given sidechain id.
     virtual bool HaveSidechain(const uint256& scId) const;
 
-    //! Retrieve the Sidechain informations for a give sidechain id.
+    //! Retrieve the Sidechain informations for a given sidechain id.
     virtual bool GetSidechain(const uint256& scId, CSidechain& info) const;
 
     //! Just check whether we have ceasing sidechains at given height
@@ -485,6 +508,10 @@ public:
 
     //! Get the current "tip" or the latest anchored tree root in the chain
     virtual uint256 GetBestAnchor() const;
+    
+    //! Retrieve existance of CSW nullifier for specified Sidechain.
+    virtual bool HaveCswNullifier(const uint256& scId,
+                                  const libzendoomc::ScFieldElement& nullifier) const;
 
     //! Do a bulk modification (multiple CCoins changes + BestBlock change).
     //! The passed mapCoins can be modified.
@@ -494,7 +521,8 @@ public:
                             CAnchorsMap &mapAnchors,
                             CNullifiersMap &mapNullifiers,
                             CSidechainsMap& mapSidechains,
-                            CSidechainEventsMap& mapCeasedScs);
+                            CSidechainEventsMap& mapCeasedScs,
+                            CCswNullifiersMap& cswNullifiers);
 
     //! Calculate statistics about the unspent transaction output set
     virtual bool GetStats(CCoinsStats &stats) const;
@@ -512,18 +540,21 @@ protected:
 
 public:
     CCoinsViewBacked(CCoinsView *viewIn);
-    bool GetAnchorAt(const uint256 &rt, ZCIncrementalMerkleTree &tree) const override;
-    bool GetNullifier(const uint256 &nullifier)                        const override;
-    bool GetCoins(const uint256 &txid, CCoins &coins)                  const override;
-    bool HaveCoins(const uint256 &txid)                                const override;
-    bool HaveSidechain(const uint256& scId)                            const override;
-    bool GetSidechain(const uint256& scId, CSidechain& info)           const override;
-    bool HaveSidechainEvents(int height)                               const override;
-    bool GetSidechainEvents(int height, CSidechainEvents& scEvents)    const override;
-    void GetScIds(std::set<uint256>& scIdsList)                        const override;
-    bool CheckQuality(const CScCertificate& cert)                      const override;
-    uint256 GetBestBlock()                                             const override;
-    uint256 GetBestAnchor()                                            const override;
+    bool GetAnchorAt(const uint256 &rt, ZCIncrementalMerkleTree &tree)                          const override;
+    bool GetNullifier(const uint256 &nullifier)                                                 const override;
+    bool GetCoins(const uint256 &txid, CCoins &coins)                                           const override;
+    bool HaveCoins(const uint256 &txid)                                                         const override;
+    bool HaveSidechain(const uint256& scId)                                                     const override;
+    bool GetSidechain(const uint256& scId, CSidechain& info)                                    const override;
+    bool HaveSidechainEvents(int height)                                                        const override;
+    bool GetSidechainEvents(int height, CSidechainEvents& scEvents)                             const override;
+    void GetScIds(std::set<uint256>& scIdsList)                                                 const override;
+    bool CheckQuality(const CScCertificate& cert)                                               const override;
+    uint256 GetBestBlock()                                                                      const override;
+    uint256 GetBestAnchor()                                                                     const override;
+    bool HaveCswNullifier(const uint256& scId,
+                         const libzendoomc::ScFieldElement &nullifier)                          const override;
+
     void SetBackend(CCoinsView &viewIn);
     bool BatchWrite(CCoinsMap &mapCoins,
                     const uint256 &hashBlock,
@@ -531,8 +562,11 @@ public:
                     CAnchorsMap &mapAnchors,
                     CNullifiersMap &mapNullifiers,
                     CSidechainsMap& mapSidechains,
-                    CSidechainEventsMap& mapCeasedScs)                            override;
-    bool GetStats(CCoinsStats &stats)                                  const override;
+                    CSidechainEventsMap& mapCeasedScs,
+                    CCswNullifiersMap& cswNullifiers)                          override;
+    bool GetStats(CCoinsStats &stats)                                    const override;
+
+
 };
 
 
@@ -577,13 +611,14 @@ protected:
     mutable uint256        hashAnchor;
     mutable CAnchorsMap    cacheAnchors;
     mutable CNullifiersMap cacheNullifiers;
+    mutable CCswNullifiersMap cacheCswNullifiers;
 
     /* Cached dynamic memory usage for the inner CCoins objects. */
     mutable size_t cachedCoinsUsage;
 
 public:
     CCoinsViewCache(CCoinsView *baseIn);
-    CCoinsViewCache(const CCoinsViewCache &) = delete; //prevent accidental copies when one intends to create a cache on top of a base cache.
+    CCoinsViewCache(const CCoinsViewCache &) = delete; //we prevent accidentally using it when one intends to create a cache on top of a base cache.
     ~CCoinsViewCache();
 
     // Standard CCoinsView methods
@@ -601,7 +636,8 @@ public:
                     CAnchorsMap &mapAnchors,
                     CNullifiersMap &mapNullifiers,
                     CSidechainsMap& mapSidechains,
-                    CSidechainEventsMap& mapCeasedScs)                            override;
+                    CSidechainEventsMap& mapCeasedScs,
+                    CCswNullifiersMap& cswNullifiers)                        override;
 
 
     // Adds the tree to mapAnchors and sets the current commitment
@@ -642,6 +678,10 @@ public:
     bool IsScTxApplicableToState(const CTransaction& tx, int height, libzendoomc::CScProofVerifier& scVerifier) const;
     bool UpdateSidechain(const CTransaction& tx, const CBlock&, int nHeight);
     bool RevertTxOutputs(const CTransaction& tx, int nHeight);
+    int getScCoinsMaturity();
+
+    //CSW INPUTS RELATED PUBLIC MEMBERS
+    bool IsTxCswApplicableToState(const CTransaction& tx, CValidationState& state, libzendoomc::CScProofVerifier& scVerifier) const;
 
     //CERTIFICATES RELATED PUBLIC MEMBERS
     bool IsCertApplicableToState(const CScCertificate& cert, int nHeight, libzendoomc::CScProofVerifier& scVerifier) const;
@@ -669,8 +709,13 @@ public:
     bool HandleSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo);
     bool RevertSidechainEvents(const CBlockUndo& blockUndo, int height, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo);
 
-    CSidechain::State isCeasedAtHeight(const uint256& scId, int height) const;
+    //CSW NULLIFIER PUBLIC MEMBERS
+    bool HaveCswNullifier(const uint256& scId, const libzendoomc::ScFieldElement &nullifier) const override;
+    bool AddCswNullifier(const uint256& scId, const libzendoomc::ScFieldElement &nullifier);
+    bool RemoveCswNullifier(const uint256& scId, const libzendoomc::ScFieldElement &nullifier);
+
     libzendoomc::ScFieldElement GetActiveCertDataHash(const uint256& scId) const;
+    CSidechain::State GetSidechainState(const uint256& scId) const;
 
     bool Flush();
 
@@ -704,16 +749,15 @@ public:
     friend class CCoinsModifier;
 
 private:
-    CCoinsMap::const_iterator      FetchCoins(const uint256 &txid)       const;
-    CCoinsMap::iterator            FetchCoins(const uint256 &txid);
-    CSidechainsMap::const_iterator FetchSidechains(const uint256& scId)  const;
-    CSidechainsMap::iterator       ModifySidechain(const uint256& scId);
-    const CSidechain* const        AccessSidechain(const uint256& scId)  const;
-    CSidechainEventsMap::const_iterator FetchSidechainEvents(int height) const;
-    CSidechainEventsMap::iterator  ModifySidechainEvents(int height);
+    CCoinsMap::const_iterator           FetchCoins(const uint256 &txid)       const;
+    CCoinsMap::iterator                 FetchCoins(const uint256 &txid);
+    CSidechainsMap::const_iterator      FetchSidechains(const uint256& scId)  const;
+    CSidechainsMap::iterator            ModifySidechain(const uint256& scId);
+    const CSidechain* const             AccessSidechain(const uint256& scId)  const;
+    CSidechainEventsMap::const_iterator FetchSidechainEvents(int height)      const;
+    CSidechainEventsMap::iterator       ModifySidechainEvents(int height);
 
     static int getInitScCoinsMaturity();
-    int getScCoinsMaturity();
 
     bool DecrementImmatureAmount(const uint256& scId, const CSidechainsMap::iterator& targetEntry, CAmount nValue, int maturityHeight);
     void Dump_info() const;

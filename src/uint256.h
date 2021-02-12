@@ -49,6 +49,7 @@ public:
     void SetHex(const char* psz);
     void SetHex(const std::string& str);
     std::string ToString() const;
+    uint64_t GetHash(const base_blob& salt) const;
 
     unsigned char* begin()
     {
@@ -154,5 +155,7 @@ inline uint256 uint256S(const std::string& str)
     rv.SetHex(str);
     return rv;
 }
+
+uint64_t CalculateHash(const uint32_t* const  src, size_t length, const uint32_t* const salt);
 
 #endif // BITCOIN_UINT256_H

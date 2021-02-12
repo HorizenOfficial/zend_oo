@@ -198,6 +198,21 @@ std::string CScCertificate::ToString() const
     return str;
 }
 
+bool CScCertificate::CheckInputsLimit() const {
+    // Node operator can choose to reject tx by number of transparent inputs
+    static_assert(std::numeric_limits<size_t>::max() >= std::numeric_limits<int64_t>::max(), "size_t too small");
+    size_t limit = (size_t) GetArg("-mempooltxinputlimit", 0);
+    if (limit > 0) {
+        size_t n = GetVin().size();
+        if (n > limit) {
+            LogPrint("mempool", "Dropping txid %s : too many inputs %zu > limit %zu\n",
+                    GetHash().ToString(), n, limit );
+            return false;
+        }
+    }
+    return true;
+}
+
 void CScCertificate::AddToBlock(CBlock* pblock) const
 {
     LogPrint("cert", "%s():%d - adding to block cert %s\n", __func__, __LINE__, GetHash().ToString());
@@ -224,16 +239,17 @@ bool CScCertificate::ContextualCheck(CValidationState& state, int nHeight, int d
 
     return true;
 }
-
 //--------------------------------------------------------------------------------------------
 // binaries other than zend that are produced in the build, do not call these members and therefore do not
 // need linking all of the related symbols. We use this macro as it is already defined with a similar purpose
 // in zen-tx binary build configuration
 #ifdef BITCOIN_TX
-std::shared_ptr<BaseSignatureChecker> CScCertificate::MakeSignatureChecker(unsigned int nIn, const CChain* chain, bool cacheStore) const
-{
-    return std::shared_ptr<BaseSignatureChecker>(NULL);
-}
+bool CScCertificate::ContextualCheckInputs(CValidationState &state, const CCoinsViewCache &view, bool fScriptChecks,
+          const CChain& chain, unsigned int flags, bool cacheStore, const Consensus::Params& consensusParams,
+          std::vector<CScriptCheck> *pvChecks) const { return true; }
+bool CScCertificate::VerifyScript(
+        const CScript& scriptPubKey, unsigned int nFlags, unsigned int nIn, const CChain* chain,
+        bool cacheStore, ScriptError* serror) const { return true; }
 
 void CScCertificate::Relay() const {}
 std::shared_ptr<const CTransactionBase> CScCertificate::MakeShared() const
@@ -242,9 +258,31 @@ std::shared_ptr<const CTransactionBase> CScCertificate::MakeShared() const
 }
 #else
 
-std::shared_ptr<BaseSignatureChecker> CScCertificate::MakeSignatureChecker(unsigned int nIn, const CChain* chain, bool cacheStore) const
+bool CScCertificate::ContextualCheckInputs(CValidationState &state, const CCoinsViewCache &view, bool fScriptChecks,
+          const CChain& chain, unsigned int flags, bool cacheStore, const Consensus::Params& consensusParams,
+          std::vector<CScriptCheck> *pvChecks) const
 {
-    return std::shared_ptr<BaseSignatureChecker>(new CachingCertificateSignatureChecker(this, nIn, chain, cacheStore));
+    return ::ContextualCheckCertInputs(*this, state, view, fScriptChecks, chain, flags, cacheStore, consensusParams, pvChecks);
+}
+
+bool CScCertificate::VerifyScript(
+        const CScript& scriptPubKey, unsigned int nFlags, unsigned int nIn, const CChain* chain,
+        bool cacheStore, ScriptError* serror) const
+{
+    if (nIn >= GetVin().size() )
+        return ::error("%s:%d can not verify Signature: nIn too large for vin size %d",
+                                       GetHash().ToString(), nIn, GetVin().size());
+
+    const CScript &scriptSig = GetVin()[nIn].scriptSig;
+
+    if (!::VerifyScript(scriptSig, scriptPubKey, nFlags,
+                      CachingCertificateSignatureChecker(this, nIn, chain, cacheStore),
+                      serror))
+    {
+        return ::error("%s:%d VerifySignature failed: %s", GetHash().ToString(), nIn, ScriptErrorString(*serror));
+    }
+
+    return true;
 }
 
 void CScCertificate::Relay() const { ::Relay(*this); }

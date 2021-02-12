@@ -199,6 +199,7 @@ void TxExpandedToJSON(const CWalletTransactionBase& tx,  UniValue& entry)
     }
     entry.push_back(Pair("vout", vout));
 
+    tx.getTxBase()->AddCeasedSidechainWithdrawalInputsToJSON(entry);
     tx.getTxBase()->AddSidechainOutsToJSON(entry);
     tx.getTxBase()->AddJoinSplitToJSON(entry);
 
@@ -215,7 +216,11 @@ void TxExpandedToJSON(const CWalletTransactionBase& tx,  UniValue& entry)
     }
 
     if (tx.IsFromMe(ISMINE_ALL)) {
-        CAmount nDebit = tx.GetDebit(ISMINE_ALL);
+        // get any ceasing sidechain withdrawal input
+        CAmount cswInTotAmount = tx.getTxBase()->GetCSWValueIn();
+        // nDebit has only vin contribution, we must add the ceased sc with part if any
+        CAmount nDebit = tx.GetDebit(ISMINE_ALL) + cswInTotAmount;
+
         CAmount nFee = tx.getTxBase()->GetFeeAmount(nDebit);
         entry.push_back(Pair("fees", ValueFromAmount(nFee)));
     }
@@ -245,6 +250,7 @@ void WalletTxToJSON(const CWalletTransactionBase& wtx, UniValue& entry, isminefi
         entry.push_back(Pair(item.first, item.second));
 
     // add the cross chain outputs if any
+    wtx.getTxBase()->AddCeasedSidechainWithdrawalInputsToJSON(entry);
     wtx.getTxBase()->AddSidechainOutsToJSON(entry);
     wtx.getTxBase()->AddJoinSplitToJSON(entry);
 }
@@ -781,7 +787,7 @@ static void ScHandleTransaction(CWalletTx& wtx, std::vector<CRecipientScCreation
     if (!pwalletMain->CommitTransaction(wtx, keyChange))
         throw JSONRPCError(RPC_WALLET_ERROR, "Transaction commit failed");
 }
-
+// TODO: description seems outdated
 UniValue sc_create(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
@@ -796,7 +802,7 @@ UniValue sc_create(const UniValue& params, bool fHelp)
             "1. withdrawalEpochLength:   (numeric, required) Length of the withdrawal epochs. The minimum valid value for " +
                                           Params().NetworkIDString() + " is: " +  strprintf("%d", Params().ScMinWithdrawalEpochLength()) + "\n"
             "2. \"address\"                (string, required) The receiver PublicKey25519Proposition in the SC\n"
-            "3. amount:                  (numeric, required) The numeric amount in ZEN is the value\n"
+            "3. amount:                    (numeric, required) The numeric amount in ZEN is the value\n"
             "4. \"wCertVk\"                (string, required) It is an arbitrary byte string of even length expressed in\n"
             "                                   hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", SC_VK_SIZE) + " bytes\n"
             "5. \"customData\"             (string, optional) It is an arbitrary byte string of even length expressed in\n"
@@ -805,6 +811,9 @@ UniValue sc_create(const UniValue& params, bool fHelp)
             "                                   hexadecimal format. Used as public input for WCert proof verification. Its size must be " + strprintf("%d", SC_FIELD_SIZE) + " bytes\n"
             "7. \"wMbtrVk\"                (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                   hexadecimal format. Required to verify a mainchain bwt request proof. Its size must be " + strprintf("%d", SC_VK_SIZE) + " bytes\n"
+            "8. \"wCeasedVk\"              (string, optional) It is an arbitrary byte string of even length expressed in\n"
+            "                                   hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", SC_VK_SIZE) + " bytes\n"
+
             "\nResult:\n"
             "\"transactionid\"    (string) The transaction id. Only 1 transaction is created regardless of \n"
             "                                    the number of addresses.\n"
@@ -891,6 +900,25 @@ UniValue sc_create(const UniValue& params, bool fHelp)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid wMbtrVk");
         }
     }
+
+    if (params.size() > 7)
+    {
+        const std::string& inputString = params[7].get_str();
+        std::vector<unsigned char> wCeasedVkVec;
+        if (!Sidechain::AddScData(inputString, wCeasedVkVec, SC_VK_SIZE, true, error))
+        {
+            throw JSONRPCError(RPC_TYPE_ERROR, string("wCeasedVk: ") + error);
+        }
+        sc.creationData.wCeasedVk = libzendoomc::ScVk(wCeasedVkVec);
+
+        if (!libzendoomc::IsValidScVk(sc.creationData.wCeasedVk.get()))
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid wCeasedVk");
+        }
+    }
+
+    CcRecipientVariant r(sc);
+
     vector<CRecipientScCreation> vecScSend;
     vecScSend.push_back(sc);
 
@@ -936,6 +964,8 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
             "                                          hexadecimal format. Used as public input for WCert proof verification. Its size must be " + strprintf("%d", SC_FIELD_SIZE) + " bytes\n"
             "   \"wMbtrVk\":data                  (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                          hexadecimal format. Required to verify a mainchain bwt request proof. Its size must be " + strprintf("%d", SC_VK_SIZE) + " bytes\n"
+            "   \"wCeasedVk\":data                (string, optional) It is an arbitrary byte string of even length expressed in\n"
+            "                                          hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", SC_VK_SIZE) + " bytes\n"
             "}\n"
             "\nResult:\n"
             "{\n"
@@ -951,7 +981,7 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     // valid input keywords
     static const std::set<std::string> validKeyArgs =
         {"withdrawalEpochLength", "fromaddress", "changeaddress",
-         "toaddress", "amount", "minconf", "fee", "wCertVk", "customData", "constant", "wMbtrVk"};
+         "toaddress", "amount", "minconf", "fee", "wCertVk", "customData", "constant", "wMbtrVk", "wCeasedVk"};
 
     UniValue inputObject = params[0].get_obj();
 
@@ -1115,6 +1145,25 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
         if (!libzendoomc::IsValidScConstant(creationData.constant))
         {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid constant");
+        }
+    }
+    
+    // ---------------------------------------------------------
+
+    if (setKeyArgs.count("wCeasedVk"))
+    {
+        string inputString = find_value(inputObject, "wCeasedVk").get_str();
+        std::vector<unsigned char> wCeasedVkVec;
+        if (!Sidechain::AddScData(inputString, wCeasedVkVec, SC_VK_SIZE, true, error))
+        {
+            throw JSONRPCError(RPC_TYPE_ERROR, string("wCeasedVk: ") + error);
+        }
+
+        creationData.wCeasedVk = libzendoomc::ScVk(wCeasedVkVec);
+
+        if (!libzendoomc::IsValidScVk(creationData.wCeasedVk.get()))
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid wCeasedVk");
         }
     }
 
@@ -3171,7 +3220,9 @@ UniValue gettransaction(const UniValue& params, bool fHelp)
     CAmount nFee = 0;
     if (wtx.IsFromMe(filter))
     {
-        nFee = -(wtx.getTxBase()->GetFeeAmount(nDebit));
+        // nDebit has only vin contribution, we must add the ceased sc with part if any
+        CAmount cswInTotAmount = wtx.getTxBase()->GetCSWValueIn();
+        nFee = -(wtx.getTxBase()->GetFeeAmount(nDebit) + cswInTotAmount);
     }
 
     entry.push_back(Pair("amount", ValueFromAmount(nNet - nFee)));
@@ -5177,7 +5228,7 @@ UniValue send_certificate(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_PARAMETER, string("invalid epoch data"));
     }
 
-    if (scView.isCeasedAtHeight(scId, chainActive.Height()+1)!= CSidechain::State::ALIVE) {
+    if (scView.GetSidechainState(scId)!= CSidechain::State::ALIVE) {
         LogPrintf("ERROR: certificate cannot be accepted, sidechain [%s] already ceased at active height = %d\n",
             scId.ToString(), chainActive.Height());
         throw JSONRPCError(RPC_INVALID_PARAMETER, string("invalid cert height"));

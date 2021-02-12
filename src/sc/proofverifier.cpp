@@ -13,7 +13,10 @@ namespace libzendoomc{
 
     bool IsValidScFieldElement(const ScFieldElement& scFieldElement)
     {
-        // TODO
+        auto scFieldElementDeserialized = zendoo_deserialize_field(scFieldElement.begin());
+        if (scFieldElementDeserialized == nullptr)
+            return false;
+        zendoo_field_free(scFieldElementDeserialized);
         return true;
     }
 
@@ -71,6 +74,13 @@ namespace libzendoomc{
         return true;
     }
 
+    ScFieldElement CalculateCertDataHash(const CScCertificate& cert) {
+        // TODO Replace with hash of merkel tree supplied by SC.
+        ScFieldElement certDataHash;
+        certDataHash.SetHex(cert.GetHash().GetHex());
+        return certDataHash;
+    }
+
     // Let's define a struct to hold the inputs, with a function to free the memory Rust-side
     struct WCertVerifierInputs {
         std::vector<backward_transfer_t> bt_list;
@@ -108,7 +118,7 @@ namespace libzendoomc{
         //Deserialize constant
         if (constant.size() == 0){ //Constant can be optional
             inputs.constant = nullptr;
-       
+
         } else {
             
             inputs.constant = deserialize_field(constant.data()); 
@@ -223,5 +233,17 @@ namespace libzendoomc{
     ) const
     {
         return true; //Currently mocked
+    }
+
+    bool CScProofVerifier::verifyCTxCeasedSidechainWithdrawalInput(
+        const ScFieldElement& certDataHash,
+        const ScVk& wCeasedVk,
+        const CTxCeasedSidechainWithdrawalInput& csw
+    ) const
+    {
+        if(!perform_verification)
+            return true;
+        else // TODO: emit rust implementation.
+            return true;// CswProofVerification().verifyCsw(certDataHash, wCeasedVk, csw);
     }
 }
