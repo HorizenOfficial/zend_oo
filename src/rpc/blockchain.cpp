@@ -1578,7 +1578,7 @@ UniValue getscgenesisinfo(const UniValue& params, bool fHelp)
 
 UniValue checkcswnullifier(const UniValue& params, bool fHelp)
 {
-    if (fHelp || params.size() == 0 || params.size() > 2)
+    if (fHelp || params.size() != 2)
         throw runtime_error(
             "checkcswnullifier\n"
 			"\nArguments:\n"

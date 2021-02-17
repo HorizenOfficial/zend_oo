@@ -749,6 +749,9 @@ TEST_F(SidechainsInMempoolTestSuite, CertInMempool_QualityOfCerts) {
 }
 
 TEST_F(SidechainsInMempoolTestSuite, CSWsToCeasedSidechainIsAccepted) {
+    // TODO: fix the issues after MBTR integration.
+    EXPECT_TRUE(false);
+    return;
     uint256 scId = uint256S("aaa");
     CSidechain sidechain;
     sidechain.balance = CAmount(100);
@@ -756,6 +759,8 @@ TEST_F(SidechainsInMempoolTestSuite, CSWsToCeasedSidechainIsAccepted) {
     sidechain.lastTopQualityCertReferencedEpoch = 10;
     sidechain.currentState = (uint8_t)CSidechain::State::CEASED;
 
+    int height = 1000;
+    chainSettingUtils::ExtendChainActiveToHeight(height);
     CSidechainEventsMap dummyCeasingMap;
     txCreationUtils::storeSidechain(*pcoinsTip, scId, sidechain, dummyCeasingMap);
     txCreationUtils::storeCertDataHash(*pcoinsTip, scId, 0);
@@ -765,12 +770,14 @@ TEST_F(SidechainsInMempoolTestSuite, CSWsToCeasedSidechainIsAccepted) {
     CTxCeasedSidechainWithdrawalInput cswInput = GenerateCSWInput(scId, "aabb", cswTxCoins);
     CTransaction cswTx = GenerateCSWTx(cswInput);
 
-    CValidationState dummyState;
     libzendoomc::CScProofVerifier verifier = libzendoomc::CScProofVerifier::Disabled();
-    EXPECT_TRUE(pcoinsTip->IsTxCswApplicableToState(cswTx, dummyState, verifier));
+    EXPECT_TRUE(pcoinsTip->IsScTxApplicableToState(cswTx, height, verifier));
 }
 
 TEST_F(SidechainsInMempoolTestSuite, ExcessiveAmountOfCSWsToCeasedSidechainIsRejected) {
+    // TODO: fix the issues after MBTR integration.
+    EXPECT_TRUE(false);
+    return;
     uint256 scId = uint256S("aaa");
     CSidechain sidechain;
     sidechain.balance = CAmount(100);
@@ -785,12 +792,14 @@ TEST_F(SidechainsInMempoolTestSuite, ExcessiveAmountOfCSWsToCeasedSidechainIsRej
     CTxCeasedSidechainWithdrawalInput cswInput = GenerateCSWInput(scId, "aabb", cswTxCoins);
     CTransaction cswTx = GenerateCSWTx(cswInput);
 
-    CValidationState dummyState;
+    int height = pcoinsTip->GetHeight();
     libzendoomc::CScProofVerifier verifier = libzendoomc::CScProofVerifier::Disabled();
-    EXPECT_FALSE(pcoinsTip->IsTxCswApplicableToState(cswTx, dummyState, verifier));
+    EXPECT_FALSE(pcoinsTip->IsScTxApplicableToState(cswTx, height, verifier));
 }
 
 TEST_F(SidechainsInMempoolTestSuite, CSWsToUnknownSidechainIsRefused) {
+    // TODO: fix the issues after MBTR integration.
+    EXPECT_TRUE(false);
     uint256 unknownScId = uint256S("aaa");
     ASSERT_FALSE(pcoinsTip->HaveSidechain(unknownScId));
     CAmount cswTxCoins = 10;
@@ -798,12 +807,15 @@ TEST_F(SidechainsInMempoolTestSuite, CSWsToUnknownSidechainIsRefused) {
     CTxCeasedSidechainWithdrawalInput cswInput = GenerateCSWInput(unknownScId, "aabb", cswTxCoins);
     CTransaction cswTx = GenerateCSWTx(cswInput);
 
-    CValidationState dummyState;
+    int height = pcoinsTip->GetHeight();
     libzendoomc::CScProofVerifier verifier = libzendoomc::CScProofVerifier::Disabled();
-    EXPECT_FALSE(pcoinsTip->IsTxCswApplicableToState(cswTx, dummyState, verifier));
+    EXPECT_FALSE(pcoinsTip->IsScTxApplicableToState(cswTx, height, verifier));
 }
 
 TEST_F(SidechainsInMempoolTestSuite, CSWsToActiveSidechainIsRefused) {
+    // TODO: fix the issues after MBTR integration.
+    EXPECT_TRUE(false);
+    return;
     uint256 scId = uint256S("aaa");
     CSidechain sidechain;
     sidechain.balance = CAmount(100);
@@ -816,9 +828,9 @@ TEST_F(SidechainsInMempoolTestSuite, CSWsToActiveSidechainIsRefused) {
     CTxCeasedSidechainWithdrawalInput cswInput = GenerateCSWInput(scId, "aabb", cswTxCoins);
     CTransaction cswTx = GenerateCSWTx(cswInput);
 
-    CValidationState dummyState;
+    int height = pcoinsTip->GetHeight();
     libzendoomc::CScProofVerifier verifier = libzendoomc::CScProofVerifier::Disabled();
-    EXPECT_FALSE(pcoinsTip->IsTxCswApplicableToState(cswTx, dummyState, verifier));
+    EXPECT_FALSE(pcoinsTip->IsScTxApplicableToState(cswTx, height, verifier));
 }
 
 TEST_F(SidechainsInMempoolTestSuite, DuplicatedCSWsToCeasedSidechainAreRejected) {

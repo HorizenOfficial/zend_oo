@@ -245,10 +245,11 @@ CCoinsKeyHasher::CCoinsKeyHasher() : salt(GetRandHash()) {}
 CCswNullifiersKeyHasher::CCswNullifiersKeyHasher() : salt() {GetRandBytes(reinterpret_cast<unsigned char*>(salt), BUF_LEN);}
 
 size_t CCswNullifiersKeyHasher::operator()(const std::pair<uint256, libzendoomc::ScFieldElement>& key) const {
-    uint32_t buf[BUF_LEN/4];
-    memcpy(buf, key.first.begin(), 32);
-    memcpy((buf + 8), key.second.begin(), SC_FIELD_SIZE);
-    return CalculateHash(buf, BUF_LEN/4, salt);
+    uint32_t buf[BUF_LEN];
+    // note: we may consider buf as a raw data, so bytes size of buf is (BUF_LEN * 4)
+    memcpy(buf, key.first.begin(), sizeof(uint256));
+    memcpy((buf + sizeof(uint256)/sizeof(uint32_t)), key.second.begin(), SC_FIELD_SIZE);
+    return CalculateHash(buf, BUF_LEN, salt);
 }
 
 CCoinsViewCache::CCoinsViewCache(CCoinsView *baseIn) : CCoinsViewBacked(baseIn), hasModifier(false), cachedCoinsUsage(0) { }
@@ -977,8 +978,6 @@ bool CCoinsViewCache::IsCertApplicableToState(const CScCertificate& cert, int nH
                                               libzendoomc::CScProofVerifier& scVerifier) const {return true;}
 bool CCoinsViewCache::IsScTxApplicableToState(const CTransaction& tx, int height,
                                               libzendoomc::CScProofVerifier& scVerifier) const { return true;}
-bool CCoinsViewCache::IsTxCswApplicableToState(const CTransaction& tx, CValidationState& state,
-                                               libzendoomc::CScProofVerifier& scVerifier) const {return true;}
 
 size_t CSidechainEvents::DynamicMemoryUsage() const { return 0;}
 
@@ -991,79 +990,6 @@ int CCoinsViewCache::GetHeight() const
     BlockMap::const_iterator itBlockIdx = mapBlockIndex.find(this->GetBestBlock());
     CBlockIndex* pindexPrev = (itBlockIdx == mapBlockIndex.end()) ? nullptr : itBlockIdx->second;
     return pindexPrev->nHeight;
-}
-
-bool CCoinsViewCache::IsTxCswApplicableToState(const CTransaction& tx, CValidationState& state, libzendoomc::CScProofVerifier& scVerifier) const
-{
-    // Key is Sc id, value - total amount of coins to be withdrawn by Tx CSWs for given sidechain
-    std::map<uint256, CAmount> cswTotalBalances;
-
-    for(const CTxCeasedSidechainWithdrawalInput& csw: tx.GetVcswCcIn())
-    {
-        CSidechain sidechain;
-        if (!GetSidechain(csw.scId, sidechain))
-        {
-            LogPrintf("%s():%d - tx[%s] CSW input [%s] refers to unknown scId\n",
-                __func__, __LINE__, tx.ToString(), csw.ToString() );
-            return state.Invalid(error("scid does not exist"),
-                 REJECT_INVALID, "tx-csw-input-scid-missed");
-        }
-
-        if ((CSidechain::State)sidechain.currentState != CSidechain::State::CEASED) {
-            LogPrintf("ERROR: Tx[%s] CSW input [%s] cannot be accepted, sidechain not ceased at height = %d\n",
-                tx.ToString(), csw.ToString(), chainActive.Height());
-            return state.Invalid(error("received a csw for not ceased sidechain"),
-                         REJECT_INVALID, "tx-csw-input-scid-not-ceased");
-        }
-
-        if(!sidechain.creationData.wCeasedVk.is_initialized())
-        {
-            LogPrintf("%s():%d - tx[%s] CSW input [%s] refers to SC without CSW support\n",
-                __func__, __LINE__, tx.ToString(), csw.ToString() );
-            return state.Invalid(error("received a csw for sc without CSW support"),
-                 REJECT_INVALID, "tx-csw-input-sc-without-csw-support");
-        }
-
-        // add a new balance entry in the map or increment it if already there
-        cswTotalBalances[csw.scId] += csw.nValue;
-
-        for(const CTxCeasedSidechainWithdrawalInput& cswIn : tx.GetVcswCcIn()) {
-            if (this->HaveCswNullifier(csw.scId, cswIn.nullifier)) {
-                return state.Invalid(error("csw input had been already used"),
-                     REJECT_INVALID, "tx-csw-input-used-nullifier");                
-            }
-        }
-
-        libzendoomc::ScFieldElement certDataHash = this->GetActiveCertDataHash(csw.scId);
-        if (!libzendoomc::IsValidScFieldElement(certDataHash))
-            return state.Invalid(error("missing active cert data hash for required scId"),
-                 REJECT_INVALID, "tx-csw-missing-active-cert-data-hash");
-
-        // Verify CSW proof
-        if (!scVerifier.verifyCTxCeasedSidechainWithdrawalInput(certDataHash, sidechain.creationData.wCeasedVk.get(), csw))
-        {
-            LogPrintf("ERROR: tx[%s] CSW input [%s] cannot be accepted: proof verification failed\n",
-                tx.ToString(), csw.ToString());
-            return state.Invalid(error("proof not verified"),
-                         REJECT_INVALID, "tx-csw-input-proof-not-verified");
-        }
-    }
-
-    // Check that CSW balances don't exceed the SC balance
-    for (auto const& totalBalance: cswTotalBalances)
-    {
-        CSidechain sidechain;
-        GetSidechain(totalBalance.first, sidechain);
-        if(totalBalance.second > sidechain.balance)
-        {
-            LogPrintf("ERROR: tx[%s] CSW inputs total amount[%s] > sc[%s] total balance[%s]\n",
-                tx.ToString(), FormatMoney(totalBalance.second), totalBalance.first.ToString(), FormatMoney(sidechain.balance));
-            return state.Invalid(error("CSW inputs total amount is greater than sidechain total amount"),
-                         REJECT_INVALID, "tx-csw-inputs-amount-greater-than-sc-balance");
-        }
-    }
-
-    return true;
 }
 
 bool CCoinsViewCache::IsCertApplicableToState(const CScCertificate& cert, int nHeight, libzendoomc::CScProofVerifier& scVerifier) const
@@ -1248,7 +1174,7 @@ bool CCoinsViewCache::IsScTxApplicableToState(const CTransaction& tx, int height
 
         if (!HaveSidechain(scId))
         {
-            return error("%s():%d - ERROR: tx [%s] contains mainchain bwt request for scId[%s] not yet created\n",
+            return error("%s():%d - ERROR: tx [%s] contains mainchain bwt request for unknown scId[%s]\n",
                     __func__, __LINE__, txHash.ToString(), scId.ToString());
         }
 
@@ -1275,15 +1201,57 @@ bool CCoinsViewCache::IsScTxApplicableToState(const CTransaction& tx, int height
             __func__, __LINE__, txHash.ToString(), scId.ToString());
     }
 
-    // check CSW inputs
-    for (const CTxCeasedSidechainWithdrawalInput& csw: tx.GetVcswCcIn())
+    // Check CSW inputs
+
+    // Key is Sc id, value - total amount of coins to be withdrawn by Tx CSWs for given sidechain
+    std::map<uint256, CAmount> cswTotalBalances;
+
+    for(const CTxCeasedSidechainWithdrawalInput& csw: tx.GetVcswCcIn())
     {
-        auto s = GetSidechainState(csw.scId);
-        if (s != CSidechain::State::CEASED)
+        CSidechain sidechain;
+        if (!GetSidechain(csw.scId, sidechain))
         {
-            LogPrintf("ERROR: tx[%s] tries to send make ceased sidechain withdrawal to not yet ceased sidechain scId[%s] with state(%s)\n",
-                        txHash.ToString(), csw.scId.ToString(), CSidechain::stateToString(s));
-            return false;
+            return error("%s():%d - ERROR: tx[%s] CSW input [%s] refers to unknown scId\n",
+                __func__, __LINE__, tx.ToString(), csw.ToString());
+        }
+
+        if ((CSidechain::State)sidechain.currentState != CSidechain::State::CEASED) {
+            return error("%s():%d - ERROR: Tx[%s] CSW input [%s] cannot be accepted, sidechain not ceased at height = %d\n",
+                __func__, __LINE__, tx.ToString(), csw.ToString(), height);
+        }
+
+        if(!sidechain.creationData.wCeasedVk.is_initialized())
+        {
+            return error("%s():%d - ERROR: Tx[%s] CSW input [%s] refers to SC without CSW support\n",
+                __func__, __LINE__, tx.ToString(), csw.ToString());
+        }
+
+        // add a new balance entry in the map or increment it if already there
+        cswTotalBalances[csw.scId] += csw.nValue;
+        // Check that SC CSW balances don't exceed the SC balance
+        if(cswTotalBalances[csw.scId] > sidechain.balance)
+        {
+            return error("%s():%d - ERROR: Tx[%s] CSW inputs total amount[%s] is greater than sc[%s] total balance[%s]\n",
+                __func__, __LINE__, tx.ToString(), FormatMoney(cswTotalBalances[csw.scId]), csw.scId.ToString(), FormatMoney(sidechain.balance));
+        }
+
+        for(const CTxCeasedSidechainWithdrawalInput& cswIn : tx.GetVcswCcIn()) {
+            if (this->HaveCswNullifier(csw.scId, cswIn.nullifier)) {
+                return error("%s():%d - ERROR: Tx[%s] CSW input [%s] nullifier had been already used\n",
+                    __func__, __LINE__, tx.ToString(), csw.ToString());
+            }
+        }
+
+        libzendoomc::ScFieldElement certDataHash = this->GetActiveCertDataHash(csw.scId);
+        if (!libzendoomc::IsValidScFieldElement(certDataHash))
+            return error("%s():%d - ERROR: Tx[%s] CSW input [%s] has missing active cert data hash for required scId[%s]\n",
+                __func__, __LINE__, tx.ToString(), csw.ToString(), csw.scId.ToString());
+
+        // Verify CSW proof
+        if (!scVerifier.verifyCTxCeasedSidechainWithdrawalInput(certDataHash, sidechain.creationData.wCeasedVk.get(), csw))
+        {
+            return error("%s():%d - ERROR: Tx[%s] CSW input [%s] cannot be accepted: proof verification failed\n",
+                __func__, __LINE__, tx.ToString(), csw.ToString());
         }
     }
 

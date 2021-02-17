@@ -885,12 +885,16 @@ unsigned int GetLegacySigOpCount(const CTransactionBase& txBase)
 
     if(!txBase.IsCertificate())
     {
-        const CTransaction& tx = dynamic_cast<const CTransaction&>(txBase);
-
-        for(const CTxCeasedSidechainWithdrawalInput& csw: tx.GetVcswCcIn())
-        {
-            nSigOps += csw.scriptPubKey().GetSigOpCount(false);
-            nSigOps += csw.redeemScript.GetSigOpCount(false);
+        try {
+            const CTransaction& tx = dynamic_cast<const CTransaction&>(txBase);
+            for(const CTxCeasedSidechainWithdrawalInput& csw: tx.GetVcswCcIn())
+            {
+                nSigOps += csw.scriptPubKey().GetSigOpCount(false);
+                nSigOps += csw.redeemScript.GetSigOpCount(false);
+            }
+        } catch(const bad_cast& e) {
+            LogPrint("%s():%d - can't cast CTransactionBase (%s) to CTransaction when expected.\n",
+                __func__, __LINE__, txBase.GetHash().ToString());
         }
     }
 
@@ -1416,14 +1420,8 @@ bool AcceptTxToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTran
             auto scVerifier = libzendoomc::CScProofVerifier::Strict();
             if (!view.IsScTxApplicableToState(tx, nextBlockHeight, scVerifier))
             {
-                return state.DoS(0, error("%s():%d - ERROR: sc-related tx [%s] is not applicable\n", __func__, __LINE__, hash.ToString()),
+                return state.Invalid(error("%s():%d - ERROR: sc-related tx [%s] is not applicable\n", __func__, __LINE__, hash.ToString()),
                                  REJECT_INVALID, "bad-sc-tx");
-            }
-
-            if (!view.IsTxCswApplicableToState(tx, state, scVerifier) ) {
-                LogPrint("sc", "%s():%d - ERROR: csw input for Tx [%s] is not applicable\n", __func__, __LINE__, tx.GetHash().ToString() );
-                return state.DoS(100, error("%s(): invalid csw input for Tx [%s]", __func__, tx.GetHash().ToString()),
-                                 REJECT_INVALID, "bad-txns-csw-input-not-applicable");
             }
 
             // are the joinsplit's requirements met?
@@ -2170,7 +2168,8 @@ bool CheckTxInputs(const CTransactionBase& txBase, CValidationState& state, cons
     try {
         nValueIn += txBase.GetCSWValueIn();
         if (!MoneyRange(nValueIn))
-            throw std::runtime_error("Total inputs value out of range.");
+            return state.DoS(100, error("CheckInputs(): Total inputs value out of range."),
+                REJECT_INVALID, "bad-txns-inputvalues-outofrange");
     } catch (const std::runtime_error& e) {
         return state.DoS(100, error("CheckInputs(): tx csw input values out of range"),
             REJECT_INVALID, "bad-txns-inputvalues-outofrange");
@@ -2831,12 +2830,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             {
                 return state.DoS(100, error("%s():%d - ERROR: tx=%s\n", __func__, __LINE__, tx.GetHash().ToString()),
                                  REJECT_INVALID, "bad-sc-tx");
-            }
-
-            if (!view.IsTxCswApplicableToState(tx, state, scVerifier) ) {
-                LogPrint("sc", "%s():%d - ERROR: tx=%s\n", __func__, __LINE__, tx.GetHash().ToString() );
-                return state.DoS(100, error("ConnectBlock(): invalid csw input for Tx [%s]", tx.GetHash().ToString()),
-                                 REJECT_INVALID, "bad-txns-csw-input-not-applicable");
             }
 
             // are the JoinSplit's requirements met?

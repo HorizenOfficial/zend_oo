@@ -286,8 +286,8 @@ public:
 class CCswNullifiersKeyHasher
 {
 private:
-    static const size_t BUF_LEN = 32 + SC_FIELD_SIZE;
-    uint32_t salt[BUF_LEN/4];
+    static const size_t BUF_LEN = (sizeof(uint256) + SC_FIELD_SIZE)/sizeof(uint32_t);
+    uint32_t salt[BUF_LEN];
 public:
     CCswNullifiersKeyHasher();
 
@@ -679,9 +679,6 @@ public:
     bool UpdateSidechain(const CTransaction& tx, const CBlock&, int nHeight);
     bool RevertTxOutputs(const CTransaction& tx, int nHeight);
     int getScCoinsMaturity();
-
-    //CSW INPUTS RELATED PUBLIC MEMBERS
-    bool IsTxCswApplicableToState(const CTransaction& tx, CValidationState& state, libzendoomc::CScProofVerifier& scVerifier) const;
 
     //CERTIFICATES RELATED PUBLIC MEMBERS
     bool IsCertApplicableToState(const CScCertificate& cert, int nHeight, libzendoomc::CScProofVerifier& scVerifier) const;
