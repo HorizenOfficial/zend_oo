@@ -1216,8 +1216,8 @@ bool CCoinsViewCache::IsScTxApplicableToState(const CTransaction& tx, int height
         }
 
         if ((CSidechain::State)sidechain.currentState != CSidechain::State::CEASED) {
-            return error("%s():%d - ERROR: Tx[%s] CSW input [%s] cannot be accepted, sidechain not ceased at height = %d\n",
-                __func__, __LINE__, tx.ToString(), csw.ToString(), height);
+            return error("%s():%d - ERROR: Tx[%s] CSW input [%s] cannot be accepted, sidechain is not ceased\n",
+                __func__, __LINE__, tx.ToString(), csw.ToString());
         }
 
         if(!sidechain.creationData.wCeasedVk.is_initialized())
