@@ -278,7 +278,7 @@ public:
     int nRecvVersion;
 
     int64_t nLastSend;
-    int64_t nLastRecv;
+    std::atomic<int64_t> nLastRecv;
     int64_t nTimeConnected;
     int64_t nTimeOffset;
     CAddress addr;

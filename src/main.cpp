@@ -1812,8 +1812,8 @@ bool IsInitialBlockDownload()
     return state;
 }
 
-bool fLargeWorkForkFound = false;
-bool fLargeWorkInvalidChainFound = false;
+std::atomic<bool> fLargeWorkForkFound { false };
+std::atomic<bool> fLargeWorkInvalidChainFound { false };
 CBlockIndex *pindexBestForkTip = NULL, *pindexBestForkBase = NULL;
 
 void CheckForkWarningConditions()
