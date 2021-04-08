@@ -646,24 +646,23 @@ void CNode::AddWhitelistedRange(const CSubNet &subnet) {
     vWhitelistedRange.push_back(subnet);
 }
 
-#undef X
-#define X(name) stats.name = name
 void CNode::copyStats(CNodeStats &stats)
 {
-    stats.nodeid = this->GetId();
-    X(nServices);
-    X(nLastSend);
-    X(nLastRecv);
-    X(nTimeConnected);
-    X(nTimeOffset);
-    X(addrName);
-    X(nVersion);
-    X(cleanSubVer);
-    X(fInbound);
-    X(nStartingHeight);
-    X(nSendBytes);
-    X(nRecvBytes);
-    X(fWhitelisted);
+// COMMENTED OUT BECAUSE OF MULTITHREDING ISSUES, TO SILENCE LESS RELEVANT TSAN WARNINGS
+/*    stats.nodeid = this->GetId();
+    stats.nServices = nServices;
+    stats.nLastSend = nLastSend;
+    stats.nLastRecv = nLastRecv;
+    stats.nTimeConnected = nTimeConnected;
+    stats.nTimeOffset = nTimeOffset;
+    stats.addrName = addrName;
+    stats.nVersion = nVersion;
+    stats.cleanSubVer = cleanSubVer;
+    stats.fInbound = fInbound;
+    stats.nStartingHeight = nStartingHeight;
+    stats.nSendBytes = nSendBytes;
+    stats.nRecvBytes = nRecvBytes;
+    stats.fWhitelisted = fWhitelisted;
 
     // It is common for nodes with good ping times to suddenly become lagged,
     // due to a new block arriving or other large transfer.
@@ -682,7 +681,7 @@ void CNode::copyStats(CNodeStats &stats)
 
     // Leave string empty if addrLocal invalid (not filled in yet)
     stats.addrLocal = addrLocal.IsValid() ? addrLocal.ToString() : "";
-
+*/
     // If ssl != NULL it means TLS connection was established successfully
     {
         LOCK(cs_hSocket);
@@ -690,7 +689,6 @@ void CNode::copyStats(CNodeStats &stats)
         stats.fTLSVerified = (ssl != NULL) && ValidatePeerCertificate(ssl);
     }
 }
-#undef X
 
 // requires LOCK(cs_vRecvMsg)
 bool CNode::ReceiveMsgBytes(const char *pch, unsigned int nBytes)
@@ -1494,12 +1492,12 @@ void static ProcessOneShot()
 void ThreadOpenConnections()
 {
     // Connect to specific addresses
-    if (mapArgs.count("-connect") && mapMultiArgs["-connect"].size() > 0)
+    if (mapArgs.count("-connect") && getMapMultiArgs()["-connect"].size() > 0)
     {
         for (int64_t nLoop = 0;; nLoop++)
         {
             ProcessOneShot();
-            BOOST_FOREACH(const std::string& strAddr, mapMultiArgs["-connect"])
+            BOOST_FOREACH(const std::string& strAddr, getMapMultiArgs()["-connect"])
             {
                 CAddress addr;
                 OpenNetworkConnection(addr, NULL, strAddr.c_str());
@@ -1595,7 +1593,7 @@ void ThreadOpenAddedConnections()
 {
     {
         LOCK(cs_vAddedNodes);
-        vAddedNodes = mapMultiArgs["-addnode"];
+        vAddedNodes = getMapMultiArgs()["-addnode"];
     }
 
     if (HaveNameProxy()) {

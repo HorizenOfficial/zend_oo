@@ -99,7 +99,14 @@ namespace boost {
 using namespace std;
 
 map<string, string> mapArgs;
-map<string, vector<string> > mapMultiArgs;
+
+std::map<std::string, std::vector<std::string> >& getMapMultiArgs()
+{
+	// leaking, but solving  data-races or heap-use-after-free issues.
+    static std::map<string, vector<string> >* pMapMultiArgs = new std::map<string, vector<string> >();
+    return *pMapMultiArgs;
+}
+
 bool fDebug = false;
 bool fPrintToConsole = false;
 bool fPrintToDebugLog = true;
@@ -232,7 +239,7 @@ bool LogAcceptCategory(const char* category)
         static boost::thread_specific_ptr<set<string> > ptrCategory;
         if (ptrCategory.get() == NULL)
         {
-            const vector<string>& categories = mapMultiArgs["-debug"];
+            const vector<string>& categories = getMapMultiArgs()["-debug"];
             ptrCategory.reset(new set<string>(categories.begin(), categories.end()));
             // thread_specific_ptr automatically deletes the set when the thread ends.
         }
@@ -341,7 +348,7 @@ static void InterpretNegativeSetting(string name, map<string, string>& mapSettin
 void ParseParameters(int argc, const char* const argv[])
 {
     mapArgs.clear();
-    mapMultiArgs.clear();
+    getMapMultiArgs().clear();
 
     for (int i = 1; i < argc; i++)
     {
@@ -368,7 +375,7 @@ void ParseParameters(int argc, const char* const argv[])
             str = str.substr(1);
 
         mapArgs[str] = strValue;
-        mapMultiArgs[str].push_back(strValue);
+        getMapMultiArgs()[str].push_back(strValue);
     }
 
     // New 0.6 features:

@@ -42,7 +42,9 @@ public:
 };
 
 extern std::map<std::string, std::string> mapArgs;
-extern std::map<std::string, std::vector<std::string> > mapMultiArgs;
+//mapMultiArgs has been encapsulated to solve data-races or heap-use-after-free
+std::map<std::string, std::vector<std::string> >& getMapMultiArgs();
+
 extern bool fDebug;
 extern bool fPrintToConsole;
 extern bool fPrintToDebugLog;

@@ -153,7 +153,7 @@ TEST(relayforks_test, relayforks) {
     fDebug = true;
     fPrintToConsole = true;
     mapArgs["-debug"] = "forks";
-    mapMultiArgs["-debug"].push_back("forks");
+    getMapMultiArgs()["-debug"].push_back("forks");
 #endif
 
 //    SelectParams(CBaseChainParams::REGTEST);
@@ -252,7 +252,7 @@ TEST(relayforks_test, checkisonmain) {
     fDebug = true;
     fPrintToConsole = true;
     mapArgs["-debug"] = "forks";
-    mapMultiArgs["-debug"].push_back("forks");
+    getMapMultiArgs()["-debug"].push_back("forks");
 #endif
 
     std::cout << "Building main chain..." << std::endl;
@@ -343,7 +343,7 @@ TEST(relayforks_test, getfinality) {
     fDebug = true;
     fPrintToConsole = true;
     mapArgs["-debug"] = "forks";
-    mapMultiArgs["-debug"].push_back("forks");
+    getMapMultiArgs()["-debug"].push_back("forks");
 #endif
 
     std::cout << "Building main chain..." << std::endl;

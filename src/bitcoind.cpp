@@ -100,7 +100,7 @@ bool AppInit(int argc, char* argv[])
         }
         try
         {
-            ReadConfigFile(mapArgs, mapMultiArgs);
+            ReadConfigFile(mapArgs, getMapMultiArgs());
         } catch (const missing_zcash_conf& e) {
             try
             {

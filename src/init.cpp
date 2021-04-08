@@ -903,7 +903,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
             LogPrintf("%s: parameter interaction: -whitebind set -> setting -listen=1\n", __func__);
     }
 
-    if (mapArgs.count("-connect") && mapMultiArgs["-connect"].size() > 0) {
+    if (mapArgs.count("-connect") && getMapMultiArgs()["-connect"].size() > 0) {
         // when only connecting to trusted nodes, do not seed via DNS, or listen by default
         if (SoftSetBoolArg("-dnsseed", false))
             LogPrintf("%s: parameter interaction: -connect set -> setting -dnsseed=0\n", __func__);
@@ -973,9 +973,9 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     // ********************************************************* Step 3: parameter-to-internal-flags
 
-    fDebug = !mapMultiArgs["-debug"].empty();
+    fDebug = !getMapMultiArgs()["-debug"].empty();
     // Special-case: if -debug=0/-nodebug is set, turn off debugging messages
-    const vector<string>& categories = mapMultiArgs["-debug"];
+    const vector<string>& categories = getMapMultiArgs()["-debug"];
     if (GetBoolArg("-nodebug", false) || find(categories.begin(), categories.end(), string("0")) != categories.end())
         fDebug = false;
 
@@ -983,7 +983,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     if (find(categories.begin(), categories.end(), string("zrpcunsafe")) != categories.end()) {
         if (find(categories.begin(), categories.end(), string("zrpc")) == categories.end()) {
             LogPrintf("%s: parameter interaction: setting -debug=zrpcunsafe -> -debug=zrpc\n", __func__);
-            vector<string>& v = mapMultiArgs["-debug"];
+            vector<string>& v = getMapMultiArgs()["-debug"];
             v.push_back("zrpc");
         }
     }
@@ -1266,7 +1266,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     if (mapArgs.count("-onlynet")) {
         std::set<enum Network> nets;
-        BOOST_FOREACH(const std::string& snet, mapMultiArgs["-onlynet"]) {
+        BOOST_FOREACH(const std::string& snet, getMapMultiArgs()["-onlynet"]) {
             enum Network net = ParseNetwork(snet);
             if (net == NET_UNROUTABLE)
                 return InitError(strprintf(_("Unknown network specified in -onlynet: '%s'"), snet));
@@ -1280,7 +1280,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
 
     if (mapArgs.count("-whitelist")) {
-        BOOST_FOREACH(const std::string& net, mapMultiArgs["-whitelist"]) {
+        BOOST_FOREACH(const std::string& net, getMapMultiArgs()["-whitelist"]) {
             CSubNet subnet(net);
             if (!subnet.IsValid())
                 return InitError(strprintf(_("Invalid netmask specified in -whitelist: '%s'"), net));
@@ -1329,13 +1329,13 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     bool fBound = false;
     if (fListen) {
         if (mapArgs.count("-bind") || mapArgs.count("-whitebind")) {
-            BOOST_FOREACH(const std::string& strBind, mapMultiArgs["-bind"]) {
+            BOOST_FOREACH(const std::string& strBind, getMapMultiArgs()["-bind"]) {
                 CService addrBind;
                 if (!Lookup(strBind.c_str(), addrBind, GetListenPort(), false))
                     return InitError(strprintf(_("Cannot resolve -bind address: '%s'"), strBind));
                 fBound |= Bind(addrBind, (BF_EXPLICIT | BF_REPORT_ERROR));
             }
-            BOOST_FOREACH(const std::string& strBind, mapMultiArgs["-whitebind"]) {
+            BOOST_FOREACH(const std::string& strBind, getMapMultiArgs()["-whitebind"]) {
                 CService addrBind;
                 if (!Lookup(strBind.c_str(), addrBind, 0, false))
                     return InitError(strprintf(_("Cannot resolve -whitebind address: '%s'"), strBind));
@@ -1355,7 +1355,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     }
 
     if (mapArgs.count("-externalip")) {
-        BOOST_FOREACH(const std::string& strAddr, mapMultiArgs["-externalip"]) {
+        BOOST_FOREACH(const std::string& strAddr, getMapMultiArgs()["-externalip"]) {
             CService addrLocal(strAddr, GetListenPort(), fNameLookup);
             if (!addrLocal.IsValid())
                 return InitError(strprintf(_("Cannot resolve -externalip address: '%s'"), strAddr));
@@ -1363,7 +1363,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         }
     }
 
-    BOOST_FOREACH(const std::string& strDest, mapMultiArgs["-seednode"])
+    BOOST_FOREACH(const std::string& strDest, getMapMultiArgs()["-seednode"])
         AddOneShot(strDest);
 
     if (mapArgs.count("-tlskeypath")) {
@@ -1771,7 +1771,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     std::vector<boost::filesystem::path> vImportFiles;
     if (mapArgs.count("-loadblock"))
     {
-        BOOST_FOREACH(const std::string& strFile, mapMultiArgs["-loadblock"])
+        BOOST_FOREACH(const std::string& strFile, getMapMultiArgs()["-loadblock"])
             vImportFiles.push_back(strFile);
     }
     threadGroup.create_thread(boost::bind(&ThreadImport, vImportFiles));

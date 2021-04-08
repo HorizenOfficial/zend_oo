@@ -14,7 +14,7 @@ import os
 from decimal import Decimal
 import pprint
 
-NUMB_OF_NODES = 2
+NUMB_OF_NODES = 3
 DEBUG_MODE = 1
 SC_COINS_MAT = 2
 
@@ -37,11 +37,11 @@ class SCCreateTest(BitcoinTestFramework):
                                               '-debug=py', '-debug=mempool', '-debug=net',
                                               '-debug=bench']] * NUMB_OF_NODES)
 
-        # if not split:
-        #      # 1 and 2 are joint only if split==false
-        #      connect_nodes_bi(self.nodes, 1, 2)
-        #      sync_blocks(self.nodes[1:NUMB_OF_NODES])
-        #      sync_mempools(self.nodes[1:NUMB_OF_NODES])
+        if not split:
+            # 1 and 2 are joint only if split==false
+            connect_nodes_bi(self.nodes, 1, 2)
+            sync_blocks(self.nodes[1:NUMB_OF_NODES])
+            sync_mempools(self.nodes[1:NUMB_OF_NODES])
 
         connect_nodes_bi(self.nodes, 0, 1)
         self.is_network_split = split
@@ -55,9 +55,8 @@ class SCCreateTest(BitcoinTestFramework):
         # network topology: (0)--(1)--(2)
 
         mark_logs("Node 1 generates 220 block", self.nodes, DEBUG_MODE)
-        self.nodes[0].generate(1)
+        self.nodes[1].generate(220)
         self.sync_all()
-        return
 
         creation_amount = Decimal("0.00000001")
         fwt_amount_1 = Decimal("2.0")
