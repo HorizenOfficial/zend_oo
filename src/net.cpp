@@ -507,7 +507,7 @@ void CNode::CloseSocketDisconnect()
         {
             try
             {
-                LogPrint("net", "disconnecting peer=%d\n", id);
+                // LogPrint("net", "disconnecting peer=%d\n", id);
             }
             catch(std::bad_alloc&)
             {
