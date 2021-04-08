@@ -18,7 +18,7 @@
 
 #include <db_cxx.h>
 
-extern unsigned int nWalletDBUpdated;
+extern std::atomic<unsigned int> nWalletDBUpdated;
 
 class CDBEnv
 {
