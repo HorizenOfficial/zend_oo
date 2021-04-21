@@ -5597,6 +5597,49 @@ void static ProcessGetData(CNode* pfrom)
     }
 }
 
+void ProcessMempoolMsg(const CTxMemPool& pool, CNode* pfrom)
+{
+    LOCK2(cs_main, pfrom->cs_filter);
+
+    std::vector<uint256> vtxid;
+    pool.queryHashes(vtxid);
+    vector<CInv> vInv;
+    for(uint256& hash: vtxid)
+    {
+        CInv inv(MSG_TX, hash);
+        std::unique_ptr<CTransactionBase> mempoolObjPtr{};
+        bool fInMemPool = false;
+
+        if (mempool.existsTx(hash))
+        {
+            CTransaction* txPtr = new CTransaction{};
+            fInMemPool = pool.lookup(hash, *txPtr);
+            mempoolObjPtr.reset(txPtr);
+        } else if (mempool.existsCert(hash))
+        {
+            CScCertificate* certPtr = new CScCertificate{};
+            fInMemPool = pool.lookup(hash, *certPtr);
+            mempoolObjPtr.reset(certPtr);
+        }
+
+        if (!fInMemPool) continue; // another thread removed since queryHashes, maybe...
+        if ((pfrom->pfilter && pfrom->pfilter->IsRelevantAndUpdate(*mempoolObjPtr)) ||
+            (!pfrom->pfilter))
+            vInv.push_back(inv);
+
+        if (vInv.size() == MAX_INV_SZ)
+        {
+            pfrom->PushMessage("inv", vInv);
+            vInv.clear();
+        }
+    }
+
+    if (vInv.size() > 0)
+        pfrom->PushMessage("inv", vInv);
+
+    return;
+}
+
 bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, int64_t nTimeReceived)
 {
     const CChainParams& chainparams = Params();
@@ -6326,43 +6369,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
     else if (strCommand == "mempool")
     {
-        LOCK2(cs_main, pfrom->cs_filter);
-
-        std::vector<uint256> vtxid;
-        mempool.queryHashes(vtxid);
-        vector<CInv> vInv;
-        for(uint256& hash: vtxid)
-        {
-            CInv inv(MSG_TX, hash);
-            std::unique_ptr<CTransactionBase> mempoolObjPtr{};
-            bool fInMemPool = false;
-
-            if (mempool.existsTx(hash))
-            {
-                CTransaction* txPtr = new CTransaction{};
-                fInMemPool = mempool.lookup(hash, *txPtr);
-                mempoolObjPtr.reset(txPtr);
-            } else if (mempool.existsCert(hash))
-            {
-            	CScCertificate* certPtr = new CScCertificate{};
-                fInMemPool = mempool.lookup(hash, *certPtr);
-                mempoolObjPtr.reset(certPtr);
-            }
-
-            if (!fInMemPool) continue; // another thread removed since queryHashes, maybe...
-            if ((pfrom->pfilter && pfrom->pfilter->IsRelevantAndUpdate(*mempoolObjPtr)) ||
-               (!pfrom->pfilter))
-                vInv.push_back(inv);
-
-            if (vInv.size() == MAX_INV_SZ)
-            {
-                pfrom->PushMessage("inv", vInv);
-                vInv.clear();
-            }
-        }
-
-        if (vInv.size() > 0)
-            pfrom->PushMessage("inv", vInv);
+        ProcessMempoolMsg(mempool, pfrom);
     }
 
 
