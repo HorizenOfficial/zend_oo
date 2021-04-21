@@ -6331,19 +6331,36 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         std::vector<uint256> vtxid;
         mempool.queryHashes(vtxid);
         vector<CInv> vInv;
-        BOOST_FOREACH(uint256& hash, vtxid) {
+        for(uint256& hash: vtxid)
+        {
             CInv inv(MSG_TX, hash);
-            CTransaction tx;
-            bool fInMemPool = mempool.lookup(hash, tx);
+            std::unique_ptr<CTransactionBase> mempoolObjPtr{};
+            bool fInMemPool = false;
+
+            if (mempool.existsTx(hash))
+            {
+                CTransaction* txPtr = new CTransaction{};
+                fInMemPool = mempool.lookup(hash, *txPtr);
+                mempoolObjPtr.reset(txPtr);
+            } else if (mempool.existsCert(hash))
+            {
+            	CScCertificate* certPtr = new CScCertificate{};
+                fInMemPool = mempool.lookup(hash, *certPtr);
+                mempoolObjPtr.reset(certPtr);
+            }
+
             if (!fInMemPool) continue; // another thread removed since queryHashes, maybe...
-            if ((pfrom->pfilter && pfrom->pfilter->IsRelevantAndUpdate(tx)) ||
+            if ((pfrom->pfilter && pfrom->pfilter->IsRelevantAndUpdate(*mempoolObjPtr)) ||
                (!pfrom->pfilter))
                 vInv.push_back(inv);
-            if (vInv.size() == MAX_INV_SZ) {
+
+            if (vInv.size() == MAX_INV_SZ)
+            {
                 pfrom->PushMessage("inv", vInv);
                 vInv.clear();
             }
         }
+
         if (vInv.size() > 0)
             pfrom->PushMessage("inv", vInv);
     }
