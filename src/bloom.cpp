@@ -271,3 +271,55 @@ void CRollingBloomFilter::reset()
     b2.reset(nNewTweak);
     nInsertions = 0;
 }
+
+CNodeFilter::CNodeFilter(): pfilter(nullptr)
+{
+    pfilter = new CBloomFilter();
+};
+
+CNodeFilter::~CNodeFilter()
+{
+    delete pfilter;
+    pfilter = nullptr;
+};
+
+bool CNodeFilter::isNull() const
+{
+    LOCK(cs_filter);
+    return pfilter == nullptr;
+}
+
+bool CNodeFilter::updateWith(const CTransactionBase& txBase)
+{
+    LOCK(cs_filter);
+    if (pfilter == nullptr)
+        return true;
+
+    return pfilter->IsRelevantAndUpdate(txBase);
+}
+
+bool CNodeFilter::insert(const std::vector<unsigned char>& vData)
+{
+    LOCK(cs_filter);
+    if (!pfilter)
+        return false; //could not insert data
+
+    pfilter->insert(vData);
+    return true;
+}
+
+void CNodeFilter::resetWith(const CBloomFilter& newFilter)
+{
+    LOCK(cs_filter);
+    delete pfilter;
+    pfilter = new CBloomFilter(newFilter);
+    pfilter->UpdateEmptyFull();
+    return;
+}
+
+void CNodeFilter::clear()
+{
+    LOCK(cs_filter);
+    delete pfilter;
+    pfilter = new CBloomFilter();
+}

@@ -2089,12 +2089,8 @@ void Relay(const CTransactionBase& tx, const CDataStream& ss)
     {
         if(!pnode->fRelayTxes)
             continue;
-        LOCK(pnode->cs_filter);
-        if (pnode->pfilter)
-        {
-            if (pnode->pfilter->IsRelevantAndUpdate(tx))
-                pnode->PushInventory(inv);
-        } else
+
+        if (pnode->nodeFilter.updateWith(tx))
             pnode->PushInventory(inv);
     }
 }
@@ -2296,7 +2292,6 @@ CNode::CNode(SOCKET hSocketIn, const CAddress& addrIn, const std::string& addrNa
     fGetAddr = false;
     fRelayTxes = false;
     fSentAddr = false;
-    pfilter = new CBloomFilter();
     nPingNonceSent = 0;
     nPingUsecStart = 0;
     nPingUsecTime = 0;
@@ -2337,9 +2332,6 @@ CNode::~CNode()
         
         CloseSocket(hSocket);
     }
-
-    if (pfilter)
-        delete pfilter;
 
     GetNodeSignals().FinalizeNode(GetId());
 }

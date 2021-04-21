@@ -6,8 +6,8 @@
 #define BITCOIN_BLOOM_H
 
 #include "serialize.h"
-
 #include <vector>
+#include <sync.h>
 
 class COutPoint;
 class CTransactionBase;
@@ -134,5 +134,24 @@ private:
     CBloomFilter b1, b2;
 };
 
+//  a wrapper of bloom filter to protect concurrent access in CNode
+//  refactored out for testability
+class CNodeFilter
+{
+public:
+    CNodeFilter();
+    ~CNodeFilter();
+
+    bool isNull() const;
+    bool updateWith(const CTransactionBase& txBase);
+    bool insert(const std::vector<unsigned char>& vData);
+
+    void resetWith(const CBloomFilter& newFilter);
+    void clear();
+protected:
+    CBloomFilter* pfilter; // protected for UTs
+private:
+    mutable CCriticalSection cs_filter;
+};
 
 #endif // BITCOIN_BLOOM_H

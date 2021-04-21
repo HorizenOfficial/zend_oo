@@ -11,9 +11,10 @@
 
 using namespace std;
 
-CMerkleBlock::CMerkleBlock(const CBlock& block, CBloomFilter& filter)
-:header( block.GetBlockHeader())
+CMerkleBlock::CMerkleBlock(const CBlock& block, CNodeFilter& nodeFilter):
+    header( block.GetBlockHeader())
 {
+    assert(!nodeFilter.isNull());
     vector<bool> vMatch;
     vector<uint256> vHashes;
 
@@ -23,7 +24,7 @@ CMerkleBlock::CMerkleBlock(const CBlock& block, CBloomFilter& filter)
     for (unsigned int i = 0; i < block.vtx.size(); i++)
     {
         const uint256& hash = block.vtx[i].GetHash();
-        if (filter.IsRelevantAndUpdate(block.vtx[i]))
+        if (nodeFilter.updateWith(block.vtx[i]))
         {
             vMatch.push_back(true);
             vMatchedTxn.push_back(make_pair(i, hash));
@@ -37,7 +38,7 @@ CMerkleBlock::CMerkleBlock(const CBlock& block, CBloomFilter& filter)
     {
         unsigned int j = block.vtx.size() + i;
         const uint256& hash = block.vcert[i].GetHash();
-        if (filter.IsRelevantAndUpdate(block.vcert[i]))
+        if (nodeFilter.updateWith(block.vcert[i]))
         {
             vMatch.push_back(true);
             vMatchedTxn.push_back(make_pair(j, hash));

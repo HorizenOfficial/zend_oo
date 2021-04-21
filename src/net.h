@@ -263,6 +263,10 @@ public:
     virtual void StopAskingFor(const CInv& inv) = 0;
     virtual void PushMessage(const char* pszCommand, const std::string& param1, unsigned char param2,
                              const std::string& param3, const uint256& param4) = 0;
+    virtual void PushMessage(const char* pszCommand, const std::vector<CInv>& invVec) = 0;
+
+
+    CNodeFilter nodeFilter; //a bloom filter wrapped in a critical section
 };
 
 /** Information about a peer */
@@ -317,8 +321,7 @@ public:
     bool fRelayTxes;
     bool fSentAddr;
     CSemaphoreGrant grantOutbound;
-    CCriticalSection cs_filter;
-    CBloomFilter* pfilter;
+
     int nRefCount;
     NodeId id;
 protected:
@@ -489,6 +492,11 @@ public:
         }
     }
 
+    void PushMessage(const char* pszCommand, const std::vector<CInv>& invVec) override final
+    {
+    	return PushMessage(pszCommand, invVec);
+    }
+
     template<typename T1>
     void PushMessage(const char* pszCommand, const T1& a1)
     {
@@ -558,8 +566,8 @@ public:
     template<typename T1, typename T2, typename T3, typename T4>
     void PushMessage(const char* pszCommand, const T1& a1, const T2& a2, const T3& a3, const T4& a4)
     {
-    	PushMsg_4ParamsImpl(pszCommand, a1, a2, a3, a4);
-    	return;
+        PushMsg_4ParamsImpl(pszCommand, a1, a2, a3, a4);
+        return;
     }
 
     void PushMessage(const char* pszCommand, const std::string& param1, unsigned char param2,

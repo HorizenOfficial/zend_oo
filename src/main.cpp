@@ -5471,10 +5471,9 @@ void static ProcessGetData(CNode* pfrom)
                     else // MSG_FILTERED_BLOCK)
                     if (inv.type == MSG_FILTERED_BLOCK)
                     {
-                        LOCK(pfrom->cs_filter);
-                        if (pfrom->pfilter)
+                        if (!pfrom->nodeFilter.isNull())
                         {
-                            CMerkleBlock merkleBlock(block, *pfrom->pfilter);
+                            CMerkleBlock merkleBlock(block, pfrom->nodeFilter);
                             pfrom->PushMessage("merkleblock", merkleBlock);
                             // CMerkleBlock just contains hashes, so also push any transactions/certs in the block the client did not see
                             // This avoids hurting performance by pointlessly requiring a round-trip
@@ -5482,8 +5481,7 @@ void static ProcessGetData(CNode* pfrom)
                             // they must either disconnect and retry or request the full block.
                             // Thus, the protocol spec specified allows for us to provide duplicate txn here,
                             // however we MUST always provide at least what the remote peer needs
-                            typedef std::pair<unsigned int, uint256> PairType;
-                            BOOST_FOREACH(PairType& pair, merkleBlock.vMatchedTxn)
+                            for(auto const & pair: merkleBlock.vMatchedTxn)
                             {
                                 unsigned int pos = pair.first;
                                 if (pos < block.vtx.size() )
@@ -5597,9 +5595,9 @@ void static ProcessGetData(CNode* pfrom)
     }
 }
 
-void ProcessMempoolMsg(const CTxMemPool& pool, CNode* pfrom)
+void ProcessMempoolMsg(const CTxMemPool& pool, CNodeInterface* pfrom)
 {
-    LOCK2(cs_main, pfrom->cs_filter);
+    LOCK(cs_main);
 
     std::vector<uint256> vtxid;
     pool.queryHashes(vtxid);
@@ -5623,8 +5621,7 @@ void ProcessMempoolMsg(const CTxMemPool& pool, CNode* pfrom)
         }
 
         if (!fInMemPool) continue; // another thread removed since queryHashes, maybe...
-        if ((pfrom->pfilter && pfrom->pfilter->IsRelevantAndUpdate(*mempoolObjPtr)) ||
-            (!pfrom->pfilter))
+        if (pfrom->nodeFilter.updateWith(*mempoolObjPtr))
             vInv.push_back(inv);
 
         if (vInv.size() == MAX_INV_SZ)
@@ -6490,15 +6487,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         vRecv >> filter;
 
         if (!filter.IsWithinSizeConstraints())
-            // There is no excuse for sending a too-large filter
-            Misbehaving(pfrom->GetId(), 100);
+            Misbehaving(pfrom->GetId(), 100); // There is no excuse for sending a too-large filter
         else
-        {
-            LOCK(pfrom->cs_filter);
-            delete pfrom->pfilter;
-            pfrom->pfilter = new CBloomFilter(filter);
-            pfrom->pfilter->UpdateEmptyFull();
-        }
+            pfrom->nodeFilter.resetWith(filter);
+
         pfrom->fRelayTxes = true;
     }
 
@@ -6513,11 +6505,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         if (vData.size() > MAX_SCRIPT_ELEMENT_SIZE)
         {
             Misbehaving(pfrom->GetId(), 100);
-        } else {
-            LOCK(pfrom->cs_filter);
-            if (pfrom->pfilter)
-                pfrom->pfilter->insert(vData);
-            else
+        } else
+        {
+            if (!pfrom->nodeFilter.insert(vData))
                 Misbehaving(pfrom->GetId(), 100);
         }
     }
@@ -6525,9 +6515,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
 
     else if (strCommand == "filterclear")
     {
-        LOCK(pfrom->cs_filter);
-        delete pfrom->pfilter;
-        pfrom->pfilter = new CBloomFilter();
+        pfrom->nodeFilter.clear();
         pfrom->fRelayTxes = true;
     }
 

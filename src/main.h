@@ -213,7 +213,7 @@ void UnloadBlockIndex();
 /** Process protocol messages received from a given node */
 bool ProcessMessages(CNode* pfrom);
 // Utilities refactored out of ProcessMessages
-void ProcessMempoolMsg(const CTxMemPool& pool, CNode* pfrom);
+void ProcessMempoolMsg(const CTxMemPool& pool, CNodeInterface* pfrom);
 bool AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 // End of Utilities
 

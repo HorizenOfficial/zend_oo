@@ -113,6 +113,8 @@ public:
         commandInvoked = std::string(pszCommand) + param1;
         return;
     }
+
+    void PushMessage(const char* pszCommand, const std::vector<CInv>& invVec) {}
 };
 
 class ProcessTxBaseMsgTestSuite : public ::testing::Test
