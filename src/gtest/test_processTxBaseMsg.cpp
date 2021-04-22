@@ -114,7 +114,7 @@ public:
         return;
     }
 
-    void PushMessage(const char* pszCommand, const std::vector<CInv>& invVec) {}
+    void PushInvs(const char* pszCommand, const std::vector<CInv>& invVec) {}
 };
 
 class ProcessTxBaseMsgTestSuite : public ::testing::Test
@@ -830,4 +830,62 @@ TEST_F(ProcessTxBaseMsgTestSuite, OrphanTxesTurningHighDosInvalidAreNotRelayed)
     //checks
     EXPECT_TRUE(mapRelay.count(CInv(MSG_TX, validTx.GetHash())) != 0);
     EXPECT_TRUE(mapRelay.count(CInv(MSG_TX, invalidMissingInputsTx.GetHash())) == 0);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+////////////////////////////// ProcessMempoolMsg //////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+class FakeNodeForFiltering : public CNodeInterface
+{
+public:
+    FakeNodeForFiltering() {};
+
+    std::set<CInv> pushedInvList;
+
+    void AddInventoryKnown(const CInv& inv) override final  {}; //dummyImpl
+    NodeId GetId() const override final {return 1987;};
+    virtual bool IsWhiteListed() const override final {return false; };
+    std::string GetCleanSubVer() const override final { return std::string{}; };
+    void StopAskingFor(const CInv& inv) override final { return; }
+    void PushMessage(const char* pszCommand, const std::string& param1, unsigned char param2,
+                     const std::string& param3, const uint256& param4) override final
+    {
+        return;
+    }
+
+    void PushInvs(const char* pszCommand, const std::vector<CInv>& invVec)
+    {
+        for (auto const & inv : invVec)
+            pushedInvList.insert(inv);
+    }
+};
+
+TEST(ProcessMempoolMsgTest, TxesInMempoolAreRelayed)
+{
+    CTxMemPool aMempool(::minRelayTxFee);
+
+    // Populate mempool with a tx and a cert
+    CTransaction scTx = txCreationUtils::createNewSidechainTxWith(CAmount(0), /*epochLength*/0);
+    CTxMemPoolEntry scTxPoolEntry(scTx, /*fee*/CAmount(1), /*time*/ 1000, /*priority*/1.0, /*height*/1987);
+    aMempool.addUnchecked(scTxPoolEntry.GetTx().GetHash(), scTxPoolEntry);
+    ASSERT_TRUE(aMempool.existsTx(scTx.GetHash()));
+
+    CScCertificate cert = txCreationUtils::createCertificate(uint256S("aaa"), /*epochNum*/0,
+            /*endEpochBlockHash*/uint256S("ccc"), CFieldElement{},
+            /*changeTotalAmount*/0, /*numChangeOut*/0, /*bwtTotalAmount*/0,
+            /*numBwt*/4, /*ftScFee*/0, /*mbtrScFee*/0);
+
+    CCertificateMemPoolEntry certPoolEntry(cert, /*fee*/CAmount(1), /*time*/ 1000, /*priority*/1.0, /*height*/1987);
+    aMempool.addUnchecked(certPoolEntry.GetCertificate().GetHash(), certPoolEntry);
+    ASSERT_TRUE(aMempool.existsCert(cert.GetHash()));
+
+    FakeNodeForFiltering theNode;
+
+    //test
+    ProcessMempoolMsg(aMempool, &theNode);
+
+    //Checks
+    EXPECT_TRUE(theNode.pushedInvList.size() == 2) << theNode.pushedInvList.size();
+    EXPECT_TRUE(theNode.pushedInvList.count(CInv{MSG_TX, scTx.GetHash()}));
+    EXPECT_TRUE(theNode.pushedInvList.count(CInv{MSG_TX, cert.GetHash()}));
 }

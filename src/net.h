@@ -263,7 +263,7 @@ public:
     virtual void StopAskingFor(const CInv& inv) = 0;
     virtual void PushMessage(const char* pszCommand, const std::string& param1, unsigned char param2,
                              const std::string& param3, const uint256& param4) = 0;
-    virtual void PushMessage(const char* pszCommand, const std::vector<CInv>& invVec) = 0;
+    virtual void PushInvs(const char* pszCommand, const std::vector<CInv>& invVec) = 0;
 
 
     CNodeFilter nodeFilter; //a bloom filter wrapped in a critical section
@@ -492,7 +492,7 @@ public:
         }
     }
 
-    void PushMessage(const char* pszCommand, const std::vector<CInv>& invVec) override final
+    void PushInvs(const char* pszCommand, const std::vector<CInv>& invVec) override final
     {
     	return PushMessage(pszCommand, invVec);
     }

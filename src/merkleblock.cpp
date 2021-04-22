@@ -14,7 +14,7 @@ using namespace std;
 CMerkleBlock::CMerkleBlock(const CBlock& block, CNodeFilter& nodeFilter):
     header( block.GetBlockHeader())
 {
-    assert(!nodeFilter.isNull());
+    assert(!nodeFilter.isNull() && "empty nodeFilter");
     vector<bool> vMatch;
     vector<uint256> vHashes;
 

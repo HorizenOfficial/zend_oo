@@ -5608,12 +5608,12 @@ void ProcessMempoolMsg(const CTxMemPool& pool, CNodeInterface* pfrom)
         std::unique_ptr<CTransactionBase> mempoolObjPtr{};
         bool fInMemPool = false;
 
-        if (mempool.existsTx(hash))
+        if (pool.existsTx(hash))
         {
             CTransaction* txPtr = new CTransaction{};
             fInMemPool = pool.lookup(hash, *txPtr);
             mempoolObjPtr.reset(txPtr);
-        } else if (mempool.existsCert(hash))
+        } else if (pool.existsCert(hash))
         {
             CScCertificate* certPtr = new CScCertificate{};
             fInMemPool = pool.lookup(hash, *certPtr);
@@ -5626,13 +5626,13 @@ void ProcessMempoolMsg(const CTxMemPool& pool, CNodeInterface* pfrom)
 
         if (vInv.size() == MAX_INV_SZ)
         {
-            pfrom->PushMessage("inv", vInv);
+            pfrom->PushInvs("inv", vInv);
             vInv.clear();
         }
     }
 
     if (vInv.size() > 0)
-        pfrom->PushMessage("inv", vInv);
+        pfrom->PushInvs("inv", vInv);
 
     return;
 }
