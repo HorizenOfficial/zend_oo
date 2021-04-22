@@ -17,7 +17,9 @@ class CCoinsViewCache;
 class CScProofVerifier
 {
 public:
-    enum class Verification {
+
+    enum class Verification
+    {
         Strict,
         Loose
     };
@@ -37,23 +39,13 @@ public:
     std::map</*scTxHash*/uint256,bool> batchVerifyCsws() const;
 
 private:
-    struct mbtrVerifierInputsList
-    {
-        uint256 scId;
-        CFieldElement scRequestData;
-        uint160 mcDestinationAddress;
-        CAmount scFee;
-        CScProof scProof;
-        CScVKey mbtrVk;
-        CFieldElement certDataHash;
-    };
-    std::map</*scTxHash*/uint256, std::map</*outputPos*/unsigned int, mbtrVerifierInputsList>> mbtrEnqueuedData;
 
     struct cswVerifierInputsList
     {
         CTxCeasedSidechainWithdrawalInput cswOut;
         CScVKey ceasedVk;
         CFieldElement certDataHash;
+        Sidechain::ProvingSystemType provingSystem;            /**< The type of system to be used for checking the proof. */
     };
     std::map</*scTxHash*/uint256, std::map</*outputPos*/unsigned int, cswVerifierInputsList>> cswEnqueuedData;
 
@@ -67,6 +59,7 @@ private:
         CFieldElement proofdata;
         CScProof certProof;
         CScVKey CertVk;
+        Sidechain::ProvingSystemType provingSystem;            /**< The type of system to be used for checking the proof. */
     };
     std::map</*certHash*/uint256, certVerifierInputsList> certEnqueuedData;
 

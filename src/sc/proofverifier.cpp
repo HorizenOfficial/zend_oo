@@ -56,6 +56,7 @@ void CScProofVerifier::LoadDataForCertVerification(const CCoinsViewCache& view, 
     newItem.proofdata = CFieldElement{}; //Note: Currently proofdata is not present in WCert
     newItem.certProof = scCert.scProof;
     newItem.CertVk = sidechain.fixedParams.wCertVk;
+    newItem.provingSystem = sidechain.fixedParams.certificateProvingSystem;
 
     return;
 }
@@ -143,6 +144,7 @@ void CScProofVerifier::LoadDataForCswVerification(const CCoinsViewCache& view, c
             newItem.ceasedVk = CScVKey{};
 
         newItem.cswOut = csw;
+        newItem.provingSystem = sidechain.fixedParams.cswProvingSystem;
     }
 }
 #endif

@@ -1113,6 +1113,7 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
  
         if (bVerbose)
         {
+            sc.push_back(Pair("certificateProvingSystem", static_cast<uint8_t>(info.fixedParams.certificateProvingSystem)));
             sc.push_back(Pair("wCertVk", info.fixedParams.wCertVk.GetHexRepr()));
             sc.push_back(Pair("customData", HexStr(info.fixedParams.customData)));
 
@@ -1120,6 +1121,8 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
                 sc.push_back(Pair("constant", info.fixedParams.constant->GetHexRepr()));
             else
                 sc.push_back(Pair("constant", std::string{"NOT INITIALIZED"}));
+
+            sc.push_back(Pair("cswProvingSystem", static_cast<uint8_t>(info.fixedParams.cswProvingSystem)));
 
             if(info.fixedParams.wCeasedVk.is_initialized())
                 sc.push_back(Pair("wCeasedVk", info.fixedParams.wCeasedVk.get().GetHexRepr()));
@@ -1189,7 +1192,9 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
                     info.fixedParams.withdrawalEpochLength = scCreation.withdrawalEpochLength;
                     info.fixedParams.customData = scCreation.customData;
                     info.fixedParams.constant = scCreation.constant;
+                    info.fixedParams.certificateProvingSystem = scCreation.certificateProvingSystem;
                     info.fixedParams.wCertVk = scCreation.wCertVk;
+                    info.fixedParams.cswProvingSystem = scCreation.cswProvingSystem;
                     info.fixedParams.wCeasedVk = scCreation.wCeasedVk;
                     info.fixedParams.vFieldElementCertificateFieldConfig = scCreation.vFieldElementCertificateFieldConfig;
                     info.fixedParams.vBitVectorCertificateFieldConfig = scCreation.vBitVectorCertificateFieldConfig;
@@ -1203,6 +1208,7 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
 
             if (bVerbose)
             {
+                sc.push_back(Pair("certificateProvingSystem", static_cast<uint8_t>(info.fixedParams.certificateProvingSystem)));
                 sc.push_back(Pair("unconf wCertVk", info.fixedParams.wCertVk.GetHexRepr()));
                 sc.push_back(Pair("unconf customData", HexStr(info.fixedParams.customData)));
 
@@ -1210,6 +1216,8 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
                     sc.push_back(Pair("unconf constant", info.fixedParams.constant->GetHexRepr()));
                 else
                     sc.push_back(Pair("unconf constant", std::string{"NOT INITIALIZED"}));
+
+                sc.push_back(Pair("cswProvingSystem", static_cast<uint8_t>(info.fixedParams.cswProvingSystem)));
 
                 if(info.fixedParams.wCeasedVk.is_initialized())
                     sc.push_back(Pair("unconf wCeasedVk", info.fixedParams.wCeasedVk.get().GetHexRepr()));
@@ -1378,9 +1386,11 @@ UniValue getscinfo(const UniValue& params, bool fHelp)
             "     \"active mbtrScFee\":        xxxxx,   (numeric) The currently active fee required to create a Mainchain Backward Transfer Request to sidechain\n"
             "     \"mbtrRequestDataLength\":   xxxxx,   (numeric) The size of the MBTR request data length\n"
             "     \"withdrawalEpochLength\":   xxxxx,   (numeric) length of the withdrawal epoch\n"
+            "     \"certProvingSystem\"        xxxxx,   (numeric) The type of proving system used for certificate verification\n"
             "     \"wCertVk\":                 xxxxx,   (string)  The verification key needed to verify a Withdrawal Certificate Proof, set at sc creation\n"
             "     \"customData\":              xxxxx,   (string)  The arbitrary byte string of custom data set at sc creation\n"
             "     \"constant\":                xxxxx,   (string)  The arbitrary byte string of constant set at sc creation\n"
+            "     \"cswProvingSystem\"         xxxxx,   (numeric) The type of proving system used for CSW verification\n"
             "     \"wCeasedVk\":               xxxxx,   (string)  The verification key needed to verify a Ceased Sidechain Withdrawal input Proof, set at sc creation\n"
             "     \"vFieldElementCertificateFieldConfig\"  xxxxx,   (string) A string representation of an array whose entries are sizes (in bits). Any certificate should have as many custom FieldElements with the corresponding size.\n"
             "     \"vBitVectorCertificateFieldConfig\"    xxxxx,   (string) A string representation of an array whose entries are bitVectorSizeBits and maxCompressedSizeBytes pairs. Any certificate should have as many custom vBitVectorCertificateField with the corresponding sizes\n"

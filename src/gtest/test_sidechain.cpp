@@ -2120,3 +2120,45 @@ TEST_F(SidechainsTestSuite, CertificateViewInitialization)
     CScCertificateView certView;
     ASSERT_TRUE(certView.IsNull());
 }
+
+//////////////////////////////////////////////////////////
+//////////// ScFixedParameters serialization /////////////
+//////////////////////////////////////////////////////////
+TEST_F(SidechainsTestSuite, FixedParamsSerialization)
+{
+    CDataStream certStream(SER_DISK, CLIENT_VERSION);
+
+
+    // Test default object
+    Sidechain::ScFixedParameters originalParameters;
+    certStream << originalParameters;
+
+    Sidechain::ScFixedParameters newParameters;
+    certStream >> newParameters;
+
+    EXPECT_TRUE(originalParameters.certificateProvingSystem == Sidechain::ProvingSystemType::Undefined);
+    EXPECT_TRUE(originalParameters.cswProvingSystem == Sidechain::ProvingSystemType::Undefined);
+    EXPECT_TRUE(originalParameters.IsNull());
+    EXPECT_TRUE(newParameters.IsNull());
+    EXPECT_TRUE(originalParameters == newParameters);
+
+
+    // Test object with non default proving systems
+    originalParameters.certificateProvingSystem = Sidechain::ProvingSystemType::CoboundaryMarlin;
+    originalParameters.cswProvingSystem = Sidechain::ProvingSystemType::Darlin;
+
+    certStream = CDataStream(SER_DISK, CLIENT_VERSION);
+    certStream << originalParameters;
+    certStream >> newParameters;
+
+    EXPECT_TRUE(newParameters.certificateProvingSystem == Sidechain::ProvingSystemType::CoboundaryMarlin);
+    EXPECT_TRUE(newParameters.cswProvingSystem == Sidechain::ProvingSystemType::Darlin);
+    EXPECT_FALSE(originalParameters.IsNull());
+    EXPECT_FALSE(newParameters.IsNull());
+    EXPECT_TRUE(originalParameters == newParameters);
+
+
+    // Negative test
+    newParameters.certificateProvingSystem = Sidechain::ProvingSystemType::Darlin;
+    EXPECT_TRUE(originalParameters != newParameters);
+}

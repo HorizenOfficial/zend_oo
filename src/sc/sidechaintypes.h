@@ -16,6 +16,7 @@
 #include "script/script.h"
 #include "amount.h"
 #include "serialize.h"
+#include "tinyformat.h"
 
 class CZendooCctpObject
 {
@@ -335,6 +336,27 @@ typedef struct sPowRelatedData_tag
     }
 } ScPowRelatedData;
 
+/**
+ * The enumeration of available proving systems
+ * 
+ */
+enum class ProvingSystemType : uint8_t
+{
+    Undefined,
+    CoboundaryMarlin,
+    Darlin
+};
+
+static std::string ProvingSystemTypeHelp()
+{
+    std::string helpString;
+
+    helpString += strprintf("%d => %s, ", static_cast<uint8_t>(ProvingSystemType::CoboundaryMarlin),  "CoboundaryMarlin");
+    helpString += strprintf("%d => %s", static_cast<uint8_t>(ProvingSystemType::Darlin),              "Darlin");
+
+    return helpString;
+}
+
 struct ScFixedParameters
 {
     int withdrawalEpochLength;
@@ -345,19 +367,25 @@ struct ScFixedParameters
     boost::optional<CScVKey> wCeasedVk;
     std::vector<FieldElementCertificateFieldConfig> vFieldElementCertificateFieldConfig;
     std::vector<BitVectorCertificateFieldConfig> vBitVectorCertificateFieldConfig;
-    int32_t mainchainBackwardTransferRequestDataLength;  /**< The mandatory size of the field element included in MBTR transaction outputs (0 to disable the MBTR). */
+    int32_t mainchainBackwardTransferRequestDataLength;             /**< The mandatory size of the field element included in MBTR transaction outputs (0 to disable the MBTR). */
+    ProvingSystemType certificateProvingSystem;                     /**< The type of system used for verifying the certificates proof. */
+    ProvingSystemType cswProvingSystem;                             /**< The type of system used for verifying the CSWs proof. */
+
 
     bool IsNull() const
     {
         return (
-            withdrawalEpochLength == -1                     &&
-            customData.empty()                              &&
-            constant == boost::none                         &&
-            wCertVk.IsNull()                                &&
-            wCeasedVk == boost::none                        &&
-            vFieldElementCertificateFieldConfig.empty()     &&
-            vBitVectorCertificateFieldConfig.empty()        &&
-            mainchainBackwardTransferRequestDataLength == -1);
+            withdrawalEpochLength == -1                               &&
+            customData.empty()                                        &&
+            constant == boost::none                                   &&
+            wCertVk.IsNull()                                          &&
+            wCeasedVk == boost::none                                  &&
+            vFieldElementCertificateFieldConfig.empty()               &&
+            vBitVectorCertificateFieldConfig.empty()                  &&
+            mainchainBackwardTransferRequestDataLength == -1          &&
+            certificateProvingSystem == ProvingSystemType::Undefined  &&
+            cswProvingSystem         == ProvingSystemType::Undefined
+            );
     }
 
     ADD_SERIALIZE_METHODS;
@@ -371,33 +399,58 @@ struct ScFixedParameters
         READWRITE(vFieldElementCertificateFieldConfig);
         READWRITE(vBitVectorCertificateFieldConfig);
         READWRITE(mainchainBackwardTransferRequestDataLength);
+
+        if (ser_action.ForRead())
+        {
+            uint8_t certProvSys;
+            READWRITE(VARINT(certProvSys));
+            certificateProvingSystem = static_cast<ProvingSystemType>(certProvSys);
+        
+            uint8_t cswProvSys;
+            READWRITE(VARINT(cswProvSys));
+            cswProvingSystem = static_cast<ProvingSystemType>(cswProvSys);
+        }
+        else
+        {
+            uint8_t certProvSys = static_cast<uint8_t>(certificateProvingSystem);
+            READWRITE(VARINT(certProvSys));
+        
+            uint8_t cswProvSys = static_cast<uint8_t>(cswProvingSystem);
+            READWRITE(VARINT(cswProvSys));
+        }
     }
     
     ScFixedParameters(): withdrawalEpochLength(-1),
-                         mainchainBackwardTransferRequestDataLength(-1) {}
+                         mainchainBackwardTransferRequestDataLength(-1),
+                         certificateProvingSystem (ProvingSystemType::Undefined),
+                         cswProvingSystem (ProvingSystemType::Undefined) {}
 
     inline bool operator==(const ScFixedParameters& rhs) const
     {
-        return (withdrawalEpochLength == rhs.withdrawalEpochLength) &&
-               (customData == rhs.customData) &&
-               (constant == rhs.constant) &&
-               (wCertVk == rhs.wCertVk)  &&
-               (wCeasedVk == rhs.wCeasedVk) &&
-               (vFieldElementCertificateFieldConfig == rhs.vFieldElementCertificateFieldConfig) &&
-               (vBitVectorCertificateFieldConfig == rhs.vBitVectorCertificateFieldConfig) &&
-               (mainchainBackwardTransferRequestDataLength == rhs.mainchainBackwardTransferRequestDataLength);
+        return (withdrawalEpochLength == rhs.withdrawalEpochLength)                                             &&
+               (customData == rhs.customData)                                                                   &&
+               (constant == rhs.constant)                                                                       &&
+               (wCertVk == rhs.wCertVk)                                                                         &&
+               (wCeasedVk == rhs.wCeasedVk)                                                                     &&
+               (vFieldElementCertificateFieldConfig == rhs.vFieldElementCertificateFieldConfig)                 &&
+               (vBitVectorCertificateFieldConfig == rhs.vBitVectorCertificateFieldConfig)                       &&
+               (mainchainBackwardTransferRequestDataLength == rhs.mainchainBackwardTransferRequestDataLength)   &&
+               (certificateProvingSystem == rhs.certificateProvingSystem)                                       &&
+               (cswProvingSystem == rhs.cswProvingSystem);
     }
     inline bool operator!=(const ScFixedParameters& rhs) const { return !(*this == rhs); }
     inline ScFixedParameters& operator=(const ScFixedParameters& cp)
     {
-        withdrawalEpochLength         = cp.withdrawalEpochLength;
-        customData                    = cp.customData;
-        constant                      = cp.constant;
-        wCertVk                       = cp.wCertVk;
-        wCeasedVk                     = cp.wCeasedVk;
-        vFieldElementCertificateFieldConfig = cp.vFieldElementCertificateFieldConfig;
-        vBitVectorCertificateFieldConfig   = cp.vBitVectorCertificateFieldConfig;
-        mainchainBackwardTransferRequestDataLength = cp.mainchainBackwardTransferRequestDataLength;
+        withdrawalEpochLength                       = cp.withdrawalEpochLength;
+        customData                                  = cp.customData;
+        constant                                    = cp.constant;
+        wCertVk                                     = cp.wCertVk;
+        wCeasedVk                                   = cp.wCeasedVk;
+        vFieldElementCertificateFieldConfig         = cp.vFieldElementCertificateFieldConfig;
+        vBitVectorCertificateFieldConfig            = cp.vBitVectorCertificateFieldConfig;
+        mainchainBackwardTransferRequestDataLength  = cp.mainchainBackwardTransferRequestDataLength;
+        certificateProvingSystem                    = cp.certificateProvingSystem;
+        cswProvingSystem                            = cp.cswProvingSystem;
         return *this;
     }
 };

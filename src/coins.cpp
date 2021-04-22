@@ -814,7 +814,9 @@ bool CCoinsViewCache::UpdateSidechain(const CTransaction& tx, const CBlock& bloc
         scIt->second.sidechain.fixedParams.withdrawalEpochLength = cr.withdrawalEpochLength;
         scIt->second.sidechain.fixedParams.customData = cr.customData;
         scIt->second.sidechain.fixedParams.constant = cr.constant;
+        scIt->second.sidechain.fixedParams.certificateProvingSystem = cr.certificateProvingSystem;
         scIt->second.sidechain.fixedParams.wCertVk = cr.wCertVk;
+        scIt->second.sidechain.fixedParams.cswProvingSystem = cr.cswProvingSystem;
         scIt->second.sidechain.fixedParams.wCeasedVk = cr.wCeasedVk;
         scIt->second.sidechain.fixedParams.vFieldElementCertificateFieldConfig = cr.vFieldElementCertificateFieldConfig;
         scIt->second.sidechain.fixedParams.vBitVectorCertificateFieldConfig = cr.vBitVectorCertificateFieldConfig;
