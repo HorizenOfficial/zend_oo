@@ -63,6 +63,8 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
         (9) Restart nodes
         '''
 
+        proving_system = 1
+
         # transfer amounts
 
         creation_amount = Decimal("10.0")
@@ -88,7 +90,7 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
         # SCs creation
         #----------------------------------------------------------------------
         vk = mcTest.generate_params("sc1")
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "abcdef", constant)
+        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, proving_system, vk, "abcdef", constant)
         creating_tx = ret['txid']
         mark_logs("Node 0 created SC spending {} coins via tx1 {}.".format(creation_amount, creating_tx), self.nodes, DEBUG_MODE)
         self.sync_all()

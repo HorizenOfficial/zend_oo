@@ -55,6 +55,8 @@ class sc_cert_base(BitcoinTestFramework):
         in a new certificate
         '''
 
+        proving_system = 1
+
         # cross chain transfer amounts
         creation_amount = Decimal("0.5")
         bwt_amount = Decimal("0.4")
@@ -73,7 +75,7 @@ class sc_cert_base(BitcoinTestFramework):
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", creation_amount, proving_system, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
         mark_logs("Node 1 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx), self.nodes, DEBUG_MODE)

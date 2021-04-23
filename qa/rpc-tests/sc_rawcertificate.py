@@ -95,12 +95,15 @@ class sc_rawcert(BitcoinTestFramework):
         mark_logs("Node 1 creates the SC spending " + str(sc_amount) + " coins ...", self.nodes, DEBUG_MODE)
         sc_address = "fade"
 
+        proving_system = 1
+
         #generate vk and constant for this sidechain
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
         
-        sc_cr = [{"epoch_length": EPOCH_LENGTH, "amount": cr_amount, "address": sc_address, "wCertVk": vk, "constant": constant}]
+        sc_cr = [{"epoch_length": EPOCH_LENGTH, "amount": cr_amount, "address": sc_address,
+                  "certProvingSystem": proving_system, "wCertVk": vk, "constant": constant}]
         sc_ft = []
         raw_tx = self.nodes[1].createrawtransaction([], {}, [], sc_cr, sc_ft)
         funded_tx = self.nodes[1].fundrawtransaction(raw_tx)

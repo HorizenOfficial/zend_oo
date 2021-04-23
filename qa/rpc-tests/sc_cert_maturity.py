@@ -65,6 +65,8 @@ class sc_cert_maturity(BitcoinTestFramework):
              the rpc cmds with bwts maturity info
         '''
 
+        proving_system = 1
+
         creation_amount = Decimal("10.0")
         bwt_amount1      = Decimal("1.0")
         bwt_amount2      = Decimal("2.0")
@@ -81,7 +83,7 @@ class sc_cert_maturity(BitcoinTestFramework):
         constant = generate_random_field_element_hex()
 
         # Create a SC with a budget of 10 coins
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, proving_system, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
         mark_logs("Node 0 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx), self.nodes, DEBUG_MODE)

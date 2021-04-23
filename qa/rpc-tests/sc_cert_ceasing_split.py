@@ -90,6 +90,8 @@ class CeasingSplitTest(BitcoinTestFramework):
 
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
 
+        proving_system = 1
+
         # generate wCertVk and constant
         vk = mcTest.generate_params("sc1")
         cswVk = mcTest.generate_params("csw1")
@@ -99,6 +101,7 @@ class CeasingSplitTest(BitcoinTestFramework):
             'withdrawalEpochLength': sc_epoch_len,
             'amount': sc_cr_amount,
             'toaddress': sc_address,
+            "certProvingSystem": proving_system,
             'wCertVk': vk,
             'constant': constant,
             'mainchainBackwardTransferRequestDataLength': 1

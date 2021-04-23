@@ -71,6 +71,7 @@ void AddSidechainOutsToJSON(const CTransaction& tx, UniValue& parentObj)
         o.push_back(Pair("withdrawal epoch length", (int)out.withdrawalEpochLength));
         o.push_back(Pair("value", ValueFromAmount(out.nValue)));
         o.push_back(Pair("address", out.address.GetHex()));
+        o.push_back(Pair("certProvingSystem", static_cast<uint8_t>(out.certificateProvingSystem)));
         o.push_back(Pair("wCertVk", out.wCertVk.GetHexRepr()));
 
         UniValue arrFieldElementConfig(UniValue::VARR);
@@ -93,6 +94,8 @@ void AddSidechainOutsToJSON(const CTransaction& tx, UniValue& parentObj)
         o.push_back(Pair("customData", HexStr(out.customData)));
         if(out.constant.is_initialized())
             o.push_back(Pair("constant", out.constant->GetHexRepr()));
+        if (out.cswProvingSystem != Sidechain::ProvingSystemType::Undefined)
+            o.push_back(Pair("cswProvingSystem", static_cast<uint8_t>(out.cswProvingSystem)));
         if(out.wCeasedVk.is_initialized())
             o.push_back(Pair("wCeasedVk", out.wCeasedVk.get().GetHexRepr()));
         o.push_back(Pair("ftScFee", ValueFromAmount(out.forwardTransferScFee)));
@@ -440,6 +443,21 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
         uint256 address;
         address.SetHex(inputString);
 
+        const UniValue& certProvingSystemValue = find_value(o, "certProvingSystem");
+        if (certProvingSystemValue.isNull() || !certProvingSystemValue.isNum())
+        {
+            error = "Invalid parameter or missing certProvingSystem key";
+            return false;
+        }
+        uint8_t certProvingSystemIndex = certProvingSystemValue.get_int();
+        if (certProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
+            certProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+        {
+            error = "Invalid parameter certProvingSystem";
+            return false;
+        }
+        sc.certificateProvingSystem = static_cast<Sidechain::ProvingSystemType>(certProvingSystemIndex);
+
         const UniValue& wCertVk = find_value(o, "wCertVk");
         if (wCertVk.isNull())
         {
@@ -494,10 +512,34 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
                 return false;
             }
         }
-        
+
+        const UniValue& cswProvingSystemValue = find_value(o, "cswProvingSystem");
+        if (!cswProvingSystemValue.isNull())
+        {
+            if (cswProvingSystemValue.isNull() || !cswProvingSystemValue.isNum())
+            {
+                error = "Invalid parameter or missing cswProvingSystem key";
+                return false;
+            }
+            uint8_t cswProvingSystemIndex = cswProvingSystemValue.get_int();
+            if (cswProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
+                cswProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+            {
+                error = "Invalid parameter cswProvingSystem";
+                return false;
+            }
+            sc.cswProvingSystem = static_cast<Sidechain::ProvingSystemType>(cswProvingSystemIndex);
+        }
+
         const UniValue& wCeasedVk = find_value(o, "wCeasedVk");
         if (!wCeasedVk.isNull())
         {
+            if (sc.cswProvingSystem == Sidechain::ProvingSystemType::Undefined)
+            {
+                error = "cswProvingSystem must be defined if a wCeasedVk is provided";
+                return false;
+            }
+
             const std::string& inputString = wCeasedVk.get_str();
             std::vector<unsigned char> wCeasedVkVec;
             if (!AddScData(inputString, wCeasedVkVec, CScVKey::ByteSize(), true, error))

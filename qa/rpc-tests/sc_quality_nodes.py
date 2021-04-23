@@ -65,6 +65,8 @@ class quality_nodes(BitcoinTestFramework):
         verifying certificates moving to mempool after rejoining network
         '''
 
+        proving_system = 1
+
         # forward transfer amounts
         creation_amount = Decimal("0.5")
         fwt_amount = Decimal("200")
@@ -90,7 +92,7 @@ class quality_nodes(BitcoinTestFramework):
         vk_1 = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk_1, "", constant)
+        ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", creation_amount, proving_system, vk_1, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
         mark_logs("Node 1 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx), self.nodes, DEBUG_MODE)

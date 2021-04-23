@@ -97,6 +97,8 @@ class sbh_rpc_cmds(BitcoinTestFramework):
 
         prev_epoch_block_hash = self.nodes[0].getbestblockhash()
 
+        proving_system = 1
+
         #generate wCertVk and constant
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
         vk = mcTest.generate_params("sc1")
@@ -111,8 +113,9 @@ class sbh_rpc_cmds(BitcoinTestFramework):
             "fromaddress": taddr_1,
             "toaddress": sc_toaddress,
             "amount": sc_creation_amount,
-            "changeaddress":taddr_1,
+            "changeaddress": taddr_1,
             "fee": fee,
+            "certProvingSystem": proving_system,
             "wCertVk": vk,
             "constant":constant
         }

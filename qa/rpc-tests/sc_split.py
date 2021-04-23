@@ -66,6 +66,8 @@ class ScSplitTest(BitcoinTestFramework):
         '''
         # network topology: (0)--(1)--(2)
 
+        proving_system = 1
+
         # forward transfer amount
         creation_amount = Decimal("0.5")
         fwt_amount_1 = Decimal("4.0")
@@ -116,7 +118,7 @@ class ScSplitTest(BitcoinTestFramework):
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[1].sc_create(123, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[1].sc_create(123, "dada", creation_amount, proving_system, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
         mark_logs("created SC id: {} tx: {}".format(scid,creating_tx), self.nodes, DEBUG_MODE)

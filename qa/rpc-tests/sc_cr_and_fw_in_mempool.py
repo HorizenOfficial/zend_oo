@@ -54,6 +54,8 @@ class sc_cr_fw(BitcoinTestFramework):
             epoch_block_hash = node.getblockhash(sc_creating_height - 1 + ((epoch_number + 1) * epoch_length))
             return epoch_number, epoch_block_hash
 
+        proving_system = 1
+
         # forward transfer amounts
         creation_amount = Decimal("1000")
         fwt_amount = Decimal("3.0")
@@ -82,7 +84,7 @@ class sc_cr_fw(BitcoinTestFramework):
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, proving_system, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
         self.sync_all()

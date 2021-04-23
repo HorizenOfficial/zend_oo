@@ -74,6 +74,7 @@ class CswActCertDataTest(BitcoinTestFramework):
         sc_address = "0000000000000000000000000000000000000000000000000000000000000abc"
         sc_epoch_len = EPOCH_LENGTH
         sc_cr_amount = Decimal('12.00000000')
+        sc_proving_system = 1
 
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
 
@@ -90,7 +91,9 @@ class CswActCertDataTest(BitcoinTestFramework):
             "epoch_length": sc_epoch_len,
             "amount": sc_cr_amount,
             "address": sc_address,
+            "certProvingSystem": sc_proving_system,
             "wCertVk": vk1,
+            "cswProvingSystem": sc_proving_system,
             "wCeasedVk": cswVk1,
             "constant": constant1
         })
@@ -99,7 +102,9 @@ class CswActCertDataTest(BitcoinTestFramework):
             "epoch_length": sc_epoch_len,
             "amount": sc_cr_amount,
             "address": sc_address,
+            "certProvingSystem": sc_proving_system,
             "wCertVk": vk2,
+            "cswProvingSystem": sc_proving_system,
             "wCeasedVk": cswVk2,
             "constant": constant2
         })

@@ -354,6 +354,8 @@ class ListTransactionsTest(BitcoinTestFramework):
         sidechain_address = "0000000000000000000000000000000000000000000000000000000051dec4a1"
         fee = 0.00025
 
+        proving_system = 1
+
         # avoid creating change in the resulting tx
         sc_creation_amount -= fee
 
@@ -362,7 +364,8 @@ class ListTransactionsTest(BitcoinTestFramework):
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        cmdInput = {'fromaddress': fromaddr, 'toaddress': sidechain_address, 'amount': sc_creation_amount, 'fee': fee, 'wCertVk': vk, "constant": constant}
+        cmdInput = {'fromaddress': fromaddr, 'toaddress': sidechain_address, 'amount': sc_creation_amount, 'fee': fee,
+                    "certProvingSystem":proving_system, 'wCertVk': vk, "constant": constant}
         try:
             res = self.nodes[1].create_sidechain(cmdInput)
             tx = res['txid']

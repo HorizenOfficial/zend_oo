@@ -69,6 +69,8 @@ class sc_cert_orphans(BitcoinTestFramework):
         # (12) Node3  generates 2 blocks prevailing over Node0 and realigning the network 
         '''
 
+        proving_system = 1
+
         # cross chain transfer amounts
         creation_amount = Decimal("10.0")
 
@@ -85,13 +87,13 @@ class sc_cert_orphans(BitcoinTestFramework):
         vk_2 = mcTest.generate_params("sc2")
         constant_2 = generate_random_field_element_hex()
 
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk_1, "", constant_1)
+        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, proving_system, vk_1, "", constant_1)
         creating_tx_1 = ret['txid']
         scid_1 = ret['scid']
         mark_logs("Node0 created SC id: {}".format(scid_1), self.nodes, DEBUG_MODE)
         self.sync_all()
 
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "baba", creation_amount, vk_2, "", constant_2)
+        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "baba", creation_amount, proving_system, vk_2, "", constant_2)
         creating_tx_2 = ret['txid']
         scid_2 = ret['scid']
         mark_logs("Node0 created SC id: {}".format(scid_2), self.nodes, DEBUG_MODE)

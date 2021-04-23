@@ -73,6 +73,8 @@ class sc_cert_invalidate(BitcoinTestFramework):
         sc_txes = []
         certs = []
 
+        proving_system = 1
+
         # forward transfer amount
         creation_amount = Decimal("0.5")
         fwt_amount_1 = Decimal("1000.0")
@@ -102,7 +104,7 @@ class sc_cert_invalidate(BitcoinTestFramework):
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, proving_system, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
         sc_info.append(removekey(self.nodes[0].getscinfo(scid)['items'][0]))

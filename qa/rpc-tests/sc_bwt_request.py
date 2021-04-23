@@ -61,6 +61,8 @@ class sc_bwt_request(BitcoinTestFramework):
         back, as well as a cert referring to an epoch that gets unfinished by a removal of a block
         '''
 
+        proving_system = 1
+
         # cross-chain transfer amount
         creation_amount1 = Decimal("1.0")
         creation_amount2 = Decimal("2.0")
@@ -101,6 +103,7 @@ class sc_bwt_request(BitcoinTestFramework):
             "toaddress":"dada",
             "amount":creation_amount1,
             "fee":fee_cr1,
+            "certProvingSystem":proving_system,
             "wCertVk":vk1,
             "constant":c1,
             "mainchainBackwardTransferRequestDataLength":1
@@ -306,7 +309,8 @@ class sc_bwt_request(BitcoinTestFramework):
         #  create one more sc
         prev_epoch_hash_2 = self.nodes[0].getbestblockhash()
         epoch_len_2 = 10
-        ret = self.nodes[0].sc_create(epoch_len_2, "dada", creation_amount2, vk2, "", c2, "", [], [], ftScFee, mbtrScFee, mbtrDataLength)
+        ret = self.nodes[0].sc_create(epoch_len_2, "dada", creation_amount2, proving_system, vk2, "", c2,
+                                      proving_system, "", [], [], ftScFee, mbtrScFee, mbtrDataLength)
         scid2  = ret['scid']
         cr_tx2 = ret['txid']
         mark_logs("Node0 created the SC2 spending {} coins via tx {}.".format(creation_amount1, cr_tx2), self.nodes, DEBUG_MODE)
@@ -338,7 +342,7 @@ class sc_bwt_request(BitcoinTestFramework):
         # create a bwt request with the raw cmd version with some mixed output and cc output
         mark_logs("Node0 creates a tx with a few bwt request and mixed outputs using raw version of cmd", self.nodes, DEBUG_MODE)
         outputs = { self.nodes[0].getnewaddress() :4.998 }
-        sc_cr = [ {"epoch_length":10, "amount":1.0, "address":"effe", "wCertVk":vk3, "constant":c3} ]
+        sc_cr = [ {"epoch_length":10, "amount":1.0, "address":"effe", "certProvingSystem": proving_system, "wCertVk":vk3, "constant":c3} ]
         sc_ft = [ {"address":"abc", "amount":1.0, "scid":scid2}, {"address":"cde", "amount":2.0, "scid":scid2} ]
         sc_bwt3 = [
             {'vScRequestData':fe2, 'scFee':Decimal("0.13"), 'scid':scid1, 'pubkeyhash':pkh2 },

@@ -55,6 +55,8 @@ class quality_mempool(BitcoinTestFramework):
         certificates from different sc are handled independently.
         '''
 
+        proving_system = 1
+
         # forward transfer amounts
         creation_amount = Decimal("0.5")
         fwt_amount = Decimal("200")
@@ -85,13 +87,13 @@ class quality_mempool(BitcoinTestFramework):
         vk_2 = mcTest.generate_params("sc2")
         constant_2 = generate_random_field_element_hex()
 
-        ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk_1, "", constant_1)
+        ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", creation_amount, proving_system, vk_1, "", constant_1)
         creating_tx_1 = ret['txid']
         scid_1 = ret['scid']
         mark_logs("Node 1 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx_1), self.nodes, DEBUG_MODE)
         self.sync_all()
 
-        ret = self.nodes[1].sc_create(EPOCH_LENGTH, "baba", creation_amount, vk_2, "", constant_2)
+        ret = self.nodes[1].sc_create(EPOCH_LENGTH, "baba", creation_amount, proving_system, vk_2, "", constant_2)
         creating_tx_2 = ret['txid']
         scid_2 = ret['scid']
         mark_logs("Node 1 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx_2), self.nodes, DEBUG_MODE)

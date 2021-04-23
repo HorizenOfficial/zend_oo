@@ -62,6 +62,8 @@ class sc_cert_change(BitcoinTestFramework):
         6) node3 has 0.5 balance and 3.0 immature from cert_ep2
         '''
 
+        proving_system = 1
+
         # cross chain transfer amounts
         creation_amount = Decimal("10.0")
 
@@ -73,7 +75,7 @@ class sc_cert_change(BitcoinTestFramework):
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, proving_system, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
         mark_logs("Node 0 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx), self.nodes, DEBUG_MODE)

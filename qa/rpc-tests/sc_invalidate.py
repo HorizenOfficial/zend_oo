@@ -119,6 +119,7 @@ class ScInvalidateTest(BitcoinTestFramework):
         sc_address = "0000000000000000000000000000000000000000000000000000000000000abc"
         sc_epoch = 123
         sc_cr_amount = tx_amount
+        sc_proving_system = 1
 
         #generate wCertVk and constant
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
@@ -129,6 +130,7 @@ class ScInvalidateTest(BitcoinTestFramework):
             "epoch_length": sc_epoch,
             "amount": sc_cr_amount,
             "address": sc_address,
+            "certProvingSystem": sc_proving_system, 
             "wCertVk": vk,
             "constant": constant,
             "mainchainBackwardTransferRequestDataLength": 1

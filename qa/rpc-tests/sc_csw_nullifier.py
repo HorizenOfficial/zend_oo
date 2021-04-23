@@ -81,6 +81,7 @@ class CswNullifierTest(BitcoinTestFramework):
         sc_address = "0000000000000000000000000000000000000000000000000000000000000abc"
         sc_epoch_len = EPOCH_LENGTH
         sc_cr_amount = Decimal('12.00000000')
+        proving_system = 1
 
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
 
@@ -95,15 +96,23 @@ class CswNullifierTest(BitcoinTestFramework):
             "epoch_length": sc_epoch_len,
             "amount": sc_cr_amount,
             "address": sc_address,
+            "certProvingSystem": proving_system,
             "wCertVk": vk,
+            "cswProvingSystem": proving_system,
             "wCeasedVk": cswVk,
             "constant": constant
         })
 
-        rawtx = self.nodes[0].createrawtransaction([], {}, [], sc_cr)
-        funded_tx = self.nodes[0].fundrawtransaction(rawtx)
-        sigRawtx = self.nodes[0].signrawtransaction(funded_tx['hex'])
-        finalRawtx = self.nodes[0].sendrawtransaction(sigRawtx['hex'])
+        try:
+            rawtx = self.nodes[0].createrawtransaction([], {}, [], sc_cr)
+            funded_tx = self.nodes[0].fundrawtransaction(rawtx)
+            sigRawtx = self.nodes[0].signrawtransaction(funded_tx['hex'])
+            finalRawtx = self.nodes[0].sendrawtransaction(sigRawtx['hex'])
+        except JSONRPCException, e:
+            errorString = e.error['message']
+            mark_logs("{}".format(errorString), self.nodes, DEBUG_MODE)
+            assert (False)
+
         self.sync_all()
 
         decoded_tx = self.nodes[2].getrawtransaction(finalRawtx, 1)
@@ -463,12 +472,13 @@ class CswNullifierTest(BitcoinTestFramework):
 
         mark_logs("\nVerify we need a valid active cert data hash  for a CSW to be legal...", self.nodes, DEBUG_MODE)
         
+        proving_system = 1
         prev_epoch_hash = self.nodes[0].getbestblockhash()
         vk2 = mcTest.generate_params("sc2")
         mbtrVk2 = mcTest.generate_params("mbtr2")
         cswVk2 = mcTest.generate_params("csw2")
 
-        ret = self.nodes[0].sc_create(sc_epoch_len, "dada", sc_cr_amount, vk2, "abcdef", constant, cswVk2)
+        ret = self.nodes[0].sc_create(sc_epoch_len, "dada", sc_cr_amount, proving_system, vk2, "abcdef", constant, proving_system, cswVk2)
         creating_tx = ret['txid']
         mark_logs("Node 0 created SC spending {} coins via tx1 {}.".format(sc_cr_amount, creating_tx), self.nodes, DEBUG_MODE)
         self.sync_all()

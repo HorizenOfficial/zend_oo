@@ -789,23 +789,25 @@ UniValue sc_create(const UniValue& params, bool fHelp)
             "sc_create withdrawalEpochLength [{\"address\":... ,\"amount\":...,\"wCertVk\":...,\"customData\":...,\"constant\":...,...},...]\n"
             "\nCreate a Side chain.\n"
             "\nArguments:\n"
-            " 1. withdrawalEpochLength:    (numeric, required) Length of the withdrawal epochs. The minimum valid value for " +
-                                            Params().NetworkIDString() + " is: " +  strprintf("%d", Params().ScMinWithdrawalEpochLength()) + "\n"
-            " 2. \"address\"                 (string, required) The receiver PublicKey25519Proposition in the SC\n"
-            " 3. amount:                   (numeric, required) The numeric amount in ZEN is the value\n"
-            " 4. \"wCertVk\"                 (string, required) It is an arbitrary byte string of even length expressed in\n"
-            "                                     hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
-            " 5. \"customData\"              (string, optional) It is an arbitrary byte string of even length expressed in\n"
-            "                                     hexadecimal format. A max limit of " + strprintf("%d", MAX_SC_CUSTOM_DATA_LEN) + " bytes will be checked. If not specified, an empty string \"\" must be passed.\n"
-            " 6. \"constant\"                (string, optional) It is an arbitrary byte string of even length expressed in\n"
-            "                                     hexadecimal format. Used as public input for WCert proof verification. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
-            " 7. \"wCeasedVk\"               (string, optional) It is an arbitrary byte string of even length expressed in\n"
-            "                                 hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
-            " 8. \"vFieldElementCertificateFieldConfig\" (array, optional) An array whose entries are sizes (in bits). Any certificate should have as many custom FieldElementCertificateField with the corresponding size.\n"
-            " 9. \"vBitVectorCertificateFieldConfig\" (array, optional) An array whose entries are bitVectorSizeBits and maxCompressedSizeBytes pairs. Any certificate should have as many custom BitVectorCertificateField with the corresponding sizes\n"
-            "10. \"forwardTransferScFee\" (numeric, optional, default=0) The amount of fee in " + CURRENCY_UNIT + " due to sidechain actors when creating a FT\n"
-            "11. \"mainchainBackwardTransferScFee\" (numeric, optional, default=0) The amount of fee in " + CURRENCY_UNIT + " due to sidechain actors when creating a MBTR\n"
-            "12. \"mainchainBackwardTransferRequestDataLength\" (numeric, optional, default=0) The expected size (max=" + strprintf("%d", MAX_SC_MBTR_DATA_LEN) + ") of the request data vector (made of field elements) in a MBTR\n"
+            " 1. withdrawalEpochLength:                         (numeric, required) Length of the withdrawal epochs. The minimum valid value for " +
+                                                                 Params().NetworkIDString() + " is: " +  strprintf("%d", Params().ScMinWithdrawalEpochLength()) + "\n"
+            " 2. \"address\"                                    (string, required) The receiver PublicKey25519Proposition in the SC\n"
+            " 3. amount:                                        (numeric, required) The numeric amount in ZEN is the value\n"
+            " 4. \"certProvingSystem\"                          (numeric, required) The type of proving system to be used for certificate verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
+            " 5. \"wCertVk\"                                    (string, required) It is an arbitrary byte string of even length expressed in\n"
+            "                                                    hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
+            " 6. \"customData\"                                 (string, optional) It is an arbitrary byte string of even length expressed in\n"
+            "                                                    hexadecimal format. A max limit of " + strprintf("%d", MAX_SC_CUSTOM_DATA_LEN) + " bytes will be checked. If not specified, an empty string \"\" must be passed.\n"
+            " 7. \"constant\"                                   (string, optional) It is an arbitrary byte string of even length expressed in\n"
+            "                                                    hexadecimal format. Used as public input for WCert proof verification. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
+            " 8. \"cswProvingSystem\"                           (numeric, optional) The type of proving system to be used for CSW verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
+            " 9. \"wCeasedVk\"                                  (string, optional) It is an arbitrary byte string of even length expressed in\n"
+            "                                                    hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
+            "10. \"vFieldElementCertificateFieldConfig\"        (array, optional) An array whose entries are sizes (in bits). Any certificate should have as many custom FieldElementCertificateField with the corresponding size.\n"
+            "11. \"vBitVectorCertificateFieldConfig\"           (array, optional) An array whose entries are bitVectorSizeBits and maxCompressedSizeBytes pairs. Any certificate should have as many custom BitVectorCertificateField with the corresponding sizes\n"
+            "12. \"forwardTransferScFee\"                       (numeric, optional, default=0) The amount of fee in " + CURRENCY_UNIT + " due to sidechain actors when creating a FT\n"
+            "13. \"mainchainBackwardTransferScFee\"             (numeric, optional, default=0) The amount of fee in " + CURRENCY_UNIT + " due to sidechain actors when creating a MBTR\n"
+            "14. \"mainchainBackwardTransferRequestDataLength\" (numeric, optional, default=0) The expected size (max=" + strprintf("%d", MAX_SC_MBTR_DATA_LEN) + ") of the request data vector (made of field elements) in a MBTR\n"
             "\nResult:\n"
             "\"transactionid\"    (string) The transaction id. Only 1 transaction is created regardless of \n"
             "                                    the number of addresses.\n"
@@ -837,10 +839,18 @@ UniValue sc_create(const UniValue& params, bool fHelp)
 
     sc.nValue = nAmount;
 
+    uint8_t certProvingSystemIndex = params[3].get_int();
+
+    if (certProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
+        certProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid certProvingSystem");
+
+    sc.fixedParams.certificateProvingSystem = static_cast<Sidechain::ProvingSystemType>(certProvingSystemIndex);
+
     std::string errorStr;
 
     {
-        const std::string& inputString = params[3].get_str();
+        const std::string& inputString = params[4].get_str();
         std::vector<unsigned char> wCertVkVec;
         if (!Sidechain::AddScData(inputString, wCertVkVec, CScVKey::ByteSize(), true, errorStr))
         {
@@ -854,9 +864,9 @@ UniValue sc_create(const UniValue& params, bool fHelp)
         }
     }
 
-    if ((params.size() > 4) && (params[4].get_str().size() != 0))
+    if ((params.size() > 5) && (params[5].get_str().size() != 0))
     {
-        const std::string& inputString = params[4].get_str();
+        const std::string& inputString = params[5].get_str();
         // it is optional
         if (!inputString.empty())
         {
@@ -867,9 +877,9 @@ UniValue sc_create(const UniValue& params, bool fHelp)
         }
     }
 
-    if (params.size() > 5)
+    if (params.size() > 6)
     {
-        const std::string& inputString = params[5].get_str();
+        const std::string& inputString = params[6].get_str();
         // it is optional
         if (!inputString.empty())
         {
@@ -887,12 +897,28 @@ UniValue sc_create(const UniValue& params, bool fHelp)
         }
     }
 
-    if (params.size() > 6)
+    if (params.size() > 7)
     {
-        const std::string& inputString = params[6].get_str();
+        uint8_t cswProvingSystemIndex = params[7].get_int();
+
+        if (cswProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
+            cswProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid cswProvingSystem");
+
+        sc.fixedParams.cswProvingSystem = static_cast<Sidechain::ProvingSystemType>(cswProvingSystemIndex);
+    }
+
+    if (params.size() > 8)
+    {
+        const std::string& inputString = params[8].get_str();
         // it is optional
         if (!inputString.empty())
         {
+            if (sc.fixedParams.cswProvingSystem == Sidechain::ProvingSystemType::Undefined)
+            {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, string("cswProvingSystem must be defined if a wCeasedVk is provided"));
+            }
+
             std::vector<unsigned char> wCeasedVkVec;
             if (!Sidechain::AddScData(inputString, wCeasedVkVec, CScVKey::ByteSize(), true, errorStr))
             {
@@ -907,9 +933,9 @@ UniValue sc_create(const UniValue& params, bool fHelp)
         }
     }
 
-    if (params.size() > 7)
+    if (params.size() > 9)
     {
-        UniValue intArray = params[7].get_array();
+        UniValue intArray = params[9].get_array();
         if (!Sidechain::AddScData(intArray, sc.fixedParams.vFieldElementCertificateFieldConfig))
         {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, expected integer");
@@ -917,10 +943,10 @@ UniValue sc_create(const UniValue& params, bool fHelp)
         // TODO as soon as CSW are supported, check against wCeasedVk presence: in that case must be size() > 0
     }
 
-    if (params.size() > 8)
+    if (params.size() > 10)
     {
         // TODO as soon as CSW are supported, check against wCeasedVk presence: in that case must be size() > 0
-        UniValue PairsArray = params[8].get_array();
+        UniValue PairsArray = params[10].get_array();
         if (!PairsArray.isNull())
         {
             for(auto& pairEntry: PairsArray.getValues())
@@ -939,27 +965,27 @@ UniValue sc_create(const UniValue& params, bool fHelp)
     }
 
     CAmount ftScFee(0);
-    if (params.size() > 9)
+    if (params.size() > 11)
     {
-        ftScFee = AmountFromValue(params[9]);
+        ftScFee = AmountFromValue(params[11]);
         if (ftScFee < 0)
             throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Invalid parameter, ftScFee out of range [%d, %d]", 0, MAX_MONEY));
     }
     sc.ftScFee = ftScFee;
 
     CAmount mbtrScFee(0);
-    if (params.size() > 10)
+    if (params.size() > 12)
     {
-        mbtrScFee = AmountFromValue(params[10]);
+        mbtrScFee = AmountFromValue(params[12]);
         if (mbtrScFee < 0)
             throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Invalid parameter, mbtrScFee out of range [%d, %d]", 0, MAX_MONEY));
     }
     sc.mbtrScFee = mbtrScFee;
 
     int32_t requestDataLength = 0;
-    if (params.size() > 11)
+    if (params.size() > 13)
     {
-        requestDataLength = params[11].get_int();
+        requestDataLength = params[13].get_int();
         if (requestDataLength < 0 || requestDataLength > MAX_SC_MBTR_DATA_LEN)
             throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Invalid parameter, mbtrScDataLength out of range [%d, %d]", 0, MAX_SC_MBTR_DATA_LEN));
     }
@@ -1002,12 +1028,14 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
             " \"fee\":fee                       (numeric, optional, default=" +
                                                    strprintf("%s", FormatMoney(SC_RPC_OPERATION_DEFAULT_MINERS_FEE)) +
                                                    ") The fee amount to attach to this transaction.\n"
+            " \"certProvingSystem\"             (numeric, required) The type of proving system to be used for certificate verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
             " \"wCertVk\":data                  (string, required) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
             " \"customData\":data               (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. A max limit of " + strprintf("%d", MAX_SC_CUSTOM_DATA_LEN) + " bytes will be checked\n"
             " \"constant\":data                 (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. Used as public input for WCert proof verification. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
+            " \"cswProvingSystem\"              (numeric, required) The type of proving system to be used for CSW verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
             " \"wCeasedVk\":data                (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
             " \"vFieldElementCertificateFieldConfig\"         (array, optional) An array whose entries are sizes (in bits). Any certificate should have as many custom FieldElements with the corresponding size.\n"
@@ -1029,9 +1057,10 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
 
     // valid input keywords
     static const std::set<std::string> validKeyArgs =
-        {"withdrawalEpochLength", "fromaddress", "changeaddress", "toaddress", "amount", "minconf", "fee",
-         "wCertVk", "customData", "constant","wCeasedVk", "vFieldElementCertificateFieldConfig", "vBitVectorCertificateFieldConfig",
-         "forwardTransferScFee", "mainchainBackwardTransferScFee", "mainchainBackwardTransferRequestDataLength" };
+        {"withdrawalEpochLength", "fromaddress", "changeaddress", "toaddress", "amount", "minconf", "fee", "certProvingSystem",
+         "wCertVk", "customData", "constant", "wCeasedVk", "cswProvingSystem", "vFieldElementCertificateFieldConfig",
+         "vBitVectorCertificateFieldConfig", "forwardTransferScFee", "mainchainBackwardTransferScFee",
+         "mainchainBackwardTransferRequestDataLength" };
 
     UniValue inputObject = params[0].get_obj();
 
@@ -1150,6 +1179,24 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
             FormatMoney(nFee), FormatMoney(nAmount)));
 
     // ---------------------------------------------------------
+    if (setKeyArgs.count("certProvingSystem"))
+    {
+        uint8_t certProvingSystemIndex = find_value(inputObject, "certProvingSystem").get_int();
+        
+        if (certProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
+            certProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid certProvingSystem");
+        }
+
+        fixedParams.certificateProvingSystem = static_cast<Sidechain::ProvingSystemType>(certProvingSystemIndex);
+    }
+    else
+    {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Missing mandatory parameter in input: \"certProvingSystem\"" );
+    }
+
+    // ---------------------------------------------------------
     std::string error;
 
     if (setKeyArgs.count("wCertVk"))
@@ -1200,8 +1247,27 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     }
 
     // ---------------------------------------------------------
+    if (setKeyArgs.count("cswProvingSystem"))
+    {
+        uint8_t cswProvingSystemIndex = find_value(inputObject, "cswProvingSystem").get_int();
+        
+        if (cswProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
+            cswProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid cswProvingSystem");
+        }
+
+        fixedParams.cswProvingSystem = static_cast<Sidechain::ProvingSystemType>(cswProvingSystemIndex);
+    }
+
+    // ---------------------------------------------------------
     if (setKeyArgs.count("wCeasedVk"))
     {
+        if (fixedParams.cswProvingSystem == Sidechain::ProvingSystemType::Undefined)
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, string("cswProvingSystem must be defined if a wCeasedVk is provided"));
+        }
+
         string inputString = find_value(inputObject, "wCeasedVk").get_str();
         std::vector<unsigned char> wCeasedVkVec;
         if (!Sidechain::AddScData(inputString, wCeasedVkVec, CScVKey::ByteSize(), true, error))
