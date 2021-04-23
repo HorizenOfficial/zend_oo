@@ -181,10 +181,8 @@ void CScProofVerifier::LoadDataForCswVerification(const CCoinsViewCache& view, c
 //            return error("%s():%d - ERROR: Tx[%s] CSW input [%s] has missing active cert data hash for required scId[%s]\n",
 //                            __func__, __LINE__, tx.ToString(), csw.ToString(), csw.scId.ToString());
 
-        if (sidechain.creationData.wCeasedVk.is_initialized())
-            newItem.ceasedVk = sidechain.creationData.wCeasedVk.get();
-        else
-            newItem.ceasedVk = CScVKey{};
+        assert(sidechain.creationData.wCeasedVk.is_initialized() && "Uninitilized wCeasedVk at scTx proof verification stage");
+        newItem.ceasedVk = sidechain.creationData.wCeasedVk.get();
 
         newItem.cswOut = csw;
     }
