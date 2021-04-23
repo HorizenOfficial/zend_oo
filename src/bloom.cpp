@@ -293,7 +293,7 @@ bool CNodeFilter::updateWith(const CTransactionBase& txBase)
 {
     LOCK(cs_filter);
     if (pfilter == nullptr)
-        return true;
+        return false;
 
     return pfilter->IsRelevantAndUpdate(txBase);
 }

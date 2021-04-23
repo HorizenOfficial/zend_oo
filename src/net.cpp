@@ -2085,12 +2085,12 @@ void Relay(const CTransactionBase& tx, const CDataStream& ss)
         vRelayExpiration.push_back(std::make_pair(GetTime() + 15 * 60, inv));
     }
     LOCK(cs_vNodes);
-    BOOST_FOREACH(CNode* pnode, vNodes)
+    for(CNode* pnode: vNodes)
     {
         if(!pnode->fRelayTxes)
             continue;
 
-        if (pnode->nodeFilter.updateWith(tx))
+        if (pnode->nodeFilter.isNull() || pnode->nodeFilter.updateWith(tx))
             pnode->PushInventory(inv);
     }
 }

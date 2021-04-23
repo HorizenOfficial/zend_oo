@@ -5621,7 +5621,7 @@ void ProcessMempoolMsg(const CTxMemPool& pool, CNodeInterface* pfrom)
         }
 
         if (!fInMemPool) continue; // another thread removed since queryHashes, maybe...
-        if (pfrom->nodeFilter.updateWith(*mempoolObjPtr))
+        if (pfrom->nodeFilter.isNull() || pfrom->nodeFilter.updateWith(*mempoolObjPtr))
             vInv.push_back(inv);
 
         if (vInv.size() == MAX_INV_SZ)

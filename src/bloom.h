@@ -142,6 +142,9 @@ public:
     CNodeFilter();
     ~CNodeFilter();
 
+    CNodeFilter(const CNodeFilter&) = delete;
+    CNodeFilter& operator=(const CNodeFilter &) = delete;
+
     bool isNull() const;
     bool updateWith(const CTransactionBase& txBase);
     bool insert(const std::vector<unsigned char>& vData);
