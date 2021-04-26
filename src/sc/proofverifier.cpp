@@ -6,6 +6,8 @@
 
 #ifdef BITCOIN_TX
 void CScProofVerifier::LoadDataForCertVerification(const CCoinsViewCache& view, const CScCertificate& scCert) {return;}
+void CScProofVerifier::LoadDataForMbtrVerification(const CCoinsViewCache& view, const CTransaction& scTx) {return;}
+void CScProofVerifier::LoadDataForCswVerification(const CCoinsViewCache& view, const CTransaction& scTx) {return;}
 #else
 void CScProofVerifier::LoadDataForCertVerification(const CCoinsViewCache& view, const CScCertificate& scCert)
 {
@@ -59,7 +61,96 @@ void CScProofVerifier::LoadDataForCertVerification(const CCoinsViewCache& view, 
 
     return;
 }
+
+void CScProofVerifier::LoadDataForMbtrVerification(const CCoinsViewCache& view, const CTransaction& scTx)
+{
+    for(size_t idx = 0; idx < scTx.GetVBwtRequestOut().size(); ++idx)
+    {
+        const CBwtRequestOut& mbtr = scTx.GetVBwtRequestOut().at(idx);
+
+        CSidechain sidechain;
+        assert(view.GetSidechain(mbtr.GetScId(), sidechain) && "Unknown sidechain at scTx proof verification stage");
+
+        mbtrVerifierInputsList& newItem = mbtrEnqueuedData[scTx.GetHash()][idx]; //create or retrieve new entry
+        newItem.certDataHash = view.GetActiveCertDataHash(mbtr.scId);
+
+//      //TODO: Unlock when we'll handle recovery of fwt of last epoch
+//      if (certDataHash.IsNull())
+//          return error("%s():%d - ERROR: Tx[%s] mbtr request [%s] has missing active cert data hash for required scId[%s]\n",
+//                       __func__, __LINE__, tx.ToString(), mbtr.ToString(), mbtr.scId.ToString());
+
+        newItem.scId = mbtr.scId;
+        newItem.scRequestData = mbtr.scRequestData;
+        newItem.mcDestinationAddress = mbtr.mcDestinationAddress;
+        newItem.scFee = mbtr.scFee;
+        newItem.scProof = mbtr.scProof;
+        assert(sidechain.creationData.wMbtrVk.is_initialized() && "Uninitilized wMbtrVk at scTx proof verification stage");
+        newItem.mbtrVk = sidechain.creationData.wMbtrVk.get();
+    }
+}
+
+void CScProofVerifier::LoadDataForCswVerification(const CCoinsViewCache& view, const CTransaction& scTx)
+{
+    for(size_t idx = 0; idx < scTx.GetVcswCcIn().size(); ++idx)
+    {
+        const CTxCeasedSidechainWithdrawalInput& csw = scTx.GetVcswCcIn().at(idx);
+
+        CSidechain sidechain;
+        assert(view.GetSidechain(csw.scId, sidechain) && "Unknown sidechain at scTx proof verification stage");
+
+        cswVerifierInputsList& newItem = cswEnqueuedData[scTx.GetHash()][idx]; //create or retrieve new entry
+        newItem.certDataHash = view.GetActiveCertDataHash(csw.scId);
+//        //TODO: Unlock when we'll handle recovery of fwt of last epoch
+//        if (certDataHash.IsNull())
+//            return error("%s():%d - ERROR: Tx[%s] CSW input [%s] has missing active cert data hash for required scId[%s]\n",
+//                            __func__, __LINE__, tx.ToString(), csw.ToString(), csw.scId.ToString());
+
+        assert(sidechain.creationData.wCeasedVk.is_initialized() && "Uninitilized wCeasedVk at scTx proof verification stage");
+        newItem.ceasedVk = sidechain.creationData.wCeasedVk.get();
+
+        newItem.cswOut = csw;
+    }
+}
 #endif
+
+std::map</*certHash*/uint256,bool> CScProofVerifier::batchVerify() const
+{
+    std::map<uint256,bool> res;
+    if(verificationMode == Verification::Loose)
+    {
+        for(const auto& pair: certEnqueuedData)
+            res[pair.first] = true;
+
+        for(const auto& pair: cswEnqueuedData)
+            res[pair.first] = true;
+
+        for(const auto& pair: mbtrEnqueuedData)
+            res[pair.first] = true;
+
+        return res;
+    }
+
+    res = batchVerifyCerts();
+    std::map<uint256,bool> res_csw = batchVerifyCsws();
+    for(const auto& cswPair: res_csw)
+    {
+        if (res.count(cswPair.first) == 0)
+            res[cswPair.first] = cswPair.second;
+        else
+            res.at(cswPair.first) = res.at(cswPair.first) && cswPair.second;
+    }
+
+    std::map<uint256,bool> res_mbtr = batchVerifyMbtrs();
+    for(const auto& mbtrPair: res_mbtr)
+    {
+        if (res.count(mbtrPair.first) == 0)
+            res[mbtrPair.first] = mbtrPair.second;
+        else
+            res.at(mbtrPair.first) = res.at(mbtrPair.first) && mbtrPair.second;
+    }
+
+    return res;
+}
 
 std::map<uint256,bool> CScProofVerifier::batchVerifyCerts() const
 {
@@ -118,37 +209,6 @@ std::map<uint256,bool> CScProofVerifier::batchVerifyCerts() const
     return res;
 }
 
-#ifdef BITCOIN_TX
-void CScProofVerifier::LoadDataForMbtrVerification(const CCoinsViewCache& view, const CTransaction& scTx) {return;}
-#else
-void CScProofVerifier::LoadDataForMbtrVerification(const CCoinsViewCache& view, const CTransaction& scTx)
-{
-    for(size_t idx = 0; idx < scTx.GetVBwtRequestOut().size(); ++idx)
-    {
-        const CBwtRequestOut& mbtr = scTx.GetVBwtRequestOut().at(idx);
-
-        CSidechain sidechain;
-        assert(view.GetSidechain(mbtr.GetScId(), sidechain) && "Unknown sidechain at scTx proof verification stage");
-
-        mbtrVerifierInputsList& newItem = mbtrEnqueuedData[scTx.GetHash()][idx]; //create or retrieve new entry
-        newItem.certDataHash = view.GetActiveCertDataHash(mbtr.scId);
-
-//      //TODO: Unlock when we'll handle recovery of fwt of last epoch
-//      if (certDataHash.IsNull())
-//          return error("%s():%d - ERROR: Tx[%s] mbtr request [%s] has missing active cert data hash for required scId[%s]\n",
-//                       __func__, __LINE__, tx.ToString(), mbtr.ToString(), mbtr.scId.ToString());
-
-        newItem.scId = mbtr.scId;
-        newItem.scRequestData = mbtr.scRequestData;
-        newItem.mcDestinationAddress = mbtr.mcDestinationAddress;
-        newItem.scFee = mbtr.scFee;
-        newItem.scProof = mbtr.scProof;
-        assert(sidechain.creationData.wMbtrVk.is_initialized() && "Uninitilized wMbtrVk at scTx proof verification stage");
-        newItem.mbtrVk = sidechain.creationData.wMbtrVk.get();
-    }
-}
-#endif
-
 std::map</*scTxHash*/uint256, bool> CScProofVerifier::batchVerifyMbtrs() const
 {
     std::map</*scTxHash*/uint256, bool> res;
@@ -161,33 +221,6 @@ std::map</*scTxHash*/uint256, bool> CScProofVerifier::batchVerifyMbtrs() const
 
     return res;
 }
-
-#ifdef BITCOIN_TX
-void CScProofVerifier::LoadDataForCswVerification(const CCoinsViewCache& view, const CTransaction& scTx) {return;}
-#else
-void CScProofVerifier::LoadDataForCswVerification(const CCoinsViewCache& view, const CTransaction& scTx)
-{
-    for(size_t idx = 0; idx < scTx.GetVcswCcIn().size(); ++idx)
-    {
-        const CTxCeasedSidechainWithdrawalInput& csw = scTx.GetVcswCcIn().at(idx);
-
-        CSidechain sidechain;
-        assert(view.GetSidechain(csw.scId, sidechain) && "Unknown sidechain at scTx proof verification stage");
-
-        cswVerifierInputsList& newItem = cswEnqueuedData[scTx.GetHash()][idx]; //create or retrieve new entry
-        newItem.certDataHash = view.GetActiveCertDataHash(csw.scId);
-//        //TODO: Unlock when we'll handle recovery of fwt of last epoch
-//        if (certDataHash.IsNull())
-//            return error("%s():%d - ERROR: Tx[%s] CSW input [%s] has missing active cert data hash for required scId[%s]\n",
-//                            __func__, __LINE__, tx.ToString(), csw.ToString(), csw.scId.ToString());
-
-        assert(sidechain.creationData.wCeasedVk.is_initialized() && "Uninitilized wCeasedVk at scTx proof verification stage");
-        newItem.ceasedVk = sidechain.creationData.wCeasedVk.get();
-
-        newItem.cswOut = csw;
-    }
-}
-#endif
 
 std::map<uint256,bool> CScProofVerifier::batchVerifyCsws() const
 {

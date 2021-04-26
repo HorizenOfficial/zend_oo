@@ -1241,7 +1241,7 @@ MempoolReturnValue AcceptCertificateToMemoryPool(CTxMemPool& pool, CValidationSt
 
         CScProofVerifier scVerifier{CScProofVerifier::Verification::Strict};
         scVerifier.LoadDataForCertVerification(view, cert);
-        std::map<uint256, bool> res = scVerifier.batchVerifyCerts();
+        std::map<uint256, bool> res = scVerifier.batchVerify();
         assert(res.size() == 1);
         assert(res.count(certHash));
         if (!res.at(certHash))
@@ -1521,17 +1521,10 @@ MempoolReturnValue AcceptTxToMemoryPool(CTxMemPool& pool, CValidationState &stat
         CScProofVerifier scVerifier{CScProofVerifier::Verification::Strict};
 
         scVerifier.LoadDataForMbtrVerification(view, tx);
-        std::map<uint256, bool> resMbtr = scVerifier.batchVerifyMbtrs();
-        if (resMbtr.count(hash) != 0 && !resMbtr.at(hash))
-        {
-            state.Invalid(error("%s():%d - ERROR: sc-related tx [%s] proofs do not verify\n",
-                          __func__, __LINE__, hash.ToString()), REJECT_INVALID, "bad-sc-tx-proof");
-            return MempoolReturnValue::INVALID;
-        }
-
         scVerifier.LoadDataForCswVerification(view, tx);
-        std::map<uint256, bool> resCsw = scVerifier.batchVerifyCsws();
-        if (resCsw.count(hash) != 0 && !resCsw.at(hash))
+
+        std::map<uint256, bool> resProofs = scVerifier.batchVerify();
+        if (!resProofs.at(hash))
         {
             state.Invalid(error("%s():%d - ERROR: sc-related tx [%s] proofs do not verify\n",
                           __func__, __LINE__, hash.ToString()), REJECT_INVALID, "bad-sc-tx-proof");
@@ -2871,29 +2864,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
     }  //end of Processing transactions loop
 
-    if (fScRelatedChecks)
-    {
-        std::map<uint256, bool> resMbtr = scVerifier.batchVerifyMbtrs();
-        for(const auto& mbtrItem: resMbtr)
-        {
-            if (!resMbtr.at(mbtrItem.first))
-            {
-                return state.DoS(100, error("%s():%d - ERROR: tx=%s\n", __func__, __LINE__, mbtrItem.first.ToString()),
-                        REJECT_INVALID, "bad-sc-tx-proof");
-            }
-        }
-
-        std::map<uint256, bool> resCsw = scVerifier.batchVerifyCsws();
-        for(const auto& cswItem: resCsw)
-        {
-            if (!resCsw.at(cswItem.first))
-            {
-                return state.DoS(100, error("%s():%d - ERROR: tx=%s\n", __func__, __LINE__, cswItem.first.ToString()),
-                        REJECT_INVALID, "bad-sc-tx-proof");
-            }
-        }
-    }
-
     std::map<uint256,uint256> highQualityCertData = HighQualityCertData(block, view);
     // key: current block top quality cert for given sc --> value: prev block superseeded cert hash (possibly null)
 
@@ -2989,15 +2959,29 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     if (fScRelatedChecks)
     {
-        std::map<uint256, bool> res = scVerifier.batchVerifyCerts();
-        for(const auto& cert: block.vcert)
+        std::map<uint256, bool> resProofs = scVerifier.batchVerify();
+        for(const auto& pair: resProofs)
         {
-            assert(res.count(cert.GetHash())!= 0 && "cert not validated in batch processing");
-            if (!res.at(cert.GetHash()))
-                return state.DoS(100, error("%s():%d: invalid sc certificate [%s]", cert.GetHash().ToString(),__func__, __LINE__),
-                                 REJECT_INVALID, "bad-sc-cert-proof");
+            bool isTxProof = false;
+            for(auto const& blockTx: block.vtx)
+            {
+                if (pair.first == blockTx.GetHash())
+                {
+                    isTxProof = true;
+                    break;
+                }
+            }
+
+            if (!resProofs.at(pair.first))
+            {
+                if (isTxProof)
+                    return state.DoS(100, error("%s():%d - ERROR: tx=%s\n", __func__, __LINE__, pair.first.ToString()),
+                        REJECT_INVALID, "bad-sc-tx-proof");
+                else
+                    return state.DoS(100, error("%s():%d - ERROR: cert=%s\n",__func__, __LINE__, pair.first.ToString()),
+                        REJECT_INVALID, "bad-sc-cert-proof");
+            }
         }
-        assert(res.size() == block.vcert.size());
     }
 
     if (!view.HandleSidechainEvents(pindex->nHeight, blockundo, pCertsStateInfo))

@@ -190,7 +190,6 @@ void TxBaseMsgProcessor::ProcessTxBaseMsg(const CTransactionBase& txBase, const 
             CScProofVerifier scVerifier{CScProofVerifier::Verification::Strict};
             std::map<uint256,unsigned int> hashToIdx;
 
-            // update in-place all PARTIALLY_VALIDATED txes/certs
             txBaseMsgQueue.push_back(dataToProcess); //Reinsert dataToProcess to process all PARTIALLY_VALIDATED txes
             for(unsigned int idx = 0; idx < txBaseMsgQueue.size(); ++idx)
             {
@@ -198,109 +197,84 @@ void TxBaseMsgProcessor::ProcessTxBaseMsg(const CTransactionBase& txBase, const 
                 if (enqueuedItem.txBaseProcessingState != MempoolReturnValue::PARTIALLY_VALIDATED)
                     continue;
 
-                // Mempool may have changed since partial validation has been made. Recheck for double spends
-                if (!supportView.HaveInputs(*enqueuedItem.pTxBase))
-                {
-                    enqueuedItem.txBaseProcessingState = MempoolReturnValue::INVALID;
-                    enqueuedItem.txBaseValidationState.Invalid(error("%s(): inputs already spent", __func__),
-                                         REJECT_DUPLICATE, "bad-txns-inputs-spent");
-                    continue;
-                }
-
                 if(enqueuedItem.pTxBase->IsCertificate())
                 {
                     const CScCertificate& cert = dynamic_cast<const CScCertificate&>(*enqueuedItem.pTxBase);
-
-                    // Mempool may have changed since partial validation has been made. Recheck for conflicts
-                    if (!mempool.checkIncomingCertConflicts(cert) || !supportView.IsCertApplicableToStateWithoutProof(cert))
-                    {
-                        enqueuedItem.txBaseProcessingState = MempoolReturnValue::INVALID;
-                        continue;
-                    }
-
-                    std::pair<uint256, CAmount> conflictingCertData = mempool.FindCertWithQuality(cert.GetScId(), cert.quality);
-                    CAmount nFees = cert.GetFeeAmount(supportView.GetValueIn(cert));
-                    if (!conflictingCertData.first.IsNull() && conflictingCertData.second >= nFees)
-                    {
-                        LogPrintf("%s():%d - Dropping cert %s : low fee and same quality as other cert in mempool\n",
-                                __func__, __LINE__, cert.GetHash().ToString());
-                        enqueuedItem.txBaseProcessingState = MempoolReturnValue::INVALID;
-                        continue;
-                    }
-
                     scVerifier.LoadDataForCertVerification(supportView, cert);
                 } else
                 {
                     const CTransaction& tx = dynamic_cast<const CTransaction&>(*enqueuedItem.pTxBase);
-
-                    // Mempool may have changed since partial validation has been made. Recheck for conflicts
-                    if (!mempool.checkIncomingTxConflicts(tx) || !supportView.IsScTxApplicableToStateWithoutProof(tx))
-                    {
-                        enqueuedItem.txBaseProcessingState = MempoolReturnValue::INVALID;
-                        continue;
-                    }
-
                     scVerifier.LoadDataForMbtrVerification(supportView, tx);
                     scVerifier.LoadDataForCswVerification(supportView, tx);
                 }
                 hashToIdx[enqueuedItem.pTxBase->GetHash()] = idx;
             }
 
-            std::map</*certHash*/uint256, bool> resCert = scVerifier.batchVerifyCerts();
-            for(const auto& certItem: resCert)
+            std::map</*certHash*/uint256, bool> res = scVerifier.batchVerify();
+            for(const auto& objItem: res)
             {
-                TxBaseMsg_DataToProcess& processedCert = txBaseMsgQueue.at(hashToIdx.at(certItem.first));
-                if (certItem.second)
+                TxBaseMsg_DataToProcess& processedObj = txBaseMsgQueue.at(hashToIdx.at(objItem.first));
+                // Mempool may have changed since partial validation has been made. Recheck for double spends
+                if (!supportView.HaveInputs(*processedObj.pTxBase))
                 {
-                    const CScCertificate& cert = dynamic_cast<const CScCertificate&>(*processedCert.pTxBase);
-                    if(!mempool.existsCert(cert.GetHash()))
-                        StoreCertToMempool(cert, mempool, supportView);
-                    processedCert.txBaseProcessingState = MempoolReturnValue::VALID;
-                } else
-                {
-                    processedCert.txBaseValidationState.Invalid(error("%s():%d - ERROR: sc-related tx [%s] proofs do not verify\n",
-                                  __func__, __LINE__, certItem.first.ToString()), REJECT_INVALID, "bad-sc-tx-proof");
-                    processedCert.txBaseProcessingState = MempoolReturnValue::INVALID;
+                    processedObj.txBaseProcessingState = MempoolReturnValue::INVALID;
+                    processedObj.txBaseValidationState.Invalid(error("%s(): inputs already spent", __func__),
+                                         REJECT_DUPLICATE, "bad-txns-inputs-spent");
+                    continue;
                 }
-            }
 
-            std::map</*scTxHash*/uint256, bool> resMbtr = scVerifier.batchVerifyMbtrs();
-            std::map</*scTxHash*/uint256, bool> resCsw = scVerifier.batchVerifyCsws();
-            for(const auto& scTxItem: resMbtr)
-            {
-                TxBaseMsg_DataToProcess& processedScTx = txBaseMsgQueue.at(hashToIdx.at(scTxItem.first));
-
-                if((resMbtr.count(scTxItem.first) && !resMbtr.at(scTxItem.first)) &&
-                   (resCsw.count(scTxItem.first) && !resCsw.at(scTxItem.first)))
+                if (processedObj.pTxBase->IsCertificate())
                 {
-                    processedScTx.txBaseValidationState.Invalid(error("%s():%d - ERROR: sc-related tx [%s] proofs do not verify\n",
-                                  __func__, __LINE__, scTxItem.first.ToString()), REJECT_INVALID, "bad-sc-tx-proof");
-                    processedScTx.txBaseProcessingState = MempoolReturnValue::INVALID;
+                    if (objItem.second)
+                    {
+                        const CScCertificate& cert = dynamic_cast<const CScCertificate&>(*processedObj.pTxBase);
+                        // Mempool may have changed since partial validation has been made. Recheck for conflicts
+                        if (!mempool.checkIncomingCertConflicts(cert) || !supportView.IsCertApplicableToStateWithoutProof(cert))
+                        {
+                            processedObj.txBaseProcessingState = MempoolReturnValue::INVALID;
+                            continue;
+                        }
+
+                        std::pair<uint256, CAmount> conflictingCertData = mempool.FindCertWithQuality(cert.GetScId(), cert.quality);
+                        CAmount nFees = cert.GetFeeAmount(supportView.GetValueIn(cert));
+                        if (!conflictingCertData.first.IsNull() && conflictingCertData.second >= nFees)
+                        {
+                            LogPrintf("%s():%d - Dropping cert %s : low fee and same quality as other cert in mempool\n",
+                                    __func__, __LINE__, cert.GetHash().ToString());
+                            processedObj.txBaseProcessingState = MempoolReturnValue::INVALID;
+                            continue;
+                        }
+
+                        if(!mempool.existsCert(cert.GetHash()))
+                            StoreCertToMempool(cert, mempool, supportView);
+                        processedObj.txBaseProcessingState = MempoolReturnValue::VALID;
+                    } else
+                    {
+                        processedObj.txBaseValidationState.Invalid(error("%s():%d - ERROR: sc-related tx [%s] proofs do not verify\n",
+                                      __func__, __LINE__, objItem.first.ToString()), REJECT_INVALID, "bad-sc-tx-proof");
+                        processedObj.txBaseProcessingState = MempoolReturnValue::INVALID;
+                    }
                 } else
                 {
-                    const CTransaction& scTx = dynamic_cast<const CTransaction&>(*processedScTx.pTxBase);
-                    if(!mempool.existsTx(scTx.GetHash()))
-                        StoreTxToMempool(scTx, mempool, supportView);
-                    processedScTx.txBaseProcessingState = MempoolReturnValue::VALID;
-                }
-            }
+                    if(objItem.second)
+                    {
+                        const CTransaction& scTx = dynamic_cast<const CTransaction&>(*processedObj.pTxBase);
+                        // Mempool may have changed since partial validation has been made. Recheck for conflicts
+                        if (!mempool.checkIncomingTxConflicts(scTx) || !supportView.IsScTxApplicableToStateWithoutProof(scTx))
+                        {
+                            processedObj.txBaseProcessingState = MempoolReturnValue::INVALID;
+                            continue;
+                        }
 
-            for(const auto& scTxItem: resCsw)
-            {
-                TxBaseMsg_DataToProcess& processedScTx = txBaseMsgQueue.at(hashToIdx.at(scTxItem.first));
-
-                if((resMbtr.count(scTxItem.first) && !resMbtr.at(scTxItem.first)) &&
-                   (resCsw.count(scTxItem.first) && !resCsw.at(scTxItem.first)))
-                {
-                    processedScTx.txBaseValidationState.Invalid(error("%s():%d - ERROR: sc-related tx [%s] proofs do not verify\n",
-                                  __func__, __LINE__, scTxItem.first.ToString()), REJECT_INVALID, "bad-sc-tx-proof");
-                    processedScTx.txBaseProcessingState = MempoolReturnValue::INVALID;
-                } else
-                {
-                    const CTransaction& scTx = dynamic_cast<const CTransaction&>(*processedScTx.pTxBase);
-                    if(!mempool.existsTx(scTx.GetHash()))
-                        StoreTxToMempool(scTx, mempool, supportView);
-                    processedScTx.txBaseProcessingState = MempoolReturnValue::VALID;
+                        if(!mempool.existsTx(scTx.GetHash()))
+                            StoreTxToMempool(scTx, mempool, supportView);
+                        processedObj.txBaseProcessingState = MempoolReturnValue::VALID;
+                    } else
+                    {
+                        processedObj.txBaseValidationState.Invalid(error("%s():%d - ERROR: sc-related tx [%s] proofs do not verify\n",
+                                      __func__, __LINE__, objItem.first.ToString()), REJECT_INVALID, "bad-sc-tx-proof");
+                        processedObj.txBaseProcessingState = MempoolReturnValue::INVALID;
+                    }
                 }
             }
 
@@ -324,7 +298,6 @@ void TxBaseMsgProcessor::ProcessTxBaseMsg(const CTransactionBase& txBase, const 
 
     return;
 }
-
 
 // Orphan Txes/Certs Tracker section
 bool TxBaseMsgProcessor::AddOrphanTx(const CTransactionBase& txObj, NodeId peer)
