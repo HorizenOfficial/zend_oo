@@ -6149,7 +6149,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             CTransaction tx(txVers);
             tx.SerializationOpInternal(vRecv, CSerActionUnserialize(), nType, nVersion);
             LogPrint("cert", "%s():%d - tx[%s]\n", __func__, __LINE__, tx.GetHash().ToString() );
-            TxBaseMsgProcessor::get().addTxBaseMsgToProcess(tx, pfrom);
+            TxBaseMsgProcessor::get().ProcessTxBaseMsg(tx, &AcceptTxBaseToMemoryPool, pfrom);
         }
         else
         if (CTransactionBase::IsCertificate(txVers) )
@@ -6157,7 +6157,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
             CScCertificate cert(txVers);
             cert.SerializationOpInternal(vRecv, CSerActionUnserialize(), nType, nVersion);
             LogPrint("cert", "%s():%d - cert[%s]\n", __func__, __LINE__, cert.GetHash().ToString() );
-            TxBaseMsgProcessor::get().addTxBaseMsgToProcess(cert, pfrom);
+            TxBaseMsgProcessor::get().ProcessTxBaseMsg(cert, &AcceptTxBaseToMemoryPool, pfrom);
         }
         else
         {

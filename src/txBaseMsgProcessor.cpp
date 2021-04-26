@@ -30,7 +30,7 @@ void TxBaseMsgProcessor::reset()
     return;
 }
 
-void TxBaseMsgProcessor::addTxBaseMsgToProcess(const CTransactionBase& txBase, CNodeInterface* pfrom)
+void TxBaseMsgProcessor::ProcessTxBaseMsg(const CTransactionBase& txBase, const processMempoolTx& mempoolProcess, CNodeInterface* pfrom)
 {
     CInv inv(MSG_TX, txBase.GetHash());
     pfrom->AddInventoryKnown(inv);
@@ -67,27 +67,8 @@ void TxBaseMsgProcessor::addTxBaseMsgToProcess(const CTransactionBase& txBase, C
     dataToAdd.pSourceNode            = pfrom;
     dataToAdd.txBaseProcessingState  = MempoolReturnValue::NOT_PROCESSED_YET;
 
-    boost::unique_lock<boost::mutex> lock(mutex);
     txBaseMsgQueue.push_back(dataToAdd);
-    lock.unlock();
-    condWorker.notify_one();
 
-    return;
-}
-
-void TxBaseMsgProcessor::startLoop(const processMempoolTx& mempoolProcess)
-{
-    while(true)
-    {
-        boost::unique_lock<boost::mutex> lock(mutex);
-        condWorker.wait(lock); // wait
-        ProcessTxBaseMsg(mempoolProcess); //this is automatically protected by the lock
-    }
-    return;
-}
-
-void TxBaseMsgProcessor::ProcessTxBaseMsg(const processMempoolTx& mempoolProcess)
-{
     std::vector<uint256> vEraseQueue;
     std::set<NodeId> setMisbehaving;
 

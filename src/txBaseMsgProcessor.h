@@ -29,9 +29,7 @@ public:
     void reset();
 
     // Tx/Certs processing Section
-    void addTxBaseMsgToProcess(const CTransactionBase& txBase, CNodeInterface* pfrom) GUARDED_BY(cs_txesUnderProcess);
-    void ProcessTxBaseMsg(const processMempoolTx& mempoolProcess); // kept public for unit-testability
-    void startLoop(const processMempoolTx& mempoolProcess);
+    void ProcessTxBaseMsg(const CTransactionBase& txBase, const processMempoolTx& mempoolProcess, CNodeInterface* pfrom);
     // End of Tx/Certs processing Section
 
     // Orphan Txes/Certs Tracker section
@@ -108,9 +106,7 @@ private:
         TxBaseMsg_DataToProcess();
     };
 
-    mutable boost::mutex mutex;
-    mutable boost::condition_variable condWorker;
-    std::vector<TxBaseMsg_DataToProcess> txBaseMsgQueue GUARDED_BY(cs_txesUnderProcess);
+    std::vector<TxBaseMsg_DataToProcess> txBaseMsgQueue;
 };
 
 #endif
