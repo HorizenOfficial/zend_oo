@@ -126,7 +126,9 @@ protected:
 
     //Helpers
     CBlockUndo createBlockUndoWith(const uint256 & scId, int height, CAmount amount, uint256 lastCertHash = uint256());
-    CTransaction createNewSidechainTx(const Sidechain::ScFixedParameters& params, const CAmount& ftScFee, const CAmount& mbtrScFee);
+    CTransaction createNewSidechainTx(const Sidechain::ScFixedParameters& params, const CAmount& ftScFee, const CAmount& mbtrScFee,
+                                      const Sidechain::ProvingSystemType certProvingSystem = Sidechain::ProvingSystemType::Undefined,
+                                      const Sidechain::ProvingSystemType cswProvingSystem = Sidechain::ProvingSystemType::Undefined);
     void storeSidechainWithCurrentHeight(const uint256& scId, const CSidechain& sidechain, int chainActiveHeight);
     uint256 createAndStoreSidechain(CAmount ftScFee = CAmount(0), CAmount mbtrScFee = CAmount(0), size_t mbtrScDataLength = 0);
     CMutableTransaction createMtbtrTx(uint256 scId, CAmount scFee);
@@ -1818,7 +1820,8 @@ CBlockUndo SidechainsTestSuite::createBlockUndoWith(const uint256 & scId, int he
     return retVal;
 }
 
-CTransaction SidechainsTestSuite::createNewSidechainTx(const Sidechain::ScFixedParameters& params, const CAmount& ftScFee, const CAmount& mbtrScFee)
+CTransaction SidechainsTestSuite::createNewSidechainTx(const Sidechain::ScFixedParameters& params, const CAmount& ftScFee, const CAmount& mbtrScFee,
+                                                       const Sidechain::ProvingSystemType certProvingSystem, const Sidechain::ProvingSystemType cswProvingSystem)
 {
     CMutableTransaction mtx = txCreationUtils::populateTx(SC_TX_VERSION, CAmount(1000));
     mtx.resizeOut(0);
@@ -1828,6 +1831,8 @@ CTransaction SidechainsTestSuite::createNewSidechainTx(const Sidechain::ScFixedP
     mtx.vsc_ccout[0].forwardTransferScFee = ftScFee;
     mtx.vsc_ccout[0].mainchainBackwardTransferRequestScFee = mbtrScFee;
     mtx.vsc_ccout[0].mainchainBackwardTransferRequestDataLength = params.mainchainBackwardTransferRequestDataLength;
+    mtx.vsc_ccout[0].certificateProvingSystem = certProvingSystem;
+    mtx.vsc_ccout[0].cswProvingSystem = cswProvingSystem;
 
     txCreationUtils::signTx(mtx);
 
@@ -2161,4 +2166,38 @@ TEST_F(SidechainsTestSuite, FixedParamsSerialization)
     // Negative test
     newParameters.certificateProvingSystem = Sidechain::ProvingSystemType::Darlin;
     EXPECT_TRUE(originalParameters != newParameters);
+}
+
+//////////////////////////////////////////////////////////
+//////////////// Proving System Selection ////////////////
+//////////////////////////////////////////////////////////
+TEST_F(SidechainsTestSuite, ProvingSystemSelection)
+{
+    CAmount ftFee = CAmount(5);
+    CAmount mbtrFee = CAmount(7);
+    CCoinsViewCache dummyView(nullptr);
+
+    // Forge a sidechain creation transaction
+    Sidechain::ScFixedParameters params;
+    params.mainchainBackwardTransferRequestDataLength = 0;
+    CAmount forwardTransferScFee(0);
+    CAmount mainchainBackwardTransferRequestScFee(0);
+
+    Sidechain::ProvingSystemType certProvingSystem = Sidechain::ProvingSystemType::CoboundaryMarlin;
+    Sidechain::ProvingSystemType cswProvingSystem = Sidechain::ProvingSystemType::Darlin;
+
+    CTransaction scCreationTx = createNewSidechainTx(params, forwardTransferScFee, mainchainBackwardTransferRequestScFee,
+                                                     certProvingSystem, cswProvingSystem);
+    uint256 scId = scCreationTx.GetScIdFromScCcOut(0);
+
+    // Update the sidechains view adding the new sidechain
+    int scCreationHeight {1987};
+    CBlock dummyBlock;
+    ASSERT_TRUE(sidechainsView->UpdateSidechain(scCreationTx, dummyBlock, scCreationHeight));
+
+    // Check that the parameters have been set correctly
+    CSidechain sc;
+    ASSERT_TRUE(sidechainsView->GetSidechain(scId, sc));
+    ASSERT_EQ(sc.fixedParams.certificateProvingSystem, certProvingSystem);
+    ASSERT_EQ(sc.fixedParams.cswProvingSystem, cswProvingSystem);
 }
