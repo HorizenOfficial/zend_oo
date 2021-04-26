@@ -1263,22 +1263,26 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     // ---------------------------------------------------------
     if (setKeyArgs.count("wCeasedVk"))
     {
-        if (fixedParams.cswProvingSystem == Sidechain::ProvingSystemType::Undefined)
-        {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, string("cswProvingSystem must be defined if a wCeasedVk is provided"));
-        }
-
         string inputString = find_value(inputObject, "wCeasedVk").get_str();
-        std::vector<unsigned char> wCeasedVkVec;
-        if (!Sidechain::AddScData(inputString, wCeasedVkVec, CScVKey::ByteSize(), true, error))
-        {
-            throw JSONRPCError(RPC_TYPE_ERROR, string("wCeasedVk: ") + error);
-        }
 
-		fixedParams.wCeasedVk = CScVKey(wCeasedVkVec);
-        if (!fixedParams.wCeasedVk.get().IsValid())
+        if (!inputString.empty())
         {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid wCeasedVk");
+            if (fixedParams.cswProvingSystem == Sidechain::ProvingSystemType::Undefined)
+            {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, string("cswProvingSystem must be defined if a wCeasedVk is provided"));
+            }
+
+            std::vector<unsigned char> wCeasedVkVec;
+            if (!Sidechain::AddScData(inputString, wCeasedVkVec, CScVKey::ByteSize(), true, error))
+            {
+                throw JSONRPCError(RPC_TYPE_ERROR, string("wCeasedVk: ") + error);
+            }
+
+            fixedParams.wCeasedVk = CScVKey(wCeasedVkVec);
+            if (!fixedParams.wCeasedVk.get().IsValid())
+            {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid wCeasedVk");
+            }
         }
     }
 

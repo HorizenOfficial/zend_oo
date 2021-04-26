@@ -534,25 +534,29 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
         const UniValue& wCeasedVk = find_value(o, "wCeasedVk");
         if (!wCeasedVk.isNull())
         {
-            if (sc.cswProvingSystem == Sidechain::ProvingSystemType::Undefined)
-            {
-                error = "cswProvingSystem must be defined if a wCeasedVk is provided";
-                return false;
-            }
-
             const std::string& inputString = wCeasedVk.get_str();
-            std::vector<unsigned char> wCeasedVkVec;
-            if (!AddScData(inputString, wCeasedVkVec, CScVKey::ByteSize(), true, error))
-            {
-                error = "wCeasedVk: " + error;
-                return false;
-            }
 
-            sc.wCeasedVk = CScVKey(wCeasedVkVec);
-            if (!sc.wCeasedVk.get().IsValid())
+            if (!inputString.empty())
             {
-                error = "invalid wCeasedVk";
-                return false;
+                if (sc.cswProvingSystem == Sidechain::ProvingSystemType::Undefined)
+                {
+                    error = "cswProvingSystem must be defined if a wCeasedVk is provided";
+                    return false;
+                }
+
+                std::vector<unsigned char> wCeasedVkVec;
+                if (!AddScData(inputString, wCeasedVkVec, CScVKey::ByteSize(), true, error))
+                {
+                    error = "wCeasedVk: " + error;
+                    return false;
+                }
+
+                sc.wCeasedVk = CScVKey(wCeasedVkVec);
+                if (!sc.wCeasedVk.get().IsValid())
+                {
+                    error = "invalid wCeasedVk";
+                    return false;
+                }
             }
         }
 
