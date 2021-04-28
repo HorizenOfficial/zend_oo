@@ -516,7 +516,7 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
         const UniValue& cswProvingSystemValue = find_value(o, "cswProvingSystem");
         if (!cswProvingSystemValue.isNull())
         {
-            if (cswProvingSystemValue.isNull() || !cswProvingSystemValue.isNum())
+            if (!cswProvingSystemValue.isNum())
             {
                 error = "Invalid parameter or missing cswProvingSystem key";
                 return false;
