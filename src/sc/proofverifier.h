@@ -38,19 +38,27 @@ public:
     void LoadDataForCswVerification(const CCoinsViewCache& view, const CTransaction& scTx);
     std::map</*scTxHash*/uint256,bool> batchVerifyCsws() const;
 
-private:
+    // these would become obsolete once batch verification will be implemented
+    //---
+    // Returns false if proof verification has failed or deserialization of certificate's elements
+    // into libzendoomc's elements has failed.
+    bool verifyCScCertificate() const;
+    // Returns false if proof verification has failed or deserialization of CSW's elements
+    // into libzendoomc's elements has failed.
+    bool verifyCTxCeasedSidechainWithdrawalInput() const; 
 
-    struct cswVerifierInputsList
+private:
+    struct cswVerifierInput
     {
         CTxCeasedSidechainWithdrawalInput cswOut;
         CScVKey ceasedVk;
         CFieldElement certDataHash;
         Sidechain::ProvingSystemType provingSystem;            /**< The type of system to be used for checking the proof. */
     };
-    std::map</*scTxHash*/uint256, std::map</*outputPos*/unsigned int, cswVerifierInputsList>> cswEnqueuedData;
 
-    struct certVerifierInputsList
+    struct certVerifierInput
     {
+        uint256 certHash;
         uint256 endEpochBlockHash;
         uint256 prevEndEpochBlockHash;
         std::vector<backward_transfer_t> bt_list;
@@ -61,8 +69,16 @@ private:
         CScVKey CertVk;
         Sidechain::ProvingSystemType provingSystem;            /**< The type of system to be used for checking the proof. */
     };
-    std::map</*certHash*/uint256, certVerifierInputsList> certEnqueuedData;
 
+    // these would be useful once batch verification will be implemented
+    std::map</*scTxHash*/uint256, std::map</*outputPos*/unsigned int, cswVerifierInput>> cswEnqueuedData;
+    std::map</*certHash*/uint256, certVerifierInput> certEnqueuedData;
+
+    bool _verifyCertInternal(const certVerifierInput& input) const; 
+
+    // theses would become obsolete once batch verification will be implemented
+    certVerifierInput certData;
+    cswVerifierInput  cswData;
 };
 
 #endif // _SC_PROOF_VERIFIER_H
