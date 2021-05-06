@@ -232,15 +232,13 @@ bool Sidechain::checkTxSemanticValidity(const CTransaction& tx, CValidationState
                     __func__, __LINE__, txHash.ToString()),
                     CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcert-vk");
         }
-        else
+
+        if (!Sidechain::IsValidProvingSystemType(sc.certificateProvingSystem))
         {
-            if (!Sidechain::IsValidProvingSystemType(sc.certificateProvingSystem))
-            {
-                return state.DoS(100,
-                    error("%s():%d - ERROR: Invalid tx[%s], invalid cert proving system\n",
-                    __func__, __LINE__, txHash.ToString()),
-                    CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcert-provingsystype");
-            }
+            return state.DoS(100,
+                error("%s():%d - ERROR: Invalid tx[%s], invalid cert proving system\n",
+                __func__, __LINE__, txHash.ToString()),
+                CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcert-provingsystype");
         }
 
         if(sc.constant.is_initialized() && !sc.constant->IsValid())
@@ -260,15 +258,12 @@ bool Sidechain::checkTxSemanticValidity(const CTransaction& tx, CValidationState
                     __func__, __LINE__, txHash.ToString()),
                     CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcsw-vk");
             }
-            else
+            if (!Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
             {
-                if (!Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
-                {
-                    return state.DoS(100,
-                        error("%s():%d - ERROR: Invalid tx[%s], invalid csw proving system\n",
-                        __func__, __LINE__, txHash.ToString()),
-                        CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcsw-provingsystype");
-                }
+                return state.DoS(100,
+                    error("%s():%d - ERROR: Invalid tx[%s], invalid csw proving system\n",
+                    __func__, __LINE__, txHash.ToString()),
+                    CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcsw-provingsystype");
             }
         }
         else

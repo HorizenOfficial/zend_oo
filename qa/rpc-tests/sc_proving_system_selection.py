@@ -225,7 +225,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
             error_string = e.error['message']
             mark_logs(error_string, self.nodes, DEBUG_MODE)
 
-        assert_true("Invalid cswProvingSystem" in error_string)
+        assert_true("cswProvingSystem must be defined" in error_string)
 
 
         # ---------------------------------------------------------------------------------------
@@ -333,7 +333,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
             error_string = e.error['message']
             mark_logs(error_string, self.nodes, DEBUG_MODE)
 
-        assert_true("Invalid parameter cswProvingSystem" in error_string)
+        assert_true("cswProvingSystem must be defined" in error_string)
 
 
         # ---------------------------------------------------------------------------------------

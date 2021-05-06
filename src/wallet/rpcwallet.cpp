@@ -1249,11 +1249,13 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     if (setKeyArgs.count("cswProvingSystem"))
     {
         std::string cswProvingSystemStr = find_value(inputObject, "cswProvingSystem").get_str();
-        fixedParams.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
-        if (!Sidechain::IsValidProvingSystemType(fixedParams.cswProvingSystem))
+        if (!cswProvingSystemStr.empty() && cswProvingSystemStr != Sidechain::PROVING_SYS_TYPE_UNDEFINED)
         {
-            // if the key is specified we accept only defined values
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid cswProvingSystem");
+            fixedParams.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
+            if (!Sidechain::IsValidProvingSystemType(fixedParams.cswProvingSystem))
+            {
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid cswProvingSystem");
+            }
         }
     }
 

@@ -520,12 +520,17 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
                 error = "Invalid parameter or missing cswProvingSystem key";
                 return false;
             }
-            sc.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemValue.get_str());
-            if (!Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
+            const std::string& cswProvingSystemStr = cswProvingSystemValue.get_str(); 
+
+            // empty string or explicit undefined tag mean null semantic, others must be legal types 
+            if (!cswProvingSystemStr.empty() && cswProvingSystemStr != Sidechain::PROVING_SYS_TYPE_UNDEFINED)
             {
-                // if the key is specified we accept only defined values
-                error = "Invalid parameter cswProvingSystem";
-                return false;
+                sc.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
+                if (!Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
+                {
+                    error = "Invalid parameter cswProvingSystem";
+                    return false;
+                }
             }
         }
 
