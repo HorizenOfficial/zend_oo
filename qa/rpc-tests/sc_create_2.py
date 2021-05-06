@@ -77,7 +77,7 @@ class SCCreateTest(BitcoinTestFramework):
         errorString = ""
         toaddress = "abcdef"
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         #generate wCertVk and constant
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)

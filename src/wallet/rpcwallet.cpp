@@ -793,14 +793,14 @@ UniValue sc_create(const UniValue& params, bool fHelp)
                                                                  Params().NetworkIDString() + " is: " +  strprintf("%d", Params().ScMinWithdrawalEpochLength()) + "\n"
             " 2. \"address\"                                    (string, required) The receiver PublicKey25519Proposition in the SC\n"
             " 3. amount:                                        (numeric, required) The numeric amount in ZEN is the value\n"
-            " 4. \"certProvingSystem\"                          (numeric, required) The type of proving system to be used for certificate verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
+            " 4. \"certProvingSystem\"                          (string, required) The type of proving system to be used for certificate verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
             " 5. \"wCertVk\"                                    (string, required) It is an arbitrary byte string of even length expressed in\n"
             "                                                    hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
             " 6. \"customData\"                                 (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                                    hexadecimal format. A max limit of " + strprintf("%d", MAX_SC_CUSTOM_DATA_LEN) + " bytes will be checked. If not specified, an empty string \"\" must be passed.\n"
             " 7. \"constant\"                                   (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                                    hexadecimal format. Used as public input for WCert proof verification. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
-            " 8. \"cswProvingSystem\"                           (numeric, optional) The type of proving system to be used for CSW verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
+            " 8. \"cswProvingSystem\"                           (string, optional) The type of proving system to be used for CSW verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "; can be \"\" or \"" + PROVING_SYS_TYPE_UNDEFINED + "\" if it sets a null value.\n"
             " 9. \"wCeasedVk\"                                  (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                                    hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
             "10. \"vFieldElementCertificateFieldConfig\"        (array, optional) An array whose entries are sizes (in bits). Any certificate should have as many custom FieldElementCertificateField with the corresponding size.\n"
@@ -839,13 +839,11 @@ UniValue sc_create(const UniValue& params, bool fHelp)
 
     sc.nValue = nAmount;
 
-    uint8_t certProvingSystemIndex = params[3].get_int();
+    std::string certProvingSystemStr = params[3].get_str();
 
-    if (certProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
-        certProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+    sc.fixedParams.certificateProvingSystem = Sidechain::StringToProvingSystemType(certProvingSystemStr);
+    if (!Sidechain::IsValidProvingSystemType(sc.fixedParams.certificateProvingSystem))
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid certProvingSystem");
-
-    sc.fixedParams.certificateProvingSystem = static_cast<Sidechain::ProvingSystemType>(certProvingSystemIndex);
 
     std::string errorStr;
 
@@ -899,13 +897,15 @@ UniValue sc_create(const UniValue& params, bool fHelp)
 
     if (params.size() > 7)
     {
-        uint8_t cswProvingSystemIndex = params[7].get_int();
+        std::string cswProvingSystemStr = params[7].get_str();
+        // it is optional, but can be empty or set to undefined for expressing null semantic
+        if (!cswProvingSystemStr.empty() && cswProvingSystemStr != Sidechain::PROVING_SYS_TYPE_UNDEFINED)
+        {
+            sc.fixedParams.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
 
-        if (cswProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
-            cswProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid cswProvingSystem");
-
-        sc.fixedParams.cswProvingSystem = static_cast<Sidechain::ProvingSystemType>(cswProvingSystemIndex);
+            if (!Sidechain::IsValidProvingSystemType(sc.fixedParams.cswProvingSystem))
+                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid cswProvingSystem");
+        }
     }
 
     if (params.size() > 8)
@@ -914,7 +914,7 @@ UniValue sc_create(const UniValue& params, bool fHelp)
         // it is optional
         if (!inputString.empty())
         {
-            if (sc.fixedParams.cswProvingSystem == Sidechain::ProvingSystemType::Undefined)
+            if (!Sidechain::IsValidProvingSystemType(sc.fixedParams.cswProvingSystem))
             {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, string("cswProvingSystem must be defined if a wCeasedVk is provided"));
             }
@@ -1028,14 +1028,14 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
             " \"fee\":fee                       (numeric, optional, default=" +
                                                    strprintf("%s", FormatMoney(SC_RPC_OPERATION_DEFAULT_MINERS_FEE)) +
                                                    ") The fee amount to attach to this transaction.\n"
-            " \"certProvingSystem\"             (numeric, required) The type of proving system to be used for certificate verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
+            " \"certProvingSystem\"             (string, required) The type of proving system to be used for certificate verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
             " \"wCertVk\":data                  (string, required) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
             " \"customData\":data               (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. A max limit of " + strprintf("%d", MAX_SC_CUSTOM_DATA_LEN) + " bytes will be checked\n"
             " \"constant\":data                 (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. Used as public input for WCert proof verification. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
-            " \"cswProvingSystem\"              (numeric, required) The type of proving system to be used for CSW verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
+            " \"cswProvingSystem\"              (string, optional) The type of proving system to be used for CSW verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
             " \"wCeasedVk\":data                (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
             " \"vFieldElementCertificateFieldConfig\"         (array, optional) An array whose entries are sizes (in bits). Any certificate should have as many custom FieldElements with the corresponding size.\n"
@@ -1181,15 +1181,14 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     // ---------------------------------------------------------
     if (setKeyArgs.count("certProvingSystem"))
     {
-        uint8_t certProvingSystemIndex = find_value(inputObject, "certProvingSystem").get_int();
+        std::string certProvingSystemStr = find_value(inputObject, "certProvingSystem").get_str();
+        fixedParams.certificateProvingSystem = Sidechain::StringToProvingSystemType(certProvingSystemStr);
         
-        if (certProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
-            certProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+        if (!Sidechain::IsValidProvingSystemType(fixedParams.certificateProvingSystem))
         {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid certProvingSystem");
         }
 
-        fixedParams.certificateProvingSystem = static_cast<Sidechain::ProvingSystemType>(certProvingSystemIndex);
     }
     else
     {
@@ -1249,15 +1248,13 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     // ---------------------------------------------------------
     if (setKeyArgs.count("cswProvingSystem"))
     {
-        uint8_t cswProvingSystemIndex = find_value(inputObject, "cswProvingSystem").get_int();
-        
-        if (cswProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
-            cswProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+        std::string cswProvingSystemStr = find_value(inputObject, "cswProvingSystem").get_str();
+        fixedParams.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
+        if (!Sidechain::IsValidProvingSystemType(fixedParams.cswProvingSystem))
         {
+            // if the key is specified we accept only defined values
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid cswProvingSystem");
         }
-
-        fixedParams.cswProvingSystem = static_cast<Sidechain::ProvingSystemType>(cswProvingSystemIndex);
     }
 
     // ---------------------------------------------------------

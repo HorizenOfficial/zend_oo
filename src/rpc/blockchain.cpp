@@ -1113,7 +1113,7 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
  
         if (bVerbose)
         {
-            sc.push_back(Pair("certificateProvingSystem", static_cast<uint8_t>(info.fixedParams.certificateProvingSystem)));
+            sc.push_back(Pair("certProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.certificateProvingSystem)));
             sc.push_back(Pair("wCertVk", info.fixedParams.wCertVk.GetHexRepr()));
             sc.push_back(Pair("customData", HexStr(info.fixedParams.customData)));
 
@@ -1122,7 +1122,7 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
             else
                 sc.push_back(Pair("constant", std::string{"NOT INITIALIZED"}));
 
-            sc.push_back(Pair("cswProvingSystem", static_cast<uint8_t>(info.fixedParams.cswProvingSystem)));
+            sc.push_back(Pair("cswProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.cswProvingSystem)));
 
             if(info.fixedParams.wCeasedVk.is_initialized())
                 sc.push_back(Pair("wCeasedVk", info.fixedParams.wCeasedVk.get().GetHexRepr()));
@@ -1208,7 +1208,7 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
 
             if (bVerbose)
             {
-                sc.push_back(Pair("unconf certificateProvingSystem", static_cast<uint8_t>(info.fixedParams.certificateProvingSystem)));
+                sc.push_back(Pair("unconf certProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.certificateProvingSystem)));
                 sc.push_back(Pair("unconf wCertVk", info.fixedParams.wCertVk.GetHexRepr()));
                 sc.push_back(Pair("unconf customData", HexStr(info.fixedParams.customData)));
 
@@ -1217,7 +1217,7 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
                 else
                     sc.push_back(Pair("unconf constant", std::string{"NOT INITIALIZED"}));
 
-                sc.push_back(Pair("unconf cswProvingSystem", static_cast<uint8_t>(info.fixedParams.cswProvingSystem)));
+                sc.push_back(Pair("unconf cswProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.cswProvingSystem)));
 
                 if(info.fixedParams.wCeasedVk.is_initialized())
                     sc.push_back(Pair("unconf wCeasedVk", info.fixedParams.wCeasedVk.get().GetHexRepr()));

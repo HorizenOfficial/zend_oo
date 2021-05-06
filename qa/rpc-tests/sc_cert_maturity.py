@@ -65,7 +65,7 @@ class sc_cert_maturity(BitcoinTestFramework):
              the rpc cmds with bwts maturity info
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         creation_amount = Decimal("10.0")
         bwt_amount1      = Decimal("1.0")

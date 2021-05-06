@@ -56,7 +56,7 @@ class sc_cert_base(BitcoinTestFramework):
         only when they become mature. 
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # forward transfer amounts
         creation_amount = Decimal("0.5")

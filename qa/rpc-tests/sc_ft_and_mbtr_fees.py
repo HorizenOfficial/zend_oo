@@ -64,7 +64,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
         withdrawalEpochLength = EPOCH_LENGTH
         address = "dada"
         creation_amount = Decimal("50.0")
-        proving_system = 1
+        proving_system = "Darlin"
         custom_data = "bb" * 1024
         ftScFee = 10
         mbtrScFee = 20
@@ -74,10 +74,11 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
         vk_tag = "sc1"
         vk = mcTest.generate_params(vk_tag)
         constant = generate_random_field_element_hex()
-        cswVk  = ""
         feCfg = []
         bvCfg = []
 
+        null_csw_vk  = ""
+        null_csw_proving_system = ""
 
         # ---------------------------------------------------------------------------------------
         # Node 1 - Create an invalid sidechain with negative FT fee
@@ -88,7 +89,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         try:
             ret = self.nodes[1].sc_create(withdrawalEpochLength, address, creation_amount, proving_system, vk, custom_data, constant,
-                                          proving_system, cswVk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
+                                          null_csw_proving_system, null_csw_vk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
             assert_true(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -107,7 +108,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         try:
             ret = self.nodes[1].sc_create(withdrawalEpochLength, address, creation_amount, proving_system, vk, custom_data, constant,
-                                          proving_system, cswVk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
+                                          null_csw_proving_system, null_csw_vk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
             assert_true(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -125,7 +126,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         try:
             ret = self.nodes[1].sc_create(withdrawalEpochLength, address, creation_amount, proving_system, vk, custom_data, constant,
-                                          proving_system, cswVk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
+                                          null_csw_proving_system, null_csw_vk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
             assert_true(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -144,7 +145,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         try:
             ret = self.nodes[1].sc_create(withdrawalEpochLength, address, creation_amount, proving_system, vk, custom_data, constant,
-                                          proving_system, cswVk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
+                                          null_csw_proving_system, null_csw_vk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
             assert_true(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -163,7 +164,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         try:
             ret = self.nodes[1].sc_create(withdrawalEpochLength, address, creation_amount, proving_system, vk, custom_data, constant,
-                                          proving_system, cswVk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
+                                          null_csw_proving_system, null_csw_vk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs(errorString,self.nodes,DEBUG_MODE)

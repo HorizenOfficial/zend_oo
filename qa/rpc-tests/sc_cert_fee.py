@@ -55,7 +55,7 @@ class sc_cert_base(BitcoinTestFramework):
         in a new certificate
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # cross chain transfer amounts
         creation_amount = Decimal("0.5")

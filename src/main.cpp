@@ -5772,17 +5772,17 @@ void ProcessTxBaseMsg(const CTransactionBase& txBase, CNode* pfrom)
                 for(const uint256& hash: vEraseQueue)
                 EraseOrphanTx(hash);
         }
-    }
-    // TODO: currently, prohibit joinsplits from entering mapOrphans
-    else if (res == MempoolReturnValue::MISSING_INPUT && txBase.GetVjoinsplit().size() == 0)
-    {
-        AddOrphanTx(txBase, pfrom->GetId());
- 
-        // DoS prevention: do not allow mapOrphanTransactions to grow unbounded
-        unsigned int nMaxOrphanTx = (unsigned int)std::max((int64_t)0, GetArg("-maxorphantx", DEFAULT_MAX_ORPHAN_TRANSACTIONS));
-        unsigned int nEvicted = LimitOrphanTxSize(nMaxOrphanTx);
-        if (nEvicted > 0)
-            LogPrint("mempool", "mapOrphan overflow, removed %u tx\n", nEvicted);
+        // TODO: currently, prohibit joinsplits from entering mapOrphans
+        else if (res == MempoolReturnValue::MISSING_INPUT && txBase.GetVjoinsplit().size() == 0)
+        {
+            AddOrphanTx(txBase, pfrom->GetId());
+  
+            // DoS prevention: do not allow mapOrphanTransactions to grow unbounded
+            unsigned int nMaxOrphanTx = (unsigned int)std::max((int64_t)0, GetArg("-maxorphantx", DEFAULT_MAX_ORPHAN_TRANSACTIONS));
+            unsigned int nEvicted = LimitOrphanTxSize(nMaxOrphanTx);
+            if (nEvicted > 0)
+                LogPrint("mempool", "mapOrphan overflow, removed %u tx\n", nEvicted);
+        }
     } else {
         assert(recentRejects);
         recentRejects->insert(txBase.GetHash());

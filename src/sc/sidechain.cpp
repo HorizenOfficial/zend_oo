@@ -232,6 +232,16 @@ bool Sidechain::checkTxSemanticValidity(const CTransaction& tx, CValidationState
                     __func__, __LINE__, txHash.ToString()),
                     CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcert-vk");
         }
+        else
+        {
+            if (!Sidechain::IsValidProvingSystemType(sc.certificateProvingSystem))
+            {
+                return state.DoS(100,
+                    error("%s():%d - ERROR: Invalid tx[%s], invalid cert proving system\n",
+                    __func__, __LINE__, txHash.ToString()),
+                    CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcert-provingsystype");
+            }
+        }
 
         if(sc.constant.is_initialized() && !sc.constant->IsValid())
         {
@@ -241,12 +251,36 @@ bool Sidechain::checkTxSemanticValidity(const CTransaction& tx, CValidationState
                     CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-constant");
         }
 
-        if (sc.wCeasedVk.is_initialized() && !sc.wCeasedVk.get().IsValid())
+        if (sc.wCeasedVk.is_initialized() )
         {
-            return state.DoS(100,
+            if (!sc.wCeasedVk.get().IsValid())
+            {
+                return state.DoS(100,
                     error("%s():%d - ERROR: Invalid tx[%s], invalid wCeasedVk verification key\n",
                     __func__, __LINE__, txHash.ToString()),
-                    CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-w-mbtr-vk");
+                    CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcsw-vk");
+            }
+            else
+            {
+                if (!Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
+                {
+                    return state.DoS(100,
+                        error("%s():%d - ERROR: Invalid tx[%s], invalid csw proving system\n",
+                        __func__, __LINE__, txHash.ToString()),
+                        CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcsw-provingsystype");
+                }
+            }
+        }
+        else
+        {
+            // no csw proving system type should be defined if vk is null
+            if (Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
+            {
+                return state.DoS(100,
+                    error("%s():%d - ERROR: Invalid tx[%s], csw proving system should not be specified without a valid wCeasedVk verification key\n",
+                    __func__, __LINE__, txHash.ToString()),
+                    CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcsw-provingsystype");
+            }
         }
 
         if (!MoneyRange(sc.forwardTransferScFee))

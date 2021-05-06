@@ -74,7 +74,7 @@ class CswActCertDataTest(BitcoinTestFramework):
         sc_address = "0000000000000000000000000000000000000000000000000000000000000abc"
         sc_epoch_len = EPOCH_LENGTH
         sc_cr_amount = Decimal('12.00000000')
-        sc_proving_system = 1
+        sc_proving_system = "Darlin"
 
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
 

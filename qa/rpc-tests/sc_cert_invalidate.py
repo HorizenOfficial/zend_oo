@@ -73,7 +73,7 @@ class sc_cert_invalidate(BitcoinTestFramework):
         sc_txes = []
         certs = []
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # forward transfer amount
         creation_amount = Decimal("0.5")

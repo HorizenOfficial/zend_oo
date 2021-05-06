@@ -77,7 +77,7 @@ class sc_fwd_maturity(BitcoinTestFramework):
 
         errorString = ""
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         creation_amount = Decimal("1.0")
         fwt_amount_1 = Decimal("2.0")

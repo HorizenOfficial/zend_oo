@@ -69,7 +69,7 @@ class sc_cert_orphans(BitcoinTestFramework):
         # (12) Node3  generates 2 blocks prevailing over Node0 and realigning the network 
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # cross chain transfer amounts
         creation_amount = Decimal("10.0")

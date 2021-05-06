@@ -61,7 +61,7 @@ class sc_bwt_request(BitcoinTestFramework):
         back, as well as a cert referring to an epoch that gets unfinished by a removal of a block
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # cross-chain transfer amount
         creation_amount1 = Decimal("1.0")
@@ -310,7 +310,7 @@ class sc_bwt_request(BitcoinTestFramework):
         prev_epoch_hash_2 = self.nodes[0].getbestblockhash()
         epoch_len_2 = 10
         ret = self.nodes[0].sc_create(epoch_len_2, "dada", creation_amount2, proving_system, vk2, "", c2,
-                                      proving_system, "", [], [], ftScFee, mbtrScFee, mbtrDataLength)
+                                      "", "", [], [], ftScFee, mbtrScFee, mbtrDataLength)
         scid2  = ret['scid']
         cr_tx2 = ret['txid']
         mark_logs("Node0 created the SC2 spending {} coins via tx {}.".format(creation_amount1, cr_tx2), self.nodes, DEBUG_MODE)

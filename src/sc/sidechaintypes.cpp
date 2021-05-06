@@ -384,3 +384,52 @@ const CFieldElement& BitVectorCertificateField::GetFieldElement(const BitVectorC
 }
 
 ////////////////////////// End of Custom Field types ///////////////////////////
+std::string Sidechain::ProvingSystemTypeHelp()
+{
+    std::string helpString;
+
+    helpString += strprintf("%s, ", PROVING_SYS_TYPE_COBOUNDARY_MARLIN);
+    helpString += strprintf("%s",   PROVING_SYS_TYPE_DARLIN);
+
+    return helpString;
+}
+
+bool Sidechain::IsValidProvingSystemType(uint8_t val)
+{
+    return IsValidProvingSystemType(static_cast<ProvingSystemType>(val));
+}
+
+bool Sidechain::IsValidProvingSystemType(Sidechain::ProvingSystemType val)
+{
+    switch (val)
+    {
+        case ProvingSystemType::CoboundaryMarlin:
+        case ProvingSystemType::Darlin:
+            return true;
+        default:
+            return false;
+    }
+}
+
+std::string Sidechain::ProvingSystemTypeToString(Sidechain::ProvingSystemType val)
+{
+    switch (val)
+    {
+        case ProvingSystemType::CoboundaryMarlin:
+            return PROVING_SYS_TYPE_COBOUNDARY_MARLIN;
+        case ProvingSystemType::Darlin:
+            return PROVING_SYS_TYPE_DARLIN;
+        default:
+            return PROVING_SYS_TYPE_UNDEFINED;
+    }
+}
+
+Sidechain::ProvingSystemType Sidechain::StringToProvingSystemType(const std::string& str)
+{
+    if (str == PROVING_SYS_TYPE_COBOUNDARY_MARLIN)
+        return ProvingSystemType::CoboundaryMarlin;
+    if (str == PROVING_SYS_TYPE_DARLIN)
+        return ProvingSystemType::Darlin;
+    return ProvingSystemType::Undefined;
+}
+

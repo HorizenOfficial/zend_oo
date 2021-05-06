@@ -51,7 +51,7 @@ class quality_voiding(BitcoinTestFramework):
         all backward transfer from previously highest quality certificate are voided.
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # forward transfer amounts
         creation_amount = Decimal("0.5")

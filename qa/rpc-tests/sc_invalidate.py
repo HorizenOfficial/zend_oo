@@ -119,7 +119,7 @@ class ScInvalidateTest(BitcoinTestFramework):
         sc_address = "0000000000000000000000000000000000000000000000000000000000000abc"
         sc_epoch = 123
         sc_cr_amount = tx_amount
-        sc_proving_system = 1
+        sc_proving_system = "Darlin"
 
         #generate wCertVk and constant
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)

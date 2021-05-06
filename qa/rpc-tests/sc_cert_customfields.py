@@ -61,7 +61,7 @@ class sc_cert_customfields(BitcoinTestFramework):
         self.nodes[0].generate(220)
         self.sync_all()
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         #generate wCertVk and constant
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
@@ -170,13 +170,15 @@ class sc_cert_customfields(BitcoinTestFramework):
         vk = mcTest.generate_params("sc2")
         constant2 = generate_random_field_element_hex()
         customData = "c0ffee"
-        cswVk  = ""
         feCfg.append([16])
         cmtCfg.append([])
 
+        proving_system_csw = ""
+        cswVk  = ""
+
         mark_logs("\nNode 1 create SC2 with valid vFieldElementCertificateFieldConfig / vBitVectorCertificateFieldConfig pair", self.nodes,DEBUG_MODE)
         try:
-            ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", amount, proving_system, vk, customData, constant2, proving_system, cswVk, feCfg[1], cmtCfg[1])
+            ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", amount, proving_system, vk, customData, constant2, proving_system_csw, cswVk, feCfg[1], cmtCfg[1])
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs(errorString,self.nodes,DEBUG_MODE)

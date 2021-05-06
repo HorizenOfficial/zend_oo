@@ -90,7 +90,7 @@ class CeasingSplitTest(BitcoinTestFramework):
 
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # generate wCertVk and constant
         vk = mcTest.generate_params("sc1")

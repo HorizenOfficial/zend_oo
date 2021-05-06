@@ -55,7 +55,7 @@ class quality_mempool(BitcoinTestFramework):
         certificates from different sc are handled independently.
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # forward transfer amounts
         creation_amount = Decimal("0.5")

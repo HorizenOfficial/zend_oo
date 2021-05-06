@@ -63,7 +63,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
         (9) Restart nodes
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # transfer amounts
         creation_amount = []

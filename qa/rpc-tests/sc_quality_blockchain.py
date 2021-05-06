@@ -56,7 +56,7 @@ class quality_blockchain(BitcoinTestFramework):
         certificates after block reversion return to mempool
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # forward transfer amounts
         creation_amount = Decimal("0.5")

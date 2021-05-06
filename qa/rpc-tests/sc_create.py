@@ -58,7 +58,7 @@ class SCCreateTest(BitcoinTestFramework):
         self.nodes[1].generate(220)
         self.sync_all()
 
-        proving_system = 1
+        proving_system = "Darlin"
         creation_amount = Decimal("0.00000001")
         fwt_amount_1 = Decimal("2.0")
         fwt_amount_2 = Decimal("2.0")

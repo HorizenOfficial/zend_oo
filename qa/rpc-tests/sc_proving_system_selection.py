@@ -13,9 +13,9 @@ from test_framework.util import assert_equal, assert_true, initialize_chain_clea
                                 stop_nodes, start_nodes, mark_logs, wait_bitcoinds
 from test_framework.mc_test.mc_test import MCTestUtils, generate_random_field_element_hex
 
+
 NUMB_OF_NODES = 1
 DEBUG_MODE = 1
-SC_COINS_MAT = 2
 EPOCH_LENGTH = 10
 
 class SCProvingSystemSelection(BitcoinTestFramework):
@@ -38,7 +38,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         self.nodes = []
 
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir,
-                                 extra_args=[["-sccoinsmaturity=%d" % SC_COINS_MAT, '-logtimemicros=1', '-debug=sc',
+                                 extra_args=[['-logtimemicros=1', '-debug=sc',
                                               '-debug=py', '-debug=mempool', '-debug=net',
                                               '-debug=bench']] * NUMB_OF_NODES)
 
@@ -78,7 +78,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing an undefined certificate proving system [sc_create()]
         mark_logs("\nNode 0 creates a sidechain with an undefined certificate proving system", self.nodes, DEBUG_MODE)
 
-        proving_system = 0
+        proving_system = "Undefined"
 
         try:
             ret = self.nodes[0].sc_create(withdrawal_epoch_length, address, creation_amount, proving_system, vk)
@@ -94,7 +94,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing an invalid certificate proving system [sc_create()]
         mark_logs("\nNode 0 creates a sidechain with an invalid certificate proving system", self.nodes, DEBUG_MODE)
 
-        proving_system = 3
+        proving_system = "xxxxxxxx"
 
         try:
             ret = self.nodes[0].sc_create(withdrawal_epoch_length, address, creation_amount, proving_system, vk)
@@ -110,8 +110,8 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing a CSW verification key and an undefined CSW proving system [sc_create()]
         mark_logs("\nNode 0 creates a sidechain with an undefined CSW proving system", self.nodes, DEBUG_MODE)
 
-        cert_proving_system = 1
-        csw_proving_system = 0
+        cert_proving_system = "Darlin"
+        csw_proving_system = ""
 
         try:
             ret = self.nodes[0].sc_create(withdrawal_epoch_length, address, creation_amount, cert_proving_system, vk,
@@ -121,15 +121,15 @@ class SCProvingSystemSelection(BitcoinTestFramework):
             error_string = e.error['message']
             mark_logs(error_string, self.nodes, DEBUG_MODE)
 
-        assert_true("Invalid cswProvingSystem" in error_string)
+        assert_true("cswProvingSystem must be defined" in error_string)
 
 
         # ---------------------------------------------------------------------------------------
         # Node 0 - Create a sidechain providing a CSW verification key and an invalid CSW proving system [sc_create()]
         mark_logs("\nNode 0 creates a sidechain with an invalid CSW proving system", self.nodes, DEBUG_MODE)
 
-        cert_proving_system = 1
-        csw_proving_system = 3
+        cert_proving_system = "Darlin"
+        csw_proving_system = "yyyyyy"
 
         try:
             ret = self.nodes[0].sc_create(withdrawal_epoch_length, address, creation_amount, cert_proving_system, vk,
@@ -162,7 +162,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing an undefined certificate proving system [create_sidechain()]
         mark_logs("\nNode 0 creates a new sidechain with create_sidechain() providing an undefined certificate proving system", self.nodes, DEBUG_MODE)
 
-        proving_system = 0
+        proving_system = "Undefined"
         cmd_input = {"toaddress": address, "amount": creation_amount, 'wCertVk': vk, 'certProvingSystem': proving_system}
 
         try:
@@ -179,7 +179,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing an invalid certificate proving system [create_sidechain()]
         mark_logs("\nNode 0 creates a new sidechain with create_sidechain() providing an invalid certificate proving system", self.nodes, DEBUG_MODE)
 
-        proving_system = 3
+        proving_system = "ssssss"
         cmd_input = {"toaddress": address, "amount": creation_amount, 'wCertVk': vk, 'certProvingSystem': proving_system}
 
         try:
@@ -196,7 +196,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing a CSW key and omitting the CSW proving system [create_sidechain()]
         mark_logs("\nNode 0 creates a new sidechain with create_sidechain() providing a CSW key and omitting the CSW proving system", self.nodes, DEBUG_MODE)
 
-        proving_system = 1
+        proving_system = "Darlin"
         cmd_input = {"toaddress": address, "amount": creation_amount, 'wCertVk': vk, 'certProvingSystem': proving_system, 'wCeasedVk': csw_vk}
 
         try:
@@ -213,8 +213,8 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing a CSW key and an undefined CSW proving system [create_sidechain()]
         mark_logs("\nNode 0 creates a new sidechain with create_sidechain() providing a CSW key and an undefined CSW proving system", self.nodes, DEBUG_MODE)
 
-        cert_proving_system = 1
-        csw_proving_system = 0
+        cert_proving_system = "Darlin"
+        csw_proving_system = "Undefined"
         cmd_input = {"toaddress": address, "amount": creation_amount, 'wCertVk': vk, 'certProvingSystem': cert_proving_system,
                      'wCeasedVk': csw_vk, 'cswProvingSystem': csw_proving_system}
 
@@ -232,8 +232,8 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing a CSW key and an invalid CSW proving system [create_sidechain()]
         mark_logs("\nNode 0 creates a new sidechain with create_sidechain() providing a CSW key and an invalid CSW proving system", self.nodes, DEBUG_MODE)
 
-        cert_proving_system = 1
-        csw_proving_system = 3
+        cert_proving_system = "Darlin"
+        csw_proving_system = "tttttt"
         cmd_input = {"toaddress": address, "amount": creation_amount, 'wCertVk': vk, 'certProvingSystem': cert_proving_system,
                      'wCeasedVk': csw_vk, 'cswProvingSystem': csw_proving_system}
 
@@ -267,7 +267,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing an undefined certificate proving system [create_raw_transaction()]
         mark_logs("\nNode 0 creates a new sidechain with create_raw_transaction() providing an undefined certificate proving system", self.nodes, DEBUG_MODE)
 
-        proving_system = 0
+        proving_system = "Undefined"
         sc_cr = [{"epoch_length": withdrawal_epoch_length, "amount": creation_amount, "address": address,
                   "certProvingSystem": proving_system, "wCertVk": vk}]
 
@@ -285,7 +285,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing an invalid certificate proving system [create_raw_transaction()]
         mark_logs("\nNode 0 creates a new sidechain with create_raw_transaction() providing an invalid certificate proving system", self.nodes, DEBUG_MODE)
 
-        proving_system = 3
+        proving_system = "tttttt"
         sc_cr = [{"epoch_length": withdrawal_epoch_length, "amount": creation_amount, "address": address,
                   "certProvingSystem": proving_system, "wCertVk": vk}]
 
@@ -303,7 +303,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing a CSW key and omitting the CSW proving system [create_raw_transaction()]
         mark_logs("\nNode 0 creates a new sidechain with create_raw_transaction() providing a CSW key and omitting the CSW proving system", self.nodes, DEBUG_MODE)
 
-        proving_system = 1
+        proving_system = "Darlin"
         sc_cr = [{"epoch_length": withdrawal_epoch_length, "amount": creation_amount, "address": address,
                   "certProvingSystem": proving_system, "wCertVk": vk, "wCeasedVk": csw_vk}]
 
@@ -321,8 +321,8 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing a CSW key and an undefined CSW proving system [create_raw_transaction()]
         mark_logs("\nNode 0 creates a new sidechain with create_raw_transaction() providing a CSW key and an undefined CSW proving system", self.nodes, DEBUG_MODE)
 
-        cert_proving_system = 1
-        csw_proving_system = 0
+        cert_proving_system = "Darlin"
+        csw_proving_system = "Undefined"
         sc_cr = [{"epoch_length": withdrawal_epoch_length, "amount": creation_amount, "address": address,
                   "certProvingSystem": proving_system, "wCertVk": vk, "cswProvingSystem": csw_proving_system, "wCeasedVk": csw_vk}]
 
@@ -340,8 +340,8 @@ class SCProvingSystemSelection(BitcoinTestFramework):
         # Node 0 - Create a sidechain providing a CSW key and an invalid CSW proving system [create_raw_transaction()]
         mark_logs("\nNode 0 creates a new sidechain with create_raw_transaction() providing a CSW key and an invalid CSW proving system", self.nodes, DEBUG_MODE)
 
-        cert_proving_system = 1
-        csw_proving_system = 3
+        cert_proving_system = "Darlin"
+        csw_proving_system = "yyyyyy"
         sc_cr = [{"epoch_length": withdrawal_epoch_length, "amount": creation_amount, "address": address,
                   "certProvingSystem": proving_system, "wCertVk": vk, "cswProvingSystem": csw_proving_system, "wCeasedVk": csw_vk}]
 
@@ -356,10 +356,10 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
 
         # ---------------------------------------------------------------------------------------
-        # Node 0 - Create a valid sidechain with sc_create()
-        mark_logs("\nNode 0 creates a new sidechain [sc_create()]", self.nodes, DEBUG_MODE)
+        # Node 0 - Create a valid sidechain with sc_create() without CSW verification
+        mark_logs("\nNode 0 creates a new sidechain without CSW verification [sc_create()]", self.nodes, DEBUG_MODE)
 
-        cert_proving_system = 1
+        cert_proving_system = "Darlin"
 
         try:
             ret = self.nodes[0].sc_create(withdrawal_epoch_length, address, creation_amount, cert_proving_system, vk, custom_data, constant)
@@ -378,7 +378,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected [mempool]", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['unconf certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['unconf certProvingSystem'], cert_proving_system)
 
         mark_logs("Node0 generating 1 block", self.nodes, DEBUG_MODE)
         self.nodes[0].getblockhash(self.nodes[0].getblockcount())
@@ -387,15 +387,15 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected after connecting the new block", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
 
 
         # ---------------------------------------------------------------------------------------
         # Node 0 - Create a valid sidechain with sc_create() with CSW verification
         mark_logs("\nNode 0 creates a new sidechain with CSW verification [sc_create()]", self.nodes, DEBUG_MODE)
 
-        cert_proving_system = 1
-        csw_proving_system = 2
+        cert_proving_system = "Darlin"
+        csw_proving_system = "CoboundaryMarlin"
 
         try:
             ret = self.nodes[0].sc_create(withdrawal_epoch_length, address, creation_amount, cert_proving_system, vk,
@@ -416,7 +416,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected [mempool]", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['unconf certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['unconf certProvingSystem'], cert_proving_system)
         assert_equal(scinfo0['unconf cswProvingSystem'], csw_proving_system)
 
         mark_logs("Node0 generating 1 block", self.nodes, DEBUG_MODE)
@@ -426,15 +426,15 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected after connecting the new block", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
         assert_equal(scinfo0['cswProvingSystem'], csw_proving_system)
 
 
         # ---------------------------------------------------------------------------------------
-        # Node 0 - Create a valid sidechain with create_sidechain()
-        mark_logs("\nNode 0 creates a new sidechain with create_sidechain()", self.nodes, DEBUG_MODE)
+        # Node 0 - Create a valid sidechain with create_sidechain() without CSW verification
+        mark_logs("\nNode 0 creates a new sidechain with create_sidechain() without CSW verification", self.nodes, DEBUG_MODE)
 
-        cert_proving_system = 1
+        cert_proving_system = "Darlin"
         cmd_input = {"toaddress": address, "amount": creation_amount, 'wCertVk': vk, 'certProvingSystem': cert_proving_system}
 
         try:
@@ -452,7 +452,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected [mempool]", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
 
         mark_logs("Node0 generating 1 block", self.nodes, DEBUG_MODE)
         self.nodes[0].getblockhash(self.nodes[0].getblockcount())
@@ -461,15 +461,15 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected after connecting the new block", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
 
 
         # ---------------------------------------------------------------------------------------
         # Node 0 - Create a valid sidechain with create_sidechain() with CSW verification
         mark_logs("\nNode 0 creates a new sidechain with create_sidechain() with CSW verification", self.nodes, DEBUG_MODE)
 
-        cert_proving_system = 1
-        csw_proving_system = 2
+        cert_proving_system = "Darlin"
+        csw_proving_system = "CoboundaryMarlin"
         cmd_input = {"toaddress": address, "amount": creation_amount, 'wCertVk': vk, 'certProvingSystem': cert_proving_system,
                      'wCeasedVk': csw_vk, 'cswProvingSystem': csw_proving_system}
 
@@ -489,7 +489,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected [mempool]", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
         assert_equal(scinfo0['cswProvingSystem'], csw_proving_system)
 
         mark_logs("Node0 generating 1 block", self.nodes, DEBUG_MODE)
@@ -499,7 +499,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected after connecting the new block", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
         assert_equal(scinfo0['cswProvingSystem'], csw_proving_system)
 
 
@@ -529,7 +529,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected [mempool]", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
 
         mark_logs("Node0 generating 1 block", self.nodes, DEBUG_MODE)
         self.nodes[0].getblockhash(self.nodes[0].getblockcount())
@@ -538,7 +538,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected after connecting the new block", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
 
 
         # ---------------------------------------------------------------------------------------
@@ -569,7 +569,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected [mempool]", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
         assert_equal(scinfo0['cswProvingSystem'], csw_proving_system)
 
         mark_logs("Node0 generating 1 block", self.nodes, DEBUG_MODE)
@@ -579,7 +579,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is as expected after connecting the new block", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
         assert_equal(scinfo0['cswProvingSystem'], csw_proving_system)
 
         mark_logs("Restart the nodes", self.nodes, DEBUG_MODE)
@@ -589,7 +589,7 @@ class SCProvingSystemSelection(BitcoinTestFramework):
 
         mark_logs("Verify that sidechain configuration is persistent", self.nodes, DEBUG_MODE)
         scinfo0 = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(scinfo0['certificateProvingSystem'], cert_proving_system)
+        assert_equal(scinfo0['certProvingSystem'], cert_proving_system)
         assert_equal(scinfo0['cswProvingSystem'], csw_proving_system)
 
 

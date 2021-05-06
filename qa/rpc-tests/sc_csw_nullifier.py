@@ -81,7 +81,7 @@ class CswNullifierTest(BitcoinTestFramework):
         sc_address = "0000000000000000000000000000000000000000000000000000000000000abc"
         sc_epoch_len = EPOCH_LENGTH
         sc_cr_amount = Decimal('12.00000000')
-        proving_system = 1
+        proving_system = "Darlin"
 
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
 
@@ -472,7 +472,7 @@ class CswNullifierTest(BitcoinTestFramework):
 
         mark_logs("\nVerify we need a valid active cert data hash  for a CSW to be legal...", self.nodes, DEBUG_MODE)
         
-        proving_system = 1
+        proving_system = "Darlin"
         prev_epoch_hash = self.nodes[0].getbestblockhash()
         vk2 = mcTest.generate_params("sc2")
         mbtrVk2 = mcTest.generate_params("mbtr2")

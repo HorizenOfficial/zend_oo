@@ -347,15 +347,15 @@ enum class ProvingSystemType : uint8_t
     Darlin
 };
 
-static std::string ProvingSystemTypeHelp()
-{
-    std::string helpString;
+static const std::string PROVING_SYS_TYPE_COBOUNDARY_MARLIN = "CoboundaryMarlin";
+static const std::string PROVING_SYS_TYPE_DARLIN            = "Darlin";
+static const std::string PROVING_SYS_TYPE_UNDEFINED         = "Undefined";
 
-    helpString += strprintf("%d => %s, ", static_cast<uint8_t>(ProvingSystemType::CoboundaryMarlin),  "CoboundaryMarlin");
-    helpString += strprintf("%d => %s", static_cast<uint8_t>(ProvingSystemType::Darlin),              "Darlin");
-
-    return helpString;
-}
+std::string ProvingSystemTypeHelp();
+bool IsValidProvingSystemType(uint8_t val);
+bool IsValidProvingSystemType(ProvingSystemType val);
+std::string ProvingSystemTypeToString(ProvingSystemType val);
+ProvingSystemType StringToProvingSystemType(const std::string& str);
 
 struct ScFixedParameters
 {

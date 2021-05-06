@@ -54,7 +54,7 @@ class sc_cr_fw(BitcoinTestFramework):
             epoch_block_hash = node.getblockhash(sc_creating_height - 1 + ((epoch_number + 1) * epoch_length))
             return epoch_number, epoch_block_hash
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # forward transfer amounts
         creation_amount = Decimal("1000")

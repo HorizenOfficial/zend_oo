@@ -55,7 +55,7 @@ class sc_cert_epoch(BitcoinTestFramework):
         chains erasing cert and tx spending it from their active chain and mempool as well
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # cross-chain transfer amount
         creation_amount = Decimal("0.5")

@@ -95,7 +95,7 @@ class sc_rawcert(BitcoinTestFramework):
         mark_logs("Node 1 creates the SC spending " + str(sc_amount) + " coins ...", self.nodes, DEBUG_MODE)
         sc_address = "fade"
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         #generate vk and constant for this sidechain
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)

@@ -354,7 +354,7 @@ class ListTransactionsTest(BitcoinTestFramework):
         sidechain_address = "0000000000000000000000000000000000000000000000000000000051dec4a1"
         fee = 0.00025
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # avoid creating change in the resulting tx
         sc_creation_amount -= fee

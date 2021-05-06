@@ -71,7 +71,7 @@ void AddSidechainOutsToJSON(const CTransaction& tx, UniValue& parentObj)
         o.push_back(Pair("withdrawal epoch length", (int)out.withdrawalEpochLength));
         o.push_back(Pair("value", ValueFromAmount(out.nValue)));
         o.push_back(Pair("address", out.address.GetHex()));
-        o.push_back(Pair("certProvingSystem", static_cast<uint8_t>(out.certificateProvingSystem)));
+        o.push_back(Pair("certProvingSystem", Sidechain::ProvingSystemTypeToString(out.certificateProvingSystem)));
         o.push_back(Pair("wCertVk", out.wCertVk.GetHexRepr()));
 
         UniValue arrFieldElementConfig(UniValue::VARR);
@@ -95,7 +95,7 @@ void AddSidechainOutsToJSON(const CTransaction& tx, UniValue& parentObj)
         if(out.constant.is_initialized())
             o.push_back(Pair("constant", out.constant->GetHexRepr()));
         if (out.cswProvingSystem != Sidechain::ProvingSystemType::Undefined)
-            o.push_back(Pair("cswProvingSystem", static_cast<uint8_t>(out.cswProvingSystem)));
+            o.push_back(Pair("cswProvingSystem", Sidechain::ProvingSystemTypeToString(out.cswProvingSystem)));
         if(out.wCeasedVk.is_initialized())
             o.push_back(Pair("wCeasedVk", out.wCeasedVk.get().GetHexRepr()));
         o.push_back(Pair("ftScFee", ValueFromAmount(out.forwardTransferScFee)));
@@ -444,19 +444,18 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
         address.SetHex(inputString);
 
         const UniValue& certProvingSystemValue = find_value(o, "certProvingSystem");
-        if (certProvingSystemValue.isNull() || !certProvingSystemValue.isNum())
+        if (!certProvingSystemValue.isStr())
         {
             error = "Invalid parameter or missing certProvingSystem key";
             return false;
         }
-        uint8_t certProvingSystemIndex = certProvingSystemValue.get_int();
-        if (certProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
-            certProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+        sc.certificateProvingSystem = Sidechain::StringToProvingSystemType(certProvingSystemValue.get_str());
+        if (!Sidechain::IsValidProvingSystemType(sc.certificateProvingSystem))
         {
+            // if the key is specified we accept only defined values
             error = "Invalid parameter certProvingSystem";
             return false;
         }
-        sc.certificateProvingSystem = static_cast<Sidechain::ProvingSystemType>(certProvingSystemIndex);
 
         const UniValue& wCertVk = find_value(o, "wCertVk");
         if (wCertVk.isNull())
@@ -516,19 +515,18 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
         const UniValue& cswProvingSystemValue = find_value(o, "cswProvingSystem");
         if (!cswProvingSystemValue.isNull())
         {
-            if (!cswProvingSystemValue.isNum())
+            if (!cswProvingSystemValue.isStr())
             {
                 error = "Invalid parameter or missing cswProvingSystem key";
                 return false;
             }
-            uint8_t cswProvingSystemIndex = cswProvingSystemValue.get_int();
-            if (cswProvingSystemIndex < static_cast<uint8_t>(Sidechain::ProvingSystemType::CoboundaryMarlin) ||
-                cswProvingSystemIndex > static_cast<uint8_t>(Sidechain::ProvingSystemType::Darlin))
+            sc.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemValue.get_str());
+            if (!Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
             {
+                // if the key is specified we accept only defined values
                 error = "Invalid parameter cswProvingSystem";
                 return false;
             }
-            sc.cswProvingSystem = static_cast<Sidechain::ProvingSystemType>(cswProvingSystemIndex);
         }
 
         const UniValue& wCeasedVk = find_value(o, "wCeasedVk");
@@ -557,6 +555,15 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
                     error = "invalid wCeasedVk";
                     return false;
                 }
+            }
+        }
+        else
+        {
+            // if csw vk is null we should not have csw proving sys option set
+            if (Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
+            {
+                error = "cswProvingSystem should not be defined if a wCeasedVk is null";
+                return false;
             }
         }
 

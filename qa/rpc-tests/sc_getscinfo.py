@@ -54,7 +54,7 @@ class sc_getscinfo(BitcoinTestFramework):
         (3) test getscinfo with filtering and pagination 
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         creation_amount = Decimal("1.0")
 

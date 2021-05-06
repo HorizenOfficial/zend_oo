@@ -65,7 +65,7 @@ class quality_nodes(BitcoinTestFramework):
         verifying certificates moving to mempool after rejoining network
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # forward transfer amounts
         creation_amount = Decimal("0.5")

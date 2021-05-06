@@ -186,12 +186,16 @@ class RawTransactionsTest(BitcoinTestFramework):
         cswVk = mcTest.generate_params("csw1")
         constant = generate_random_field_element_hex()
 
+        proving_system = "Darlin"
+
         sc_cr = []
         sc_cr.append({
             "epoch_length": sc_epoch_len,
             "amount": sc_cr_amount,
             "address": sc_address,
+            "certProvingSystem": proving_system, 
             "wCertVk": vk,
+            "cswProvingSystem": proving_system, 
             "wCeasedVk": cswVk,
             "constant": constant
         })
@@ -200,7 +204,9 @@ class RawTransactionsTest(BitcoinTestFramework):
             "epoch_length": sc_epoch2_len,
             "amount": sc_cr_amount2,
             "address": sc_address,
+            "certProvingSystem": proving_system, 
             "wCertVk": vk,
+            "cswProvingSystem": proving_system, 
             "wCeasedVk": cswVk,
             "constant": constant
         })
@@ -382,7 +388,9 @@ class RawTransactionsTest(BitcoinTestFramework):
             "epoch_length": sc_epoch_len,
             "amount": Decimal("4.0"),
             "address": "ccc",
+            "certProvingSystem": proving_system, 
             "wCertVk": vk2,
+            "cswProvingSystem": proving_system, 
             "wCeasedVk": cswVk2,
             "constant": constant2
         }]

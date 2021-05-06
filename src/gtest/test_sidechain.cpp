@@ -127,8 +127,8 @@ protected:
     //Helpers
     CBlockUndo createBlockUndoWith(const uint256 & scId, int height, CAmount amount, uint256 lastCertHash = uint256());
     CTransaction createNewSidechainTx(const Sidechain::ScFixedParameters& params, const CAmount& ftScFee, const CAmount& mbtrScFee,
-                                      const Sidechain::ProvingSystemType certProvingSystem = Sidechain::ProvingSystemType::Undefined,
-                                      const Sidechain::ProvingSystemType cswProvingSystem = Sidechain::ProvingSystemType::Undefined);
+                                      const Sidechain::ProvingSystemType certProvingSystem = Sidechain::ProvingSystemType::Darlin,
+                                      const Sidechain::ProvingSystemType cswProvingSystem = Sidechain::ProvingSystemType::Darlin);
     void storeSidechainWithCurrentHeight(const uint256& scId, const CSidechain& sidechain, int chainActiveHeight);
     uint256 createAndStoreSidechain(CAmount ftScFee = CAmount(0), CAmount mbtrScFee = CAmount(0), size_t mbtrScDataLength = 0);
     CMutableTransaction createMtbtrTx(uint256 scId, CAmount scFee);

@@ -97,7 +97,7 @@ class sbh_rpc_cmds(BitcoinTestFramework):
 
         prev_epoch_block_hash = self.nodes[0].getbestblockhash()
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         #generate wCertVk and constant
         mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)

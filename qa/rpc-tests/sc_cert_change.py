@@ -62,7 +62,7 @@ class sc_cert_change(BitcoinTestFramework):
         6) node3 has 0.5 balance and 3.0 immature from cert_ep2
         '''
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # cross chain transfer amounts
         creation_amount = Decimal("10.0")

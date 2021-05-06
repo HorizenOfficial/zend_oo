@@ -66,7 +66,7 @@ class ScSplitTest(BitcoinTestFramework):
         '''
         # network topology: (0)--(1)--(2)
 
-        proving_system = 1
+        proving_system = "Darlin"
 
         # forward transfer amount
         creation_amount = Decimal("0.5")
