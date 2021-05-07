@@ -18,6 +18,19 @@
 #include "serialize.h"
 #include "tinyformat.h"
 
+namespace Sidechain
+{
+    /**
+     * The enumeration of available proving systems
+     */
+    enum class ProvingSystemType : uint8_t
+    {
+        Undefined,
+        CoboundaryMarlin,
+        Darlin
+    };
+}
+
 class CZendooCctpObject
 {
 public:
@@ -141,10 +154,13 @@ typedef std::shared_ptr<sc_vk_t> wrappedScVkeyPtr;
 class CScVKey : public CZendooCctpObject
 {
 public:
-    CScVKey() = default;
+    CScVKey();
     ~CScVKey() = default;
 
-    explicit CScVKey(const std::vector<unsigned char>& byteArrayIn);
+    /**< The type of proving system used for verifying proof.*/
+    Sidechain::ProvingSystemType provingSystem;
+
+    CScVKey(Sidechain::ProvingSystemType provingSystemIn, const std::vector<unsigned char>& byteArrayIn);
     void SetByteArray(const std::vector<unsigned char>& byteArrayIn) override final;
 
     static constexpr unsigned int ByteSize() { return SC_VK_SIZE; }
@@ -153,6 +169,7 @@ public:
     wrappedScVkeyPtr GetVKeyPtr() const;
     bool IsValid() const override final;
 
+    // TODO add serialization
 protected:
     unsigned int SerializedSize() const override final { return ByteSize(); }
 
@@ -335,17 +352,6 @@ typedef struct sPowRelatedData_tag
         READWRITE(b);
     }
 } ScPowRelatedData;
-
-/**
- * The enumeration of available proving systems
- * 
- */
-enum class ProvingSystemType : uint8_t
-{
-    Undefined,
-    CoboundaryMarlin,
-    Darlin
-};
 
 static const std::string PROVING_SYS_TYPE_COBOUNDARY_MARLIN = "CoboundaryMarlin";
 static const std::string PROVING_SYS_TYPE_DARLIN            = "Darlin";

@@ -136,14 +136,17 @@ bool CScProof::IsValid() const
 //////////////////////////////// End of CScProof ///////////////////////////////
 
 //////////////////////////////////// CScVKey ///////////////////////////////////
-CScVKey::CScVKey(const std::vector<unsigned char>& byteArrayIn): CZendooCctpObject(byteArrayIn)
+CScVKey::CScVKey(Sidechain::ProvingSystemType provingSystemIn, const std::vector<unsigned char>& byteArrayIn)
+    :CZendooCctpObject(byteArrayIn), provingSystem(Sidechain::ProvingSystemType::Undefined)
 {
-    assert(byteArrayIn.size() == this->ByteSize());
+}
+
+CScVKey::CScVKey(): CZendooCctpObject(), provingSystem(Sidechain::ProvingSystemType::Undefined)
+{
 }
 
 void CScVKey::SetByteArray(const std::vector<unsigned char>& byteArrayIn)
 {
-    assert(byteArrayIn.size() == this->ByteSize());
     this->byteVector = byteArrayIn;
 }
 
@@ -152,6 +155,8 @@ wrappedScVkeyPtr CScVKey::GetVKeyPtr() const
     if (this->byteVector.empty())
         return wrappedScVkeyPtr{nullptr};
 
+    // TODO: use a suited api (as soon as it is available) with also the provingSystem type as
+    // an input parameter, in order to enforce the validity of the vk also depending on it
     wrappedScVkeyPtr res = {zendoo_deserialize_sc_vk(&this->byteVector[0]), theVkPtrDeleter};
     return res;
 }

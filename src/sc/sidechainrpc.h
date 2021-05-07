@@ -24,10 +24,13 @@ namespace Sidechain
 void AddCeasedSidechainWithdrawalInputsToJSON(const CTransaction& tx, UniValue& parentObj);
 void AddSidechainOutsToJSON(const CTransaction& tx, UniValue& parentObj);
 
+enum class CheckSizeMode {OFF, STRICT, UPPER_LIMIT};
 // Parses an hex inputString and writes it into a vector vBytes of required size vSize. 
 // If enforceStrictvSize is set to true, it will be checked that inputString.size()/2 == vSize,
 // otherwise the check is relaxed to inputString.size()/2 <= vSize
-bool AddScData(const std::string& inputString, std::vector<unsigned char>& vBytes, unsigned int vSize, bool enforceStrictvSize, std::string& error);
+bool AddScData(
+    const std::string& inputString, std::vector<unsigned char>& vBytes,
+    unsigned int vSize, CheckSizeMode checkSizeMode, std::string& error);
 
 bool AddCustomFieldElement(const std::string& inputString, std::vector<unsigned char>& vBytes,
     unsigned int vSize, std::string& errString);

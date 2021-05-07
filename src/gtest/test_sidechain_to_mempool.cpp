@@ -1756,11 +1756,11 @@ CTransaction SidechainsInMempoolTestSuite::GenerateScTx(const CAmount & creation
     scTx.vsc_ccout[0].mainchainBackwardTransferRequestDataLength = 1;
 
     scTx.vsc_ccout[0].certificateProvingSystem = Sidechain::ProvingSystemType::Darlin;
-    scTx.vsc_ccout[0].wCertVk = CScVKey(ParseHex(SAMPLE_VK));
+    scTx.vsc_ccout[0].wCertVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     if(ceasedVkDefined)
     {
         scTx.vsc_ccout[0].cswProvingSystem = Sidechain::ProvingSystemType::Darlin;
-        scTx.vsc_ccout[0].wCeasedVk = CScVKey(ParseHex(SAMPLE_VK));
+        scTx.vsc_ccout[0].wCeasedVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     }
 
     SignSignature(keystore, coinData.second.coins.vout[0].scriptPubKey, scTx, 0);

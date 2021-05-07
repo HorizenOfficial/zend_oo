@@ -40,9 +40,9 @@ CMutableTransaction txCreationUtils::populateTx(int txVersion, const CAmount & c
     mtx.vsc_ccout[0].nValue = creationTxAmount;
     mtx.vsc_ccout[0].withdrawalEpochLength = epochLength;
     mtx.vsc_ccout[0].certificateProvingSystem = Sidechain::ProvingSystemType::Darlin;
-    mtx.vsc_ccout[0].wCertVk = CScVKey(ParseHex(SAMPLE_VK));
+    mtx.vsc_ccout[0].wCertVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     mtx.vsc_ccout[0].cswProvingSystem = Sidechain::ProvingSystemType::CoboundaryMarlin;
-    mtx.vsc_ccout[0].wCeasedVk = CScVKey(ParseHex(SAMPLE_VK));
+    mtx.vsc_ccout[0].wCeasedVk = CScVKey(Sidechain::ProvingSystemType::CoboundaryMarlin, ParseHex(SAMPLE_VK));
     mtx.vsc_ccout[0].forwardTransferScFee = ftScFee;
     mtx.vsc_ccout[0].mainchainBackwardTransferRequestScFee = mbtrScFee;
     mtx.vsc_ccout[0].mainchainBackwardTransferRequestDataLength = mbtrDataLength;

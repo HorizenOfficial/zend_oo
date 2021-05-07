@@ -926,7 +926,7 @@ TEST_F(SidechainsTestSuite, CSWsToCeasedSidechainIsAccepted) {
     uint256 scId = uint256S("aaaa");
     initialScState.creationBlockHeight = 1492;
     initialScState.fixedParams.withdrawalEpochLength = 14;
-    initialScState.fixedParams.wCeasedVk = CScVKey(ParseHex(SAMPLE_VK));
+    initialScState.fixedParams.wCeasedVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     initialScState.balance = CAmount{1000};
     initialScState.pastEpochTopQualityCertView.certDataHash = CFieldElement{SAMPLE_FIELD};
     int heightWhereCeased = initialScState.GetScheduledCeasingHeight();
@@ -947,7 +947,7 @@ TEST_F(SidechainsTestSuite, ExcessiveAmountOfCSWsToCeasedSidechainIsRejected) {
     uint256 scId = uint256S("aaaa");
     initialScState.creationBlockHeight = 1492;
     initialScState.fixedParams.withdrawalEpochLength = 14;
-    initialScState.fixedParams.wCeasedVk = CScVKey(ParseHex(SAMPLE_VK));
+    initialScState.fixedParams.wCeasedVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     initialScState.balance = CAmount{1000};
     int heightWhereCeased = initialScState.GetScheduledCeasingHeight();
 
@@ -967,7 +967,7 @@ TEST_F(SidechainsTestSuite, ValidCeasedCumTreeHashesForCeasedSidechain) {
     uint256 scId = uint256S("aaaa");
     sc.creationBlockHeight = 1492;
     sc.fixedParams.withdrawalEpochLength = 14;
-    sc.fixedParams.wCeasedVk = CScVKey(ParseHex(SAMPLE_VK));
+    sc.fixedParams.wCeasedVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     sc.balance = CAmount{1000};
     int heightWhereCeased = sc.GetScheduledCeasingHeight();
 
@@ -988,7 +988,7 @@ TEST_F(SidechainsTestSuite, InvalidCeasedCumTreeHashesForUnceasedSidechain) {
     uint256 scId = uint256S("aaaa");
     sc.creationBlockHeight = 1492;
     sc.fixedParams.withdrawalEpochLength = 14;
-    sc.fixedParams.wCeasedVk = CScVKey(ParseHex(SAMPLE_VK));
+    sc.fixedParams.wCeasedVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     sc.balance = CAmount{1000};
     int heightWhereCeased = sc.GetScheduledCeasingHeight();
 
@@ -1005,7 +1005,7 @@ TEST_F(SidechainsTestSuite, InvalidCeasedCumTreeHashesForJustStartedSidechain) {
     uint256 scId = uint256S("aaaa");
     sc.creationBlockHeight = 1492;
     sc.fixedParams.withdrawalEpochLength = 14;
-    sc.fixedParams.wCeasedVk = CScVKey(ParseHex(SAMPLE_VK));
+    sc.fixedParams.wCeasedVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     sc.balance = CAmount{1000};
 
     storeSidechainWithCurrentHeight(scId, sc, sc.creationBlockHeight+1);
@@ -1032,7 +1032,7 @@ TEST_F(SidechainsTestSuite, CSWsToActiveSidechainIsRefused) {
     uint256 scId = uint256S("aaaa");
     initialScState.creationBlockHeight = 1492;
     initialScState.fixedParams.withdrawalEpochLength = 14;
-    initialScState.fixedParams.wCeasedVk = CScVKey(ParseHex(SAMPLE_VK));
+    initialScState.fixedParams.wCeasedVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     initialScState.balance = CAmount{1000};
     int heightWhereAlive = initialScState.GetScheduledCeasingHeight()-1;
 
