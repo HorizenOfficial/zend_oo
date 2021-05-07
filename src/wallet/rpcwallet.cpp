@@ -1249,7 +1249,8 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     if (setKeyArgs.count("cswProvingSystem"))
     {
         std::string cswProvingSystemStr = find_value(inputObject, "cswProvingSystem").get_str();
-        if (!cswProvingSystemStr.empty() && cswProvingSystemStr != Sidechain::PROVING_SYS_TYPE_UNDEFINED)
+        // empty string or explicit undefined tag mean null semantic, others must be legal types
+        if (!Sidechain::IsUndefinedProvingSystemType(cswProvingSystemStr))
         {
             fixedParams.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
             if (!Sidechain::IsValidProvingSystemType(fixedParams.cswProvingSystem))

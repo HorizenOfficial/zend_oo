@@ -433,3 +433,9 @@ Sidechain::ProvingSystemType Sidechain::StringToProvingSystemType(const std::str
     return ProvingSystemType::Undefined;
 }
 
+bool Sidechain::IsUndefinedProvingSystemType(const std::string& str)
+{
+    // empty string or explicit undefined tag mean null semantic, others must be legal types 
+    return (str.empty() || str == PROVING_SYS_TYPE_UNDEFINED);
+}
+

@@ -356,6 +356,7 @@ bool IsValidProvingSystemType(uint8_t val);
 bool IsValidProvingSystemType(ProvingSystemType val);
 std::string ProvingSystemTypeToString(ProvingSystemType val);
 ProvingSystemType StringToProvingSystemType(const std::string& str);
+bool IsUndefinedProvingSystemType(const std::string& str);
 
 struct ScFixedParameters
 {

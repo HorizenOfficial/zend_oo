@@ -522,8 +522,8 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
             }
             const std::string& cswProvingSystemStr = cswProvingSystemValue.get_str(); 
 
-            // empty string or explicit undefined tag mean null semantic, others must be legal types 
-            if (!cswProvingSystemStr.empty() && cswProvingSystemStr != Sidechain::PROVING_SYS_TYPE_UNDEFINED)
+            // empty string or explicit undefined tag mean null semantic, others must be legal types
+            if (!Sidechain::IsUndefinedProvingSystemType(cswProvingSystemStr))
             {
                 sc.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
                 if (!Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
