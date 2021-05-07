@@ -1932,7 +1932,7 @@ TEST_F(SidechainsTestSuite, CTxScCreationOutHashComputation)
 
     EXPECT_EQ(originalOut.forwardTransferScFee, -1);
     EXPECT_EQ(originalOut.mainchainBackwardTransferRequestScFee, -1);
-    EXPECT_EQ(originalOut.mainchainBackwardTransferRequestDataLength, -1);
+    EXPECT_EQ(originalOut.mainchainBackwardTransferRequestDataLength, 0);
 
     CTxScCreationOut newOut = CTxScCreationOut(originalOut);
     EXPECT_EQ(originalOut.GetHash(), newOut.GetHash());

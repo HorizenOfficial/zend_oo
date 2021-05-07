@@ -233,7 +233,12 @@ bool AddScData(const UniValue& intArray, std::vector<T>& vCfg)
             {
                 return false;
             }
-            vCfg.push_back(o.get_int());
+            int intVal = o.get_int();
+            if (intVal <= 0 || intVal > UINT8_MAX)
+            {
+                return false;
+            }
+            vCfg.push_back(static_cast<uint8_t>(intVal));
         }
     }
     return true;

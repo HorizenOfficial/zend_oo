@@ -967,17 +967,12 @@ TEST(SidechainsCertificateManipulation, ResizingCertificateChangeOutputs) {
 
 TEST(SidechainsCertificateCustomFields, FieldElementCertificateFieldConfig_Validation)
 {
-    FieldElementCertificateFieldConfig negativeFieldConfig{-1};
-    EXPECT_FALSE(negativeFieldConfig.IsValid());
-
     FieldElementCertificateFieldConfig zeroFieldConfig{0};
     EXPECT_FALSE(zeroFieldConfig.IsValid());
 
     FieldElementCertificateFieldConfig positiveFieldConfig{10};
     EXPECT_TRUE(positiveFieldConfig.IsValid());
-
-    FieldElementCertificateFieldConfig tooBigFieldConfig(CFieldElement::BitSize()+1);
-    EXPECT_FALSE(tooBigFieldConfig.IsValid());
+    // FieldElementCertificateFieldConfig::nBits is an uint8_t, testing larger values or negative ones is not possible 
 }
 
 TEST(SidechainsCertificateCustomFields, BitVectorCertificateFieldConfig_Validation)

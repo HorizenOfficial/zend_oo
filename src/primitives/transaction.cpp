@@ -328,7 +328,7 @@ std::string CTxScCreationOut::ToString() const
                                        "vBitVectorCertificateFieldConfig[%s], "
                                        "forwardTransferScFee=%d, "
                                        "mainchainBackwardTransferRequestScFee=%d, "
-                                       "mainchainBackwardTransferRequestDataLength=%d",
+                                       "mainchainBackwardTransferRequestDataLength=%u",
         generatedScId.ToString(), withdrawalEpochLength, nValue / COIN,
         nValue % COIN, HexStr(address).substr(0, 30), HexStr(customData),
         constant.is_initialized()? constant->GetHexRepr(): CFieldElement{}.GetHexRepr(),

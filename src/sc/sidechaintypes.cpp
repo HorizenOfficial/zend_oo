@@ -175,10 +175,10 @@ bool FieldElementCertificateFieldConfig::IsValid() const
         return false;
 }
 
-FieldElementCertificateFieldConfig::FieldElementCertificateFieldConfig(int32_t nBitsIn):
+FieldElementCertificateFieldConfig::FieldElementCertificateFieldConfig(uint8_t nBitsIn):
     CustomCertificateFieldConfig(), nBits(nBitsIn) {}
 
-int32_t FieldElementCertificateFieldConfig::getBitSize() const
+uint8_t FieldElementCertificateFieldConfig::getBitSize() const
 {
     return nBits;
 }

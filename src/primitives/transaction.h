@@ -587,14 +587,14 @@ public:
     std::vector<BitVectorCertificateFieldConfig> vBitVectorCertificateFieldConfig;
     CAmount forwardTransferScFee;
     CAmount mainchainBackwardTransferRequestScFee;
-    int32_t mainchainBackwardTransferRequestDataLength;
+    uint8_t mainchainBackwardTransferRequestDataLength;
 
     CTxScCreationOut(): withdrawalEpochLength(-1),
                         certificateProvingSystem(Sidechain::ProvingSystemType::Undefined),
                         cswProvingSystem(Sidechain::ProvingSystemType::Undefined),
                         forwardTransferScFee(-1),
                         mainchainBackwardTransferRequestScFee(-1),
-                        mainchainBackwardTransferRequestDataLength(-1) { }
+                        mainchainBackwardTransferRequestDataLength(0) { }
 
     CTxScCreationOut(const CAmount& nValueIn, const uint256& addressIn,
                      const CAmount& ftScFee, const CAmount& mbtrScFee,
@@ -616,7 +616,7 @@ public:
         READWRITE(vBitVectorCertificateFieldConfig);
         READWRITE(forwardTransferScFee);
         READWRITE(mainchainBackwardTransferRequestScFee);
-        READWRITE(mainchainBackwardTransferRequestDataLength);
+        READWRITE(VARINT(mainchainBackwardTransferRequestDataLength));
 
         if (ser_action.ForRead())
         {

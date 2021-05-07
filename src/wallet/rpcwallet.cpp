@@ -1292,7 +1292,7 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
         UniValue intArray = find_value(inputObject, "vFieldElementCertificateFieldConfig").get_array();
         if (!Sidechain::AddScData(intArray, fixedParams.vFieldElementCertificateFieldConfig))
         {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, expected integer");
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, expected positive integer in the range [1,..,255]");
         }
         // TODO as soon as CSW are supported, check against wCeasedVk presence: in that case must be size() > 0
     }

@@ -173,10 +173,10 @@ public:
 class FieldElementCertificateFieldConfig : public CustomCertificateFieldConfig
 {
 private:
-    int32_t nBits;
+    uint8_t nBits;
 
 public:
-    FieldElementCertificateFieldConfig(int32_t nBitsIn);
+    FieldElementCertificateFieldConfig(uint8_t nBitsIn);
     FieldElementCertificateFieldConfig(const FieldElementCertificateFieldConfig& rhs) = default;
     ~FieldElementCertificateFieldConfig() = default;
 
@@ -188,10 +188,10 @@ public:
     ADD_SERIALIZE_METHODS;
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(nBits);
+        READWRITE(VARINT(nBits));
     }
 
-    int32_t getBitSize() const;
+    uint8_t getBitSize() const;
 
     bool operator==(const FieldElementCertificateFieldConfig& rhs) const {
         return (this->nBits == rhs.nBits);
@@ -526,6 +526,9 @@ struct CRecipientBwtRequest
 
 static const int MAX_SC_CUSTOM_DATA_LEN = 1024;     /**< Maximum data length for custom data (optional attribute for sidechain creation) in bytes. */
 static const int MAX_SC_MBTR_DATA_LEN = 16;         /**< Maximum number of field elements contained in a mainchain backward transfer request (optional attribute for sidechain creation). */
+
+static_assert(MAX_SC_MBTR_DATA_LEN < UINT8_MAX, "MAX_SC_MBTR_DATA_LEN must be lower than max uint8_t size!");
+
 
 }; // end of namespace
 

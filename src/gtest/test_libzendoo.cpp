@@ -524,7 +524,7 @@ TEST(SidechainsField, NakedZendooFeatures_TreeCommitmentCalculation)
 
     uint256 scTxCommitmentHash = builder.getCommitment();
 
-    EXPECT_TRUE(scTxCommitmentHash == uint256S("800406568b7388caa2766669af8ffae71c20512a6f404b00519c4d744cbf6eca"))
+    EXPECT_TRUE(scTxCommitmentHash == uint256S("73a3d4483ff4a463a17750408ea737a1a19fb08da26aeb570a70d3cd51ea32e7"))
         <<scTxCommitmentHash.ToString();
 }
 
