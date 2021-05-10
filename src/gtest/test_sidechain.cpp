@@ -1840,8 +1840,8 @@ CTransaction SidechainsTestSuite::createNewSidechainTx(const Sidechain::ScFixedP
     mtx.vsc_ccout[0].forwardTransferScFee = ftScFee;
     mtx.vsc_ccout[0].mainchainBackwardTransferRequestScFee = mbtrScFee;
     mtx.vsc_ccout[0].mainchainBackwardTransferRequestDataLength = params.mainchainBackwardTransferRequestDataLength;
-    mtx.vsc_ccout[0].certificateProvingSystem = certProvingSystem;
-    mtx.vsc_ccout[0].cswProvingSystem = cswProvingSystem;
+    mtx.vsc_ccout[0].wCertVk   = CScVKey(certProvingSystem, ParseHex(SAMPLE_VK));
+    mtx.vsc_ccout[0].wCeasedVk = CScVKey(cswProvingSystem,  ParseHex(SAMPLE_VK));
 
     txCreationUtils::signTx(mtx);
 
@@ -2150,30 +2150,29 @@ TEST_F(SidechainsTestSuite, FixedParamsSerialization)
     Sidechain::ScFixedParameters newParameters;
     certStream >> newParameters;
 
-    EXPECT_TRUE(originalParameters.certificateProvingSystem == Sidechain::ProvingSystemType::Undefined);
-    EXPECT_TRUE(originalParameters.cswProvingSystem == Sidechain::ProvingSystemType::Undefined);
     EXPECT_TRUE(originalParameters.IsNull());
     EXPECT_TRUE(newParameters.IsNull());
     EXPECT_TRUE(originalParameters == newParameters);
 
 
     // Test object with non default proving systems
-    originalParameters.certificateProvingSystem = Sidechain::ProvingSystemType::CoboundaryMarlin;
-    originalParameters.cswProvingSystem = Sidechain::ProvingSystemType::Darlin;
+    originalParameters.wCertVk   = CScVKey{Sidechain::ProvingSystemType::CoboundaryMarlin, ParseHex(SAMPLE_VK)};
+    originalParameters.wCeasedVk = CScVKey{Sidechain::ProvingSystemType::Darlin,           ParseHex(SAMPLE_VK)};
 
     certStream = CDataStream(SER_DISK, CLIENT_VERSION);
     certStream << originalParameters;
     certStream >> newParameters;
 
-    EXPECT_TRUE(newParameters.certificateProvingSystem == Sidechain::ProvingSystemType::CoboundaryMarlin);
-    EXPECT_TRUE(newParameters.cswProvingSystem == Sidechain::ProvingSystemType::Darlin);
+    EXPECT_TRUE(newParameters.wCertVk.provingSystem == Sidechain::ProvingSystemType::CoboundaryMarlin);
+    EXPECT_TRUE(newParameters.wCeasedVk.get().provingSystem == Sidechain::ProvingSystemType::Darlin);
     EXPECT_FALSE(originalParameters.IsNull());
+
     EXPECT_FALSE(newParameters.IsNull());
     EXPECT_TRUE(originalParameters == newParameters);
 
 
     // Negative test
-    newParameters.certificateProvingSystem = Sidechain::ProvingSystemType::Darlin;
+    newParameters.wCertVk.provingSystem = Sidechain::ProvingSystemType::Darlin;
     EXPECT_TRUE(originalParameters != newParameters);
 }
 
@@ -2193,7 +2192,7 @@ TEST_F(SidechainsTestSuite, ProvingSystemSelection)
     CAmount mainchainBackwardTransferRequestScFee(0);
 
     Sidechain::ProvingSystemType certProvingSystem = Sidechain::ProvingSystemType::CoboundaryMarlin;
-    Sidechain::ProvingSystemType cswProvingSystem = Sidechain::ProvingSystemType::Darlin;
+    Sidechain::ProvingSystemType cswProvingSystem  = Sidechain::ProvingSystemType::Darlin;
 
     CTransaction scCreationTx = createNewSidechainTx(params, forwardTransferScFee, mainchainBackwardTransferRequestScFee,
                                                      certProvingSystem, cswProvingSystem);
@@ -2207,6 +2206,6 @@ TEST_F(SidechainsTestSuite, ProvingSystemSelection)
     // Check that the parameters have been set correctly
     CSidechain sc;
     ASSERT_TRUE(sidechainsView->GetSidechain(scId, sc));
-    ASSERT_EQ(sc.fixedParams.certificateProvingSystem, certProvingSystem);
-    ASSERT_EQ(sc.fixedParams.cswProvingSystem, cswProvingSystem);
+    ASSERT_EQ(sc.fixedParams.wCertVk.provingSystem, certProvingSystem);
+    ASSERT_EQ(sc.fixedParams.wCeasedVk.get().provingSystem, cswProvingSystem);
 }

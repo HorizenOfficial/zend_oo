@@ -53,7 +53,6 @@ private:
         CTxCeasedSidechainWithdrawalInput cswOut;
         CScVKey ceasedVk;
         CFieldElement certDataHash;
-        Sidechain::ProvingSystemType provingSystem;            /**< The type of system to be used for checking the proof. */
     };
 
     struct certVerifierInput
@@ -67,7 +66,6 @@ private:
         CFieldElement proofdata;
         CScProof certProof;
         CScVKey CertVk;
-        Sidechain::ProvingSystemType provingSystem;            /**< The type of system to be used for checking the proof. */
     };
 
     // these would be useful once batch verification will be implemented

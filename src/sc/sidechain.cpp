@@ -233,7 +233,7 @@ bool Sidechain::checkTxSemanticValidity(const CTransaction& tx, CValidationState
                     CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcert-vk");
         }
 
-        if (!Sidechain::IsValidProvingSystemType(sc.certificateProvingSystem))
+        if (!Sidechain::IsValidProvingSystemType(sc.wCertVk.provingSystem))
         {
             return state.DoS(100,
                 error("%s():%d - ERROR: Invalid tx[%s], invalid cert proving system\n",
@@ -258,21 +258,10 @@ bool Sidechain::checkTxSemanticValidity(const CTransaction& tx, CValidationState
                     __func__, __LINE__, txHash.ToString()),
                     CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcsw-vk");
             }
-            if (!Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
+            if (!Sidechain::IsValidProvingSystemType(sc.wCeasedVk.get().provingSystem))
             {
                 return state.DoS(100,
                     error("%s():%d - ERROR: Invalid tx[%s], invalid csw proving system\n",
-                    __func__, __LINE__, txHash.ToString()),
-                    CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcsw-provingsystype");
-            }
-        }
-        else
-        {
-            // no csw proving system type should be defined if vk is null
-            if (Sidechain::IsValidProvingSystemType(sc.cswProvingSystem))
-            {
-                return state.DoS(100,
-                    error("%s():%d - ERROR: Invalid tx[%s], csw proving system should not be specified without a valid wCeasedVk verification key\n",
                     __func__, __LINE__, txHash.ToString()),
                     CValidationState::Code::INVALID, "sidechain-sc-creation-invalid-wcsw-provingsystype");
             }

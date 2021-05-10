@@ -841,8 +841,8 @@ UniValue sc_create(const UniValue& params, bool fHelp)
 
     std::string certProvingSystemStr = params[3].get_str();
 
-    sc.fixedParams.certificateProvingSystem = Sidechain::StringToProvingSystemType(certProvingSystemStr);
-    if (!Sidechain::IsValidProvingSystemType(sc.fixedParams.certificateProvingSystem))
+    auto certProvingSystem = Sidechain::StringToProvingSystemType(certProvingSystemStr);
+    if (!Sidechain::IsValidProvingSystemType(certProvingSystem))
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid certProvingSystem");
 
     std::string errorStr;
@@ -854,7 +854,7 @@ UniValue sc_create(const UniValue& params, bool fHelp)
             throw JSONRPCError(RPC_TYPE_ERROR, string("wCertVk: ") + errorStr);
         }
 
-        sc.fixedParams.wCertVk = CScVKey(sc.fixedParams.certificateProvingSystem, wCertVkVec);
+        sc.fixedParams.wCertVk = CScVKey(certProvingSystem, wCertVkVec);
         if (!sc.fixedParams.wCertVk.IsValid())
         {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid wCertVk");
@@ -894,15 +894,16 @@ UniValue sc_create(const UniValue& params, bool fHelp)
         }
     }
 
+    auto cswProvingSystem = Sidechain::ProvingSystemType::Undefined;
     if (params.size() > 7)
     {
         std::string cswProvingSystemStr = params[7].get_str();
         // it is optional, but can be empty or set to undefined for expressing null semantic
         if (!cswProvingSystemStr.empty() && cswProvingSystemStr != Sidechain::PROVING_SYS_TYPE_UNDEFINED)
         {
-            sc.fixedParams.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
+            cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
 
-            if (!Sidechain::IsValidProvingSystemType(sc.fixedParams.cswProvingSystem))
+            if (!Sidechain::IsValidProvingSystemType(cswProvingSystem))
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid cswProvingSystem");
         }
     }
@@ -913,7 +914,7 @@ UniValue sc_create(const UniValue& params, bool fHelp)
         // it is optional
         if (!inputString.empty())
         {
-            if (!Sidechain::IsValidProvingSystemType(sc.fixedParams.cswProvingSystem))
+            if (!Sidechain::IsValidProvingSystemType(cswProvingSystem))
             {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, string("cswProvingSystem must be defined if a wCeasedVk is provided"));
             }
@@ -924,7 +925,7 @@ UniValue sc_create(const UniValue& params, bool fHelp)
                 throw JSONRPCError(RPC_TYPE_ERROR, string("wCeasedVk: ") + errorStr);
             }
  
-            sc.fixedParams.wCeasedVk = CScVKey(sc.fixedParams.cswProvingSystem, wCeasedVkVec);
+            sc.fixedParams.wCeasedVk = CScVKey(cswProvingSystem, wCeasedVkVec);
             if (!sc.fixedParams.wCeasedVk.get().IsValid())
             {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid wCeasedVk");
@@ -1178,16 +1179,16 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
             FormatMoney(nFee), FormatMoney(nAmount)));
 
     // ---------------------------------------------------------
+    auto certProvingSystem = Sidechain::ProvingSystemType::Undefined;
     if (setKeyArgs.count("certProvingSystem"))
     {
         std::string certProvingSystemStr = find_value(inputObject, "certProvingSystem").get_str();
-        fixedParams.certificateProvingSystem = Sidechain::StringToProvingSystemType(certProvingSystemStr);
+        certProvingSystem = Sidechain::StringToProvingSystemType(certProvingSystemStr);
         
-        if (!Sidechain::IsValidProvingSystemType(fixedParams.certificateProvingSystem))
+        if (!Sidechain::IsValidProvingSystemType(certProvingSystem))
         {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid certProvingSystem");
         }
-
     }
     else
     {
@@ -1206,7 +1207,7 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
             throw JSONRPCError(RPC_TYPE_ERROR, string("wCertVk: ") + error);
         }
 
-		fixedParams.wCertVk = CScVKey(fixedParams.certificateProvingSystem, wCertVkVec);
+		fixedParams.wCertVk = CScVKey(certProvingSystem, wCertVkVec);
         if (!fixedParams.wCertVk.IsValid())
         {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid wCertVk");
@@ -1245,14 +1246,15 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     }
 
     // ---------------------------------------------------------
+    auto cswProvingSystem = Sidechain::ProvingSystemType::Undefined;
     if (setKeyArgs.count("cswProvingSystem"))
     {
         std::string cswProvingSystemStr = find_value(inputObject, "cswProvingSystem").get_str();
         // empty string or explicit undefined tag mean null semantic, others must be legal types
         if (!Sidechain::IsUndefinedProvingSystemType(cswProvingSystemStr))
         {
-            fixedParams.cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
-            if (!Sidechain::IsValidProvingSystemType(fixedParams.cswProvingSystem))
+            cswProvingSystem = Sidechain::StringToProvingSystemType(cswProvingSystemStr);
+            if (!Sidechain::IsValidProvingSystemType(cswProvingSystem))
             {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid cswProvingSystem");
             }
@@ -1266,7 +1268,7 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
 
         if (!inputString.empty())
         {
-            if (fixedParams.cswProvingSystem == Sidechain::ProvingSystemType::Undefined)
+            if (cswProvingSystem == Sidechain::ProvingSystemType::Undefined)
             {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, string("cswProvingSystem must be defined if a wCeasedVk is provided"));
             }
@@ -1277,7 +1279,7 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
                 throw JSONRPCError(RPC_TYPE_ERROR, string("wCeasedVk: ") + error);
             }
 
-            fixedParams.wCeasedVk = CScVKey(fixedParams.cswProvingSystem, wCeasedVkVec);
+            fixedParams.wCeasedVk = CScVKey(cswProvingSystem, wCeasedVkVec);
             if (!fixedParams.wCeasedVk.get().IsValid())
             {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid wCeasedVk");

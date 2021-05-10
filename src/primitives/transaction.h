@@ -579,9 +579,7 @@ public:
     int withdrawalEpochLength; 
     std::vector<unsigned char> customData;
     boost::optional<CFieldElement> constant;
-    Sidechain::ProvingSystemType certificateProvingSystem;                     /**< The type of system used for verifying the certificates proof. */
     CScVKey wCertVk;
-    Sidechain::ProvingSystemType cswProvingSystem;                             /**< The type of system used for verifying the CSWs proof. */
     boost::optional<CScVKey> wCeasedVk;
     std::vector<FieldElementCertificateFieldConfig> vFieldElementCertificateFieldConfig;
     std::vector<BitVectorCertificateFieldConfig> vBitVectorCertificateFieldConfig;
@@ -590,8 +588,6 @@ public:
     uint8_t mainchainBackwardTransferRequestDataLength;
 
     CTxScCreationOut(): withdrawalEpochLength(-1),
-                        certificateProvingSystem(Sidechain::ProvingSystemType::Undefined),
-                        cswProvingSystem(Sidechain::ProvingSystemType::Undefined),
                         forwardTransferScFee(-1),
                         mainchainBackwardTransferRequestScFee(-1),
                         mainchainBackwardTransferRequestDataLength(0) { }
@@ -617,25 +613,6 @@ public:
         READWRITE(forwardTransferScFee);
         READWRITE(mainchainBackwardTransferRequestScFee);
         READWRITE(VARINT(mainchainBackwardTransferRequestDataLength));
-
-        if (ser_action.ForRead())
-        {
-            uint8_t certProvSys;
-            READWRITE(VARINT(certProvSys));
-            certificateProvingSystem = static_cast<Sidechain::ProvingSystemType>(certProvSys);
-        
-            uint8_t cswProvSys;
-            READWRITE(VARINT(cswProvSys));
-            cswProvingSystem = static_cast<Sidechain::ProvingSystemType>(cswProvSys);
-        }
-        else
-        {
-            uint8_t certProvSys = static_cast<uint8_t>(certificateProvingSystem);
-            READWRITE(VARINT(certProvSys));
-        
-            uint8_t cswProvSys = static_cast<uint8_t>(cswProvingSystem);
-            READWRITE(VARINT(cswProvSys));
-        }
     }
 
     const uint256& GetScId() const override final { return generatedScId;}; 
@@ -650,9 +627,7 @@ public:
                  a.withdrawalEpochLength == b.withdrawalEpochLength &&
                  a.customData == b.customData &&
                  a.constant == b.constant &&
-                 a.certificateProvingSystem == b.certificateProvingSystem &&
                  a.wCertVk == b.wCertVk &&
-                 a.cswProvingSystem == b.cswProvingSystem &&
                  a.wCeasedVk == b.wCeasedVk &&
                  a.vFieldElementCertificateFieldConfig == b.vFieldElementCertificateFieldConfig &&
                  a.vBitVectorCertificateFieldConfig == b.vBitVectorCertificateFieldConfig &&

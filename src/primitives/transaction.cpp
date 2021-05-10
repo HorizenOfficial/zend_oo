@@ -306,8 +306,7 @@ CTxScCreationOut::CTxScCreationOut(
     const Sidechain::ScFixedParameters& paramsIn)
     :CTxCrosschainOut(nValueIn, addressIn), generatedScId(),
      withdrawalEpochLength(paramsIn.withdrawalEpochLength), customData(paramsIn.customData), constant(paramsIn.constant),
-     certificateProvingSystem(paramsIn.certificateProvingSystem), wCertVk(paramsIn.wCertVk),
-     cswProvingSystem(paramsIn.cswProvingSystem), wCeasedVk(paramsIn.wCeasedVk),
+     wCertVk(paramsIn.wCertVk), wCeasedVk(paramsIn.wCeasedVk),
      vFieldElementCertificateFieldConfig(paramsIn.vFieldElementCertificateFieldConfig),
      vBitVectorCertificateFieldConfig(paramsIn.vBitVectorCertificateFieldConfig),
      forwardTransferScFee(ftScFee),

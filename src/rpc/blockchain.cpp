@@ -1113,7 +1113,7 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
  
         if (bVerbose)
         {
-            sc.push_back(Pair("certProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.certificateProvingSystem)));
+            sc.push_back(Pair("certProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.wCertVk.provingSystem)));
             sc.push_back(Pair("wCertVk", info.fixedParams.wCertVk.GetHexRepr()));
             sc.push_back(Pair("customData", HexStr(info.fixedParams.customData)));
 
@@ -1122,10 +1122,11 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
             else
                 sc.push_back(Pair("constant", std::string{"NOT INITIALIZED"}));
 
-            sc.push_back(Pair("cswProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.cswProvingSystem)));
-
             if(info.fixedParams.wCeasedVk.is_initialized())
+            {
+                sc.push_back(Pair("cswProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.wCeasedVk.get().provingSystem)));
                 sc.push_back(Pair("wCeasedVk", info.fixedParams.wCeasedVk.get().GetHexRepr()));
+            }
             else
                 sc.push_back(Pair("wCeasedVk", std::string{"NOT INITIALIZED"}));
 
@@ -1192,9 +1193,7 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
                     info.fixedParams.withdrawalEpochLength = scCreation.withdrawalEpochLength;
                     info.fixedParams.customData = scCreation.customData;
                     info.fixedParams.constant = scCreation.constant;
-                    info.fixedParams.certificateProvingSystem = scCreation.certificateProvingSystem;
                     info.fixedParams.wCertVk = scCreation.wCertVk;
-                    info.fixedParams.cswProvingSystem = scCreation.cswProvingSystem;
                     info.fixedParams.wCeasedVk = scCreation.wCeasedVk;
                     info.fixedParams.vFieldElementCertificateFieldConfig = scCreation.vFieldElementCertificateFieldConfig;
                     info.fixedParams.vBitVectorCertificateFieldConfig = scCreation.vBitVectorCertificateFieldConfig;
@@ -1208,7 +1207,7 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
 
             if (bVerbose)
             {
-                sc.push_back(Pair("unconf certProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.certificateProvingSystem)));
+                sc.push_back(Pair("unconf certProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.wCertVk.provingSystem)));
                 sc.push_back(Pair("unconf wCertVk", info.fixedParams.wCertVk.GetHexRepr()));
                 sc.push_back(Pair("unconf customData", HexStr(info.fixedParams.customData)));
 
@@ -1217,10 +1216,11 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
                 else
                     sc.push_back(Pair("unconf constant", std::string{"NOT INITIALIZED"}));
 
-                sc.push_back(Pair("unconf cswProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.cswProvingSystem)));
-
                 if(info.fixedParams.wCeasedVk.is_initialized())
+                {
+                    sc.push_back(Pair("unconf cswProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.wCeasedVk.get().provingSystem)));
                     sc.push_back(Pair("unconf wCeasedVk", info.fixedParams.wCeasedVk.get().GetHexRepr()));
+                }
                 else
                     sc.push_back(Pair("unconf wCeasedVk", std::string{"NOT INITIALIZED"}));
 

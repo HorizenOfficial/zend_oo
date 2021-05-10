@@ -45,8 +45,6 @@ public:
     bool IsNull() const;
 
     virtual bool IsValid() const = 0;
-    bool operator==(const CZendooCctpObject& rhs) const { return this->byteVector == rhs.byteVector; }
-    bool operator!=(const CZendooCctpObject& rhs) const { return !(*this == rhs); }
 
     // SERIALIZATION SECTION
     ADD_SERIALIZE_METHODS
@@ -60,6 +58,8 @@ public:
 
     std::string GetHexRepr() const;
 protected:
+    bool isBaseEqual(const CZendooCctpObject& rhs) const { return this->byteVector == rhs.byteVector; }
+
     virtual unsigned int SerializedSize() const = 0;
     std::vector<unsigned char> byteVector;
 };
@@ -93,6 +93,9 @@ public:
     wrappedFieldPtr GetFieldElement() const;
     bool IsValid() const override final;
     bool operator<(const CFieldElement& rhs)  const { return this->byteVector < rhs.byteVector; } // FOR STD::MAP ONLY
+
+    bool operator==(const CFieldElement& rhs) const { return isBaseEqual(rhs); }
+    bool operator!=(const CFieldElement& rhs) const { return !(*this == rhs); }
 
     static CFieldElement ComputeHash(const CFieldElement& lhs, const CFieldElement& rhs);
     static const CFieldElement& GetPhantomHash();
@@ -132,6 +135,9 @@ public:
     wrappedScProofPtr GetProofPtr() const;
     bool IsValid() const override final;
 
+    bool operator==(const CScProof& rhs) const { return isBaseEqual(rhs); }
+    bool operator!=(const CScProof& rhs) const { return !(*this == rhs); }
+
 protected:
     unsigned int SerializedSize() const override final { return ByteSize(); }
 
@@ -169,7 +175,29 @@ public:
     wrappedScVkeyPtr GetVKeyPtr() const;
     bool IsValid() const override final;
 
-    // TODO add serialization
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(byteVector);
+        if (ser_action.ForRead())
+        {
+            uint8_t provSys;
+            READWRITE(VARINT(provSys));
+            provingSystem = static_cast<Sidechain::ProvingSystemType>(provSys);
+        }
+        else
+        {
+            uint8_t provSys = static_cast<uint8_t>(provingSystem);
+            READWRITE(VARINT(provSys));
+        }
+    }
+
+    bool operator==(const CScVKey& rhs) const { return isBaseEqual(rhs) && provingSystem == rhs.provingSystem; }
+    bool operator!=(const CScVKey& rhs) const { return !(*this == rhs); }
+
+
 protected:
     unsigned int SerializedSize() const override final { return ByteSize(); }
 
@@ -375,8 +403,6 @@ struct ScFixedParameters
     std::vector<FieldElementCertificateFieldConfig> vFieldElementCertificateFieldConfig;
     std::vector<BitVectorCertificateFieldConfig> vBitVectorCertificateFieldConfig;
     int32_t mainchainBackwardTransferRequestDataLength;             /**< The mandatory size of the field element included in MBTR transaction outputs (0 to disable the MBTR). */
-    ProvingSystemType certificateProvingSystem;                     /**< The type of system used for verifying the certificates proof. */
-    ProvingSystemType cswProvingSystem;                             /**< The type of system used for verifying the CSWs proof. */
 
 
     bool IsNull() const
@@ -389,9 +415,7 @@ struct ScFixedParameters
             wCeasedVk == boost::none                                  &&
             vFieldElementCertificateFieldConfig.empty()               &&
             vBitVectorCertificateFieldConfig.empty()                  &&
-            mainchainBackwardTransferRequestDataLength == -1          &&
-            certificateProvingSystem == ProvingSystemType::Undefined  &&
-            cswProvingSystem         == ProvingSystemType::Undefined
+            mainchainBackwardTransferRequestDataLength == -1 
             );
     }
 
@@ -406,31 +430,10 @@ struct ScFixedParameters
         READWRITE(vFieldElementCertificateFieldConfig);
         READWRITE(vBitVectorCertificateFieldConfig);
         READWRITE(mainchainBackwardTransferRequestDataLength);
-
-        if (ser_action.ForRead())
-        {
-            uint8_t certProvSys;
-            READWRITE(VARINT(certProvSys));
-            certificateProvingSystem = static_cast<ProvingSystemType>(certProvSys);
-        
-            uint8_t cswProvSys;
-            READWRITE(VARINT(cswProvSys));
-            cswProvingSystem = static_cast<ProvingSystemType>(cswProvSys);
-        }
-        else
-        {
-            uint8_t certProvSys = static_cast<uint8_t>(certificateProvingSystem);
-            READWRITE(VARINT(certProvSys));
-        
-            uint8_t cswProvSys = static_cast<uint8_t>(cswProvingSystem);
-            READWRITE(VARINT(cswProvSys));
-        }
     }
     
-    ScFixedParameters(): withdrawalEpochLength(-1),
-                         mainchainBackwardTransferRequestDataLength(-1),
-                         certificateProvingSystem (ProvingSystemType::Undefined),
-                         cswProvingSystem (ProvingSystemType::Undefined) {}
+    ScFixedParameters(): withdrawalEpochLength(-1), mainchainBackwardTransferRequestDataLength(-1)
+    {}
 
     inline bool operator==(const ScFixedParameters& rhs) const
     {
@@ -441,9 +444,7 @@ struct ScFixedParameters
                (wCeasedVk == rhs.wCeasedVk)                                                                     &&
                (vFieldElementCertificateFieldConfig == rhs.vFieldElementCertificateFieldConfig)                 &&
                (vBitVectorCertificateFieldConfig == rhs.vBitVectorCertificateFieldConfig)                       &&
-               (mainchainBackwardTransferRequestDataLength == rhs.mainchainBackwardTransferRequestDataLength)   &&
-               (certificateProvingSystem == rhs.certificateProvingSystem)                                       &&
-               (cswProvingSystem == rhs.cswProvingSystem);
+               (mainchainBackwardTransferRequestDataLength == rhs.mainchainBackwardTransferRequestDataLength);
     }
     inline bool operator!=(const ScFixedParameters& rhs) const { return !(*this == rhs); }
     inline ScFixedParameters& operator=(const ScFixedParameters& cp)
@@ -456,8 +457,6 @@ struct ScFixedParameters
         vFieldElementCertificateFieldConfig         = cp.vFieldElementCertificateFieldConfig;
         vBitVectorCertificateFieldConfig            = cp.vBitVectorCertificateFieldConfig;
         mainchainBackwardTransferRequestDataLength  = cp.mainchainBackwardTransferRequestDataLength;
-        certificateProvingSystem                    = cp.certificateProvingSystem;
-        cswProvingSystem                            = cp.cswProvingSystem;
         return *this;
     }
 };

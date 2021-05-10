@@ -1755,11 +1755,9 @@ CTransaction SidechainsInMempoolTestSuite::GenerateScTx(const CAmount & creation
     scTx.vsc_ccout[0].mainchainBackwardTransferRequestScFee = CAmount(1); // Dummy amount
     scTx.vsc_ccout[0].mainchainBackwardTransferRequestDataLength = 1;
 
-    scTx.vsc_ccout[0].certificateProvingSystem = Sidechain::ProvingSystemType::Darlin;
     scTx.vsc_ccout[0].wCertVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     if(ceasedVkDefined)
     {
-        scTx.vsc_ccout[0].cswProvingSystem = Sidechain::ProvingSystemType::Darlin;
         scTx.vsc_ccout[0].wCeasedVk = CScVKey(Sidechain::ProvingSystemType::Darlin, ParseHex(SAMPLE_VK));
     }
 

@@ -137,7 +137,7 @@ bool CScProof::IsValid() const
 
 //////////////////////////////////// CScVKey ///////////////////////////////////
 CScVKey::CScVKey(Sidechain::ProvingSystemType provingSystemIn, const std::vector<unsigned char>& byteArrayIn)
-    :CZendooCctpObject(byteArrayIn), provingSystem(Sidechain::ProvingSystemType::Undefined)
+    :CZendooCctpObject(byteArrayIn), provingSystem(provingSystemIn)
 {
 }
 
