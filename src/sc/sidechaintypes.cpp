@@ -59,8 +59,18 @@ CFieldElement::CFieldElement(const wrappedFieldPtr& wrappedField)
 
 wrappedFieldPtr CFieldElement::GetFieldElement() const
 {
-    if (this->byteVector.empty())
+    if (byteVector.empty())
+    {
+        LogPrint("sc", "%s():%d - empty byteVector\n", __func__, __LINE__);
         return wrappedFieldPtr{nullptr};
+    }
+
+    if (byteVector.size() != ByteSize())
+    {
+        LogPrint("sc", "%s():%d - wrong fe size: byteVector[%d] != %d\n",
+            __func__, __LINE__, byteVector.size(), ByteSize());
+        return wrappedFieldPtr{nullptr};
+    }
 
     wrappedFieldPtr res = {zendoo_deserialize_field(&this->byteVector[0]), theFieldPtrDeleter};
     return res;
@@ -108,12 +118,12 @@ const CFieldElement& CFieldElement::GetPhantomHash()
 /////////////////////////////////// CScProof ///////////////////////////////////
 CScProof::CScProof(const std::vector<unsigned char>& byteArrayIn): CZendooCctpObject(byteArrayIn)
 {
-    assert(byteArrayIn.size() == this->ByteSize());
+    assert(byteArrayIn.size() <= this->MaxByteSize());
 }
 
 void CScProof::SetByteArray(const std::vector<unsigned char>& byteArrayIn)
 {
-    assert(byteArrayIn.size() == this->ByteSize());
+    assert(byteArrayIn.size() <= this->MaxByteSize());
     this->byteVector = byteArrayIn;
 }
 
@@ -139,6 +149,7 @@ bool CScProof::IsValid() const
 CScVKey::CScVKey(Sidechain::ProvingSystemType provingSystemIn, const std::vector<unsigned char>& byteArrayIn)
     :CZendooCctpObject(byteArrayIn), provingSystem(provingSystemIn)
 {
+    assert(byteArrayIn.size() <= this->MaxByteSize());
 }
 
 CScVKey::CScVKey(): CZendooCctpObject(), provingSystem(Sidechain::ProvingSystemType::Undefined)
@@ -147,6 +158,7 @@ CScVKey::CScVKey(): CZendooCctpObject(), provingSystem(Sidechain::ProvingSystemT
 
 void CScVKey::SetByteArray(const std::vector<unsigned char>& byteArrayIn)
 {
+    assert(byteArrayIn.size() <= this->MaxByteSize());
     this->byteVector = byteArrayIn;
 }
 

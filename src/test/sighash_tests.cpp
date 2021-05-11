@@ -212,7 +212,7 @@ void static RandomScProof(CScProof &proof) {
     {
          vec.push_back((unsigned char)(insecure_rand() % 0xff));
     }
-    vec.resize(CScProof::ByteSize());
+    vec.resize(insecure_rand()%CScProof::MaxByteSize()+1);
     proof.SetByteArray(vec);
 }
 
@@ -222,7 +222,7 @@ void static RandomScVk(CScVKey &vk) {
     {
          vec.push_back((unsigned char)(insecure_rand() % 0xff));
     }
-    vec.resize(CScVKey::ByteSize());
+    vec.resize(insecure_rand()%CScVKey::MaxByteSize()+1);
     vk.SetByteArray(vec);
 }
 

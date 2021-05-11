@@ -29,6 +29,15 @@ namespace Sidechain
         CoboundaryMarlin,
         Darlin
     };
+
+    static const int MAX_SC_CUSTOM_DATA_LEN     = 1024;     /**< Maximum data length for custom data (optional attribute for sidechain creation) in bytes. */
+    static const int MAX_SC_MBTR_DATA_LEN       = 16;       /**< Maximum number of field elements contained in a mainchain backward transfer request (optional attribute for sidechain creation). */
+    
+    static_assert(MAX_SC_MBTR_DATA_LEN < UINT8_MAX, "MAX_SC_MBTR_DATA_LEN must be lower than max uint8_t size!");
+    
+    static const int SC_FE_SIZE_IN_BYTES        = 96; // TODO it will be 32  
+    static const int MAX_SC_PROOF_SIZE_IN_BYTES = 1024*10;  
+    static const int MAX_SC_VK_SIZE_IN_BYTES    = 1024*10;
 }
 
 class CZendooCctpObject
@@ -46,21 +55,11 @@ public:
 
     virtual bool IsValid() const = 0;
 
-    // SERIALIZATION SECTION
-    ADD_SERIALIZE_METHODS
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(byteVector);
-        //Allow zero-length byteVector for, e.g. serialization/hashing of empty txes/certs
-        if (byteVector.size() != 0 && byteVector.size() != SerializedSize())
-            throw std::ios_base::failure("non-canonical zendoo cctp object size");
-    }
-
     std::string GetHexRepr() const;
+
 protected:
     bool isBaseEqual(const CZendooCctpObject& rhs) const { return this->byteVector == rhs.byteVector; }
 
-    virtual unsigned int SerializedSize() const = 0;
     std::vector<unsigned char> byteVector;
 };
 
@@ -86,8 +85,8 @@ public:
     explicit CFieldElement(const uint256& value); //Currently for backward compability with pre-sidechain fork blockHeader. To re-evaluate its necessity
     explicit CFieldElement(const wrappedFieldPtr& wrappedField);
 
-    static constexpr unsigned int ByteSize() { return SC_FIELD_SIZE; }
-    static constexpr unsigned int BitSize() { return ByteSize()*8; }
+    static constexpr unsigned int ByteSize() { return Sidechain::SC_FE_SIZE_IN_BYTES; }
+    static constexpr unsigned int BitSize()  { return ByteSize()*8; }
     uint256 GetLegacyHashTO_BE_REMOVED() const;
 
     wrappedFieldPtr GetFieldElement() const;
@@ -100,8 +99,13 @@ public:
     static CFieldElement ComputeHash(const CFieldElement& lhs, const CFieldElement& rhs);
     static const CFieldElement& GetPhantomHash();
 
-protected:
-    unsigned int SerializedSize() const override final { return ByteSize(); }
+    // SERIALIZATION SECTION
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(byteVector);
+    }
 
 private:
     static CFieldPtrDeleter theFieldPtrDeleter;
@@ -129,8 +133,7 @@ public:
     explicit CScProof(const std::vector<unsigned char>& byteArrayIn);
     void SetByteArray(const std::vector<unsigned char>& byteArrayIn) override final;
 
-    static constexpr unsigned int ByteSize() { return SC_PROOF_SIZE; }
-    static constexpr unsigned int BitSize() { return ByteSize()*8; }
+    static constexpr unsigned int MaxByteSize() { return Sidechain::MAX_SC_PROOF_SIZE_IN_BYTES; }
 
     wrappedScProofPtr GetProofPtr() const;
     bool IsValid() const override final;
@@ -138,8 +141,13 @@ public:
     bool operator==(const CScProof& rhs) const { return isBaseEqual(rhs); }
     bool operator!=(const CScProof& rhs) const { return !(*this == rhs); }
 
-protected:
-    unsigned int SerializedSize() const override final { return ByteSize(); }
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITE(byteVector);
+    }
 
 private:
     static CProofPtrDeleter theProofPtrDeleter;
@@ -169,8 +177,7 @@ public:
     CScVKey(Sidechain::ProvingSystemType provingSystemIn, const std::vector<unsigned char>& byteArrayIn);
     void SetByteArray(const std::vector<unsigned char>& byteArrayIn) override final;
 
-    static constexpr unsigned int ByteSize() { return SC_VK_SIZE; }
-    static constexpr unsigned int BitSize() { return ByteSize()*8; }
+    static constexpr unsigned int MaxByteSize() { return Sidechain::MAX_SC_VK_SIZE_IN_BYTES; }
 
     wrappedScVkeyPtr GetVKeyPtr() const;
     bool IsValid() const override final;
@@ -196,10 +203,6 @@ public:
 
     bool operator==(const CScVKey& rhs) const { return isBaseEqual(rhs) && provingSystem == rhs.provingSystem; }
     bool operator!=(const CScVKey& rhs) const { return !(*this == rhs); }
-
-
-protected:
-    unsigned int SerializedSize() const override final { return ByteSize(); }
 
 private:
     static CVKeyPtrDeleter theVkPtrDeleter;
@@ -528,12 +531,6 @@ struct CRecipientBwtRequest
     CRecipientBwtRequest(): bwtRequestData() {}
     CAmount GetScValue() const { return bwtRequestData.scFee; }
 };
-
-static const int MAX_SC_CUSTOM_DATA_LEN = 1024;     /**< Maximum data length for custom data (optional attribute for sidechain creation) in bytes. */
-static const int MAX_SC_MBTR_DATA_LEN = 16;         /**< Maximum number of field elements contained in a mainchain backward transfer request (optional attribute for sidechain creation). */
-
-static_assert(MAX_SC_MBTR_DATA_LEN < UINT8_MAX, "MAX_SC_MBTR_DATA_LEN must be lower than max uint8_t size!");
-
 
 }; // end of namespace
 

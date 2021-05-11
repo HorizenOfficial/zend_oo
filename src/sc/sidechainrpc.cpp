@@ -375,7 +375,7 @@ bool AddCeasedSidechainWithdrawalInputs(UniValue &csws, CMutableTransaction &raw
 
         std::string proofError;
         std::vector<unsigned char> scProofVec;
-        if (!AddScData(proof_v.get_str(), scProofVec, CScProof::ByteSize(), CheckSizeMode::STRICT, proofError))
+        if (!AddScData(proof_v.get_str(), scProofVec, CScProof::MaxByteSize(), CheckSizeMode::UPPER_LIMIT, proofError))
         {
             error = "Invalid ceased sidechain withdrawal input parameter \"scProof\": " + proofError;
             return false;
@@ -475,7 +475,7 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
         {
             const std::string& inputString = wCertVk.get_str();
             std::vector<unsigned char> wCertVkVec;
-            if (!AddScData(inputString, wCertVkVec, CScVKey::ByteSize(), CheckSizeMode::STRICT, error))
+            if (!AddScData(inputString, wCertVkVec, CScVKey::MaxByteSize(), CheckSizeMode::UPPER_LIMIT, error))
             {
                 error = "wCertVk: " + error;
                 return false;
@@ -555,7 +555,7 @@ bool AddSidechainCreationOutputs(UniValue& sc_crs, CMutableTransaction& rawTx, s
                 }
 
                 std::vector<unsigned char> wCeasedVkVec;
-                if (!AddScData(inputString, wCeasedVkVec, CScVKey::ByteSize(), CheckSizeMode::STRICT, error))
+                if (!AddScData(inputString, wCeasedVkVec, CScVKey::MaxByteSize(), CheckSizeMode::UPPER_LIMIT, error))
                 {
                     error = "wCeasedVk: " + error;
                     return false;

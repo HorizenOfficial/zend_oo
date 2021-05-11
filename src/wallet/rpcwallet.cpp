@@ -795,14 +795,14 @@ UniValue sc_create(const UniValue& params, bool fHelp)
             " 3. amount:                                        (numeric, required) The numeric amount in ZEN is the value\n"
             " 4. \"certProvingSystem\"                          (string, required) The type of proving system to be used for certificate verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
             " 5. \"wCertVk\"                                    (string, required) It is an arbitrary byte string of even length expressed in\n"
-            "                                                    hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
+            "                                                    hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::MaxByteSize()) + " bytes max\n"
             " 6. \"customData\"                                 (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                                    hexadecimal format. A max limit of " + strprintf("%d", MAX_SC_CUSTOM_DATA_LEN) + " bytes will be checked. If not specified, an empty string \"\" must be passed.\n"
             " 7. \"constant\"                                   (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                                    hexadecimal format. Used as public input for WCert proof verification. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
             " 8. \"cswProvingSystem\"                           (string, optional) The type of proving system to be used for CSW verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "; can be \"\" or \"" + PROVING_SYS_TYPE_UNDEFINED + "\" if it sets a null value.\n"
             " 9. \"wCeasedVk\"                                  (string, optional) It is an arbitrary byte string of even length expressed in\n"
-            "                                                    hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
+            "                                                    hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", CScVKey::MaxByteSize()) + " bytes max\n"
             "10. \"vFieldElementCertificateFieldConfig\"        (array, optional) An array whose entries are sizes (in bits). Any certificate should have as many custom FieldElementCertificateField with the corresponding size.\n"
             "11. \"vBitVectorCertificateFieldConfig\"           (array, optional) An array whose entries are bitVectorSizeBits and maxCompressedSizeBytes pairs. Any certificate should have as many custom BitVectorCertificateField with the corresponding sizes\n"
             "12. \"forwardTransferScFee\"                       (numeric, optional, default=0) The amount of fee in " + CURRENCY_UNIT + " due to sidechain actors when creating a FT\n"
@@ -849,7 +849,7 @@ UniValue sc_create(const UniValue& params, bool fHelp)
     {
         const std::string& inputString = params[4].get_str();
         std::vector<unsigned char> wCertVkVec;
-        if (!Sidechain::AddScData(inputString, wCertVkVec, CScVKey::ByteSize(), Sidechain::CheckSizeMode::STRICT, errorStr))
+        if (!Sidechain::AddScData(inputString, wCertVkVec, CScVKey::MaxByteSize(), Sidechain::CheckSizeMode::UPPER_LIMIT, errorStr))
         {
             throw JSONRPCError(RPC_TYPE_ERROR, string("wCertVk: ") + errorStr);
         }
@@ -920,7 +920,7 @@ UniValue sc_create(const UniValue& params, bool fHelp)
             }
 
             std::vector<unsigned char> wCeasedVkVec;
-            if (!Sidechain::AddScData(inputString, wCeasedVkVec, CScVKey::ByteSize(), Sidechain::CheckSizeMode::STRICT, errorStr))
+            if (!Sidechain::AddScData(inputString, wCeasedVkVec, CScVKey::MaxByteSize(), Sidechain::CheckSizeMode::UPPER_LIMIT, errorStr))
             {
                 throw JSONRPCError(RPC_TYPE_ERROR, string("wCeasedVk: ") + errorStr);
             }
@@ -1030,7 +1030,7 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
                                                    ") The fee amount to attach to this transaction.\n"
             " \"certProvingSystem\"             (string, required) The type of proving system to be used for certificate verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
             " \"wCertVk\":data                  (string, required) It is an arbitrary byte string of even length expressed in\n"
-            "                                       hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
+            "                                       hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::MaxByteSize()) + " bytes max\n"
             " \"customData\":data               (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. A max limit of " + strprintf("%d", MAX_SC_CUSTOM_DATA_LEN) + " bytes will be checked\n"
             " \"constant\":data                 (string, optional) It is an arbitrary byte string of even length expressed in\n"
@@ -1202,7 +1202,7 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     {
         string inputString = find_value(inputObject, "wCertVk").get_str();
         std::vector<unsigned char> wCertVkVec;
-        if (!Sidechain::AddScData(inputString, wCertVkVec, CScVKey::ByteSize(), Sidechain::CheckSizeMode::STRICT, error))
+        if (!Sidechain::AddScData(inputString, wCertVkVec, CScVKey::MaxByteSize(), Sidechain::CheckSizeMode::UPPER_LIMIT, error))
         {
             throw JSONRPCError(RPC_TYPE_ERROR, string("wCertVk: ") + error);
         }
@@ -1274,7 +1274,7 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
             }
 
             std::vector<unsigned char> wCeasedVkVec;
-            if (!Sidechain::AddScData(inputString, wCeasedVkVec, CScVKey::ByteSize(), Sidechain::CheckSizeMode::STRICT, error))
+            if (!Sidechain::AddScData(inputString, wCeasedVkVec, CScVKey::MaxByteSize(), Sidechain::CheckSizeMode::UPPER_LIMIT, error))
             {
                 throw JSONRPCError(RPC_TYPE_ERROR, string("wCeasedVk: ") + error);
             }
@@ -5347,7 +5347,7 @@ UniValue send_certificate(const UniValue& params, bool fHelp)
             "3. quality                         (numeric, required) The quality of this withdrawal certificate. \n"
             "4. \"endEpochBlockHash\"           (string, required) The block hash determining the end of the referenced epoch\n"
             "5. \"endEpochCumScTxCommTreeRoot\"    (string, required) The hex string representation of the field element corresponding to the root of the cumulative scTxCommitment tree stored at the block marking the end of the referenced epoch\n"
-            "6. \"scProof\"                     (string, required) SNARK proof whose verification key wCertVk was set upon sidechain registration. Its size must be " + strprintf("%d", CScProof::ByteSize()) + " bytes\n"
+            "6. \"scProof\"                     (string, required) SNARK proof whose verification key wCertVk was set upon sidechain registration. Its size must be " + strprintf("%d", CScProof::MaxByteSize()) + " bytes max\n"
             "7. transfers:                      (array, required) An array of json objects representing the amounts of the backward transfers. Can also be empty\n"
             "    [{\n"                     
             "      \"pubkeyhash\":\"pkh\"       (string, required) The public key hash of the receiver\n"
@@ -5483,7 +5483,7 @@ UniValue send_certificate(const UniValue& params, bool fHelp)
     string inputString = params[5].get_str();
     {
         std::vector<unsigned char> scProofVec;
-        if (!Sidechain::AddScData(inputString, scProofVec, CScProof::ByteSize(), Sidechain::CheckSizeMode::STRICT, errorStr))
+        if (!Sidechain::AddScData(inputString, scProofVec, CScProof::MaxByteSize(), Sidechain::CheckSizeMode::UPPER_LIMIT, errorStr))
             throw JSONRPCError(RPC_TYPE_ERROR, string("scProof: ") + errorStr);
 
         cert.scProof.SetByteArray(scProofVec);

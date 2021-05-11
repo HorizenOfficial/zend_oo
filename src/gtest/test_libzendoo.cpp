@@ -48,7 +48,8 @@ TEST(SidechainsField, Serialization)
 
     tooShortStream << tooShortByteArray;
     CFieldElement tooShortRetrievedField;
-    EXPECT_THROW(tooShortStream >> tooShortRetrievedField,std::ios_base::failure);
+    tooShortStream >> tooShortRetrievedField;
+    EXPECT_FALSE(tooShortRetrievedField.IsValid());
 
     ////////////////////
     std::vector<unsigned char> tooBigByteArray(CFieldElement::ByteSize()*2,0x0);
@@ -57,7 +58,8 @@ TEST(SidechainsField, Serialization)
 
     tooBigStream << tooBigByteArray;
     CFieldElement tooBigRetrievedField;
-    EXPECT_THROW(tooBigStream >> tooBigRetrievedField,std::ios_base::failure);
+    tooBigStream >> tooBigRetrievedField;
+    EXPECT_FALSE(tooBigRetrievedField.IsValid());
 
     ////////////////////
     std::vector<unsigned char> nonZeroTerminatedByteArray(CFieldElement::ByteSize(),0xff);

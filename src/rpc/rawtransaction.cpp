@@ -719,7 +719,7 @@ UniValue createrawtransaction(const UniValue& params, bool fHelp)
             "         \"senderAddress\": \"address\", (string, required) The sender Horizen address\n"
             "         \"scId\": \"hex\",              (string, required) The ceased sidechain id\n"
             "         \"nullifier\": \"hex\",         (string, required) Withdrawal nullifier\n"
-            "         \"scProof\": \"hex\"            (string, required) SNARK proof whose verification key was set upon sidechain registration. Its size must be " + strprintf("%d", CScProof::ByteSize()) + "bytes \n"
+            "         \"scProof\": \"hex\"            (string, required) SNARK proof whose verification key was set upon sidechain registration. Its size must be " + strprintf("%d", CScProof::MaxByteSize()) + "bytes max\n"
             "       }\n"
             "       ,...\n"
             "     ]\n"
@@ -731,14 +731,14 @@ UniValue createrawtransaction(const UniValue& params, bool fHelp)
             "         \"amount\":amount           (numeric, required) The numeric amount in " + CURRENCY_UNIT + " is the value\n"
             "         \"certProvingSystem\":\"provingSystem\"       (string, required) The type of proving system to be used for certificate verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
             "         \"wCertVk\":hexstr          (string, required) It is an arbitrary byte string of even length expressed in\n"
-            "                                       hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
+            "                                       hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::MaxByteSize()) + " bytes max\n"
             "         \"customData\":hexstr       (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. A max limit of " + strprintf("%d", Sidechain::MAX_SC_CUSTOM_DATA_LEN) + " bytes will be checked\n"
             "         \"constant\":hexstr         (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. Used as public input for WCert proof verification. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
             "         \"cswProvingSystem\":\"provingSystem\"       (string, optional) The type of proving system to be used for CSW verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
             "         \"wCeasedVk\":hexstr        (string, optional) It is an arbitrary byte string of even length expressed in\n"
-            "                                       hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", CScVKey::ByteSize()) + " bytes\n"
+            "                                       hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", CScVKey::MaxByteSize()) + " bytes max\n"
             "         \"vFieldElementCertificateFieldConfig\" (array, optional) An array whose entries are sizes (in bits). Any certificate should have as many FieldElementCertificateField with the corresponding size.\n"
             "         \"vBitVectorCertificateFieldConfig\"    (array, optional) An array whose entries are bitVectorSizeBits and maxCompressedSizeBytes pairs. Any certificate should have as many BitVectorCertificateField with the corresponding sizes\n"
             "         \"forwardTransferScFee\" (numeric, optional, default=0) The amount of fee in " + CURRENCY_UNIT + " due to sidechain actors when creating a FT\n"
@@ -1033,7 +1033,7 @@ UniValue createrawcertificate(const UniValue& params, bool fHelp)
             "      \"quality\":n                     (numeric, required) A positive number specifying the quality of this withdrawal certificate. \n"
             "      \"endEpochBlockHash\":\"blockHash\" (string, required) The block hash determining the end of the referenced epoch\n"
             "      \"endEpochCumScTxCommTreeRoot\":\"ecum\" (string, required) The hex string representation of the field element corresponding to the root of the cumulative scTxCommitment tree stored at the block marking the end of the referenced epoch\n"
-            "      \"scProof\":\"scProof\"             (string, required) SNARK proof whose verification key wCertVk was set upon sidechain registration. Its size must be " + strprintf("%d", CScProof::ByteSize()) + "bytes \n"
+            "      \"scProof\":\"scProof\"             (string, required) SNARK proof whose verification key wCertVk was set upon sidechain registration. Its size must be " + strprintf("%d", CScProof::MaxByteSize()) + "bytes max\n"
             "      \"vFieldElementCertificateField\":\"field els\"     (array, optional) An array of HEX string... TODO add description\n"
             "      \"vBitVectorCertificateField\":\"cmp mkl trees\"  (array, optional) An array of HEX string... TODO add description\n"
             "      \"ftScFee\"                         (numeric, optional) The Forward Transfer sidechain fee\n"
@@ -1185,7 +1185,7 @@ UniValue createrawcertificate(const UniValue& params, bool fHelp)
         string inputString = find_value(cert_params, "scProof").get_str();
         std::string error;
         std::vector<unsigned char> scProofVec;
-        if (!Sidechain::AddScData(inputString, scProofVec, CScProof::ByteSize(), Sidechain::CheckSizeMode::STRICT, error))
+        if (!Sidechain::AddScData(inputString, scProofVec, CScProof::MaxByteSize(), Sidechain::CheckSizeMode::UPPER_LIMIT, error))
             throw JSONRPCError(RPC_TYPE_ERROR, string("scProof: ") + error);
 
         rawCert.scProof = CScProof{scProofVec};

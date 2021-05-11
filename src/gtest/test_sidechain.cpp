@@ -417,7 +417,7 @@ TEST_F(SidechainsTestSuite, CSWTxInvalidProof) {
 
     csw.nValue = 100;
     csw.nullifier = CFieldElement{SAMPLE_FIELD};
-    csw.scProof = CScProof({std::vector<unsigned char>(size_t(CScProof::ByteSize()), 'a')});
+    csw.scProof = CScProof({std::vector<unsigned char>(size_t(CScProof::MaxByteSize()), 'a')});
     csw.actCertDataIdx = 0;
     CTransaction aTransaction = txCreationUtils::createCSWTxWith(csw);
     CValidationState txState;
