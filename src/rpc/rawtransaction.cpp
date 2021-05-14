@@ -1168,8 +1168,7 @@ UniValue createrawcertificate(const UniValue& params, bool fHelp)
         string inputString = find_value(cert_params, "endEpochCumScTxCommTreeRoot").get_str();
         std::vector<unsigned char> aByteArray {};
         std::string errorStr;
-        // check only size upper limit
-        if (!Sidechain::AddScData(inputString, aByteArray, CFieldElement::ByteSize(), Sidechain::CheckSizeMode::UPPER_LIMIT, errorStr))
+        if (!Sidechain::AddScData(inputString, aByteArray, CFieldElement::ByteSize(), Sidechain::CheckSizeMode::STRICT , errorStr))
         {
             throw JSONRPCError(RPC_INVALID_PARAMETER, string("end cum commitment tree root: ") + errorStr);
         }

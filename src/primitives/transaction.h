@@ -612,7 +612,7 @@ public:
         READWRITE(vBitVectorCertificateFieldConfig);
         READWRITE(forwardTransferScFee);
         READWRITE(mainchainBackwardTransferRequestScFee);
-        READWRITE(VARINT(mainchainBackwardTransferRequestDataLength));
+        READWRITE(mainchainBackwardTransferRequestDataLength);
     }
 
     const uint256& GetScId() const override final { return generatedScId;}; 

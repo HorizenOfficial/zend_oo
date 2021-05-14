@@ -35,8 +35,7 @@ bool AddScData(
 bool AddCustomFieldElement(const std::string& inputString, std::vector<unsigned char>& vBytes,
     unsigned int vSize, std::string& errString);
 
-// read an array of int in input and fills the passed cfg obj.
-template <typename T> bool AddScData(const UniValue& intArray, std::vector<T>& vCfg);
+bool AddScData(const UniValue& intArray, std::vector<FieldElementCertificateFieldConfig>& vCfg);
 
 // used when creating a raw transaction with cc outputs
 bool AddCeasedSidechainWithdrawalInputs(UniValue& csws, CMutableTransaction& rawTx, std::string& error);

@@ -225,8 +225,7 @@ bool AddScData(
     return true;
 }
 
-template <typename T>
-bool AddScData(const UniValue& intArray, std::vector<T>& vCfg)
+bool AddScData(const UniValue& intArray, std::vector<FieldElementCertificateFieldConfig>& vCfg)
 { 
     if (intArray.size() != 0)
     {
@@ -1260,6 +1259,4 @@ void ScRpcRetrieveCmdTx::addCcOutputs()
     }
 }
 
-// explicit instantiations
-template bool AddScData<FieldElementCertificateFieldConfig>(const UniValue& intArray, std::vector<FieldElementCertificateFieldConfig>& vCfg);
 }  // end of namespace

@@ -236,7 +236,7 @@ public:
     ADD_SERIALIZE_METHODS;
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(VARINT(nBits));
+        READWRITE(nBits);
     }
 
     uint8_t getBitSize() const;
@@ -405,7 +405,7 @@ struct ScFixedParameters
     boost::optional<CScVKey> wCeasedVk;
     std::vector<FieldElementCertificateFieldConfig> vFieldElementCertificateFieldConfig;
     std::vector<BitVectorCertificateFieldConfig> vBitVectorCertificateFieldConfig;
-    int32_t mainchainBackwardTransferRequestDataLength;             /**< The mandatory size of the field element included in MBTR transaction outputs (0 to disable the MBTR). */
+    uint8_t mainchainBackwardTransferRequestDataLength;             /**< The mandatory size of the field element included in MBTR transaction outputs (0 to disable the MBTR). */
 
 
     bool IsNull() const
@@ -418,7 +418,7 @@ struct ScFixedParameters
             wCeasedVk == boost::none                                  &&
             vFieldElementCertificateFieldConfig.empty()               &&
             vBitVectorCertificateFieldConfig.empty()                  &&
-            mainchainBackwardTransferRequestDataLength == -1 
+            mainchainBackwardTransferRequestDataLength == 0 
             );
     }
 
@@ -435,7 +435,7 @@ struct ScFixedParameters
         READWRITE(mainchainBackwardTransferRequestDataLength);
     }
     
-    ScFixedParameters(): withdrawalEpochLength(-1), mainchainBackwardTransferRequestDataLength(-1)
+    ScFixedParameters(): withdrawalEpochLength(-1), mainchainBackwardTransferRequestDataLength(0)
     {}
 
     inline bool operator==(const ScFixedParameters& rhs) const

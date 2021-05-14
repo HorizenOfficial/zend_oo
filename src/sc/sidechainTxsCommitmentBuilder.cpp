@@ -91,10 +91,6 @@ uint256 SidechainTxsCommitmentBuilder::getCommitment()
 
 CFieldElement SidechainTxsCommitmentBuilder::mapScTxToField(const uint256& ccoutHash, const uint256& txHash, unsigned int outPos)
 {
-// This implementation has been supersided by cctp and this assert is triggered by fe size = 32, so it is commented
-//    static_assert((sizeof(uint256) + sizeof(uint256) + sizeof(unsigned int)) <= CFieldElement::ByteSize(),
-//            "ScTx data to field point mapping not working with current configuration");
-
     std::vector<unsigned char> mediumTerm;
     std::copy(ccoutHash.begin(), ccoutHash.end(), std::back_inserter(mediumTerm));
     std::copy(txHash.begin(), txHash.end(), std::back_inserter(mediumTerm));
