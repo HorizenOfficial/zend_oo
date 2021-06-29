@@ -77,7 +77,7 @@ bool CScProofVerifier::BatchVerify() const
     }
 
     CctpErrorCode code;
-    ZendooBatchProofVerifier batchVerifier;
+    ZendooBatchProofVerifier batchVerifier(true);
     uint32_t idx = 0;
 
     int64_t nTime1 = GetTimeMicros();
