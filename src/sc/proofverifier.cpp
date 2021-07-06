@@ -76,12 +76,15 @@ bool CScProofVerifier::BatchVerify() const
         return true;
     }
 
-    CctpErrorCode code;
+    // The paramenter in the ctor is a boolean telling mc-crypto lib if the rust verifier executing thread
+    // will be a high-priority one (default is false)
     ZendooBatchProofVerifier batchVerifier(true);
-    uint32_t idx = 0;
 
-    int64_t nTime1 = GetTimeMicros();
+    uint32_t idx = 0;
+    CctpErrorCode code;
+
     LogPrint("bench", "%s():%d - starting verification\n", __func__, __LINE__);
+    int64_t nTime1 = GetTimeMicros();
     for (const auto& entry : cswEnqueuedData)
     {
         for (const auto& entry2 : entry.second)
