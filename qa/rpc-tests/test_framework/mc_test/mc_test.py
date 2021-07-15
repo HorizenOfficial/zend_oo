@@ -82,12 +82,12 @@ class CertTestUtils(MCTestUtils):
         args = []
         args.append(os.getenv("ZENDOOMC", os.path.join(self.srcdir, "zendoo/mcTest")))
         args += ["create", "cert", str(self.ps_type), str(proof_path), str(params_dir), str(segment_size)]
-        args += [str(epoch_number), str(quality), str(constant), str(end_cum_comm_tree_root), str(int(btr_fee * COIN)), str(int(ft_min_amount * COIN))]
+        args += [str(epoch_number), str(quality), str(constant), str(end_cum_comm_tree_root), str(int(round(btr_fee * COIN))), str(int(round(ft_min_amount * COIN)))]
         args.append(str(num_constraints))
         args.append(str(len(pks)))
         for (pk, amount) in zip(pks, amounts):
             args.append(str(pk))
-            args.append(str(int(amount * COIN))) #codebase works in satoshi
+            args.append(str(int(round(amount * COIN)))) #codebase works in satoshi
         args.append(str(len(custom_fields)))
         for custom_field in custom_fields:
             args.append(str(custom_field))
@@ -110,7 +110,7 @@ class CSWTestUtils(MCTestUtils):
         args = []
         args.append(os.getenv("ZENDOOMC", os.path.join(self.srcdir, "zendoo/mcTest")))
         args += ["create", "csw", str(self.ps_type), str(proof_path), str(params_dir), str(segment_size)]
-        args += [str(int(amount * COIN)), str(sc_id), str(nullifier), str(mc_pk_hash), str(end_cum_comm_tree_root), str(num_constraints)]
+        args += [str(int(round(amount * COIN))), str(sc_id), str(nullifier), str(mc_pk_hash), str(end_cum_comm_tree_root), str(num_constraints)]
         if cert_data_hash is not None:
             args.append(str(cert_data_hash))
         subprocess.check_call(args)
