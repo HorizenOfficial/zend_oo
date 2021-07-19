@@ -847,7 +847,7 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& 
 }
 
 #ifdef ENABLE_WALLET
-static bool ProcessBlockFound(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
+static bool ProcessBlockFound(CBlock* pblock, CWallet* wallet, CReserveKey& reservekey)
 #else
 static bool ProcessBlockFound(CBlock* pblock)
 #endif // ENABLE_WALLET
@@ -869,9 +869,10 @@ static bool ProcessBlockFound(CBlock* pblock)
     }
 
     // Track how many getdata requests this block gets
+    if (wallet)
     {
-        LOCK(wallet.cs_wallet);
-        wallet.mapRequestCount[pblock->GetHash()] = 0;
+        LOCK(wallet->cs_wallet);
+        wallet->mapRequestCount[pblock->GetHash()] = 0;
     }
 #endif
 
@@ -999,7 +1000,7 @@ void static BitcoinMiner()
 
                 std::function<bool(std::vector<unsigned char>)> validBlock =
 #ifdef ENABLE_WALLET
-                        [&pblock, &hashTarget, &pwallet, &reservekey, &m_cs, &cancelSolver, &chainparams]
+                        [&pblock, &hashTarget, pwallet, &reservekey, &m_cs, &cancelSolver, &chainparams]
 #else
                         [&pblock, &hashTarget, &m_cs, &cancelSolver, &chainparams]
 #endif
@@ -1018,7 +1019,7 @@ void static BitcoinMiner()
                     LogPrintf("HorizenMiner:\n");
                     LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex(), hashTarget.GetHex());
 #ifdef ENABLE_WALLET
-                    if (ProcessBlockFound(pblock, *pwallet, reservekey)) {
+                    if (ProcessBlockFound(pblock, pwallet, reservekey)) {
 #else
                     if (ProcessBlockFound(pblock)) {
 #endif
