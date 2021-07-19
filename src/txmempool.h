@@ -18,10 +18,16 @@ class CAutoFile;
 
 inline double AllowFreeThreshold()
 {
-    // the threshold represents a one day old, 1 ZEN coin (144*4 is the expected number of blocks per day) and a transaction size of 250 bytes.
-    // TODO, check this: should be:
-    // return COIN * 144 * 4 / 250;
+    /** It comes from Bitcoin: The threshold represents a one day old, 1 BTC coin and a transaction size of 250 bytes.
+     *  144 is the expected number of blocks per day.
+     */
     return COIN * 144 / 250;
+
+    /** TODO: in Zen should be:    COIN * 144 * 4 / 250
+     *  because Bitcoin had 1 block every 10 minutes, Zen 1 block every 2.5 minutes.
+     *  But unfortunately changing this value does have side effects, for instance it breaks the test of policy
+     *  estimator framework.
+     */
 }
 
 inline bool AllowFree(double dPriority)

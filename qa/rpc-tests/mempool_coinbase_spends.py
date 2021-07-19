@@ -18,7 +18,7 @@ class MempoolCoinbaseTest(BitcoinTestFramework):
     alert_filename = None  # Set by setup_network
 
     def setup_network(self):
-        args = ["-checkmempool", "-debug=mempool"]
+        args = ["-checkmempool", "-debug=mempool", "-debug=sc"]
         self.nodes = []
         self.nodes.append(start_node(0, self.options.tmpdir, args))
         self.nodes.append(start_node(1, self.options.tmpdir, args))
@@ -51,9 +51,10 @@ class MempoolCoinbaseTest(BitcoinTestFramework):
         # and make sure the mempool code behaves correctly.
         b = [ self.nodes[0].getblockhash(n) for n in range(102, 105) ]
         coinbase_txids = [ self.nodes[0].getblock(h)['tx'][0] for h in b ]
-        spend_101_raw = self.create_tx(coinbase_txids[0], node1_address, 11)
-        spend_102_raw = self.create_tx(coinbase_txids[1], node0_address, 11)
-        spend_103_raw = self.create_tx(coinbase_txids[2], node0_address, 11)
+        # conbase amount is 11, but we should avoid having free txes (fee=0) which might not be included in a block if the priority is not high enough
+        spend_101_raw = self.create_tx(coinbase_txids[0], node1_address, 10.999)
+        spend_102_raw = self.create_tx(coinbase_txids[1], node0_address, 10.999)
+        spend_103_raw = self.create_tx(coinbase_txids[2], node0_address, 10.999)
 
         # Broadcast and mine spend_102 and 103:
         spend_102_id = self.nodes[0].sendrawtransaction(spend_102_raw)
@@ -61,8 +62,9 @@ class MempoolCoinbaseTest(BitcoinTestFramework):
         self.nodes[0].generate(1)
 
         # Create 102_1 and 103_1:
-        spend_102_1_raw = self.create_tx(spend_102_id, node1_address, 11)
-        spend_103_1_raw = self.create_tx(spend_103_id, node1_address, 11)
+        # conbase amount was 11, but we should avoid having free txes (fee=0) which might not be included in a block if the priority is not high enough
+        spend_102_1_raw = self.create_tx(spend_102_id, node1_address, 10.998)
+        spend_103_1_raw = self.create_tx(spend_103_id, node1_address, 10.998)
 
         # Broadcast and mine 103_1:
         spend_103_1_id = self.nodes[0].sendrawtransaction(spend_103_1_raw)

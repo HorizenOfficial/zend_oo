@@ -70,7 +70,7 @@ CCertificateMemPoolEntry::CCertificateMemPoolEntry(const CScCertificate& _cert, 
 
 double CCertificateMemPoolEntry::GetPriority(unsigned int currentHeight) const
 {
-#if 1
+#if CERT_HAS_MAXIMUM_PRIORITY
     // certificates have max priority
     return dPriority;
 #else
@@ -1302,8 +1302,8 @@ bool CTxMemPool::checkIncomingCertConflicts(const CScCertificate& incomingCert) 
             continue; //no certs conflicts with certs of other sidechains
         if (certDep.quality >= incomingCert.quality)
         {
-            return error("%s():%d - cert %s depends on worse-quality ancestorCert %s\n", __func__, __LINE__,
-                    incomingCert.GetHash().ToString(), certDep.GetHash().ToString());
+            return error("%s():%d - cert (q=%d) %s depends on worse-quality (q=%d) ancestorCert %s\n", __func__, __LINE__,
+                    incomingCert.quality, incomingCert.GetHash().ToString(), certDep.quality, certDep.GetHash().ToString());
         }
     }
 

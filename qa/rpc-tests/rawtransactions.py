@@ -198,9 +198,10 @@ class RawTransactionsTest(BitcoinTestFramework):
         sc_epoch2_len = 1000
         sc_cr_amount = Decimal('10.00000000')
         sc_cr_amount2 = Decimal('0.100000000')
+        fee = Decimal('0.0001')
 
         print("Node 1 sends 10 coins to node 0 to have a UTXO...")
-        txid=self.nodes[1].sendtoaddress(self.nodes[0].getnewaddress(), sc_cr_amount + sc_cr_amount2)
+        txid=self.nodes[1].sendtoaddress(self.nodes[0].getnewaddress(), sc_cr_amount + sc_cr_amount2 + fee)
         self.sync_all()
 
         self.nodes[0].generate(1)
@@ -251,7 +252,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         decoded_tx=self.nodes[0].decoderawtransaction(self.nodes[0].gettransaction(txid)['hex'])
         vout = {}
         for outpoint in decoded_tx['vout']:
-            if outpoint['value'] == sc_cr_amount + sc_cr_amount2:
+            if outpoint['value'] == sc_cr_amount + sc_cr_amount2 + fee:
                 vout = outpoint
                 break;
 

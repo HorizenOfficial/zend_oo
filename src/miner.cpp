@@ -623,11 +623,29 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
             CFeeRate feeRate = vecPriority.front().get<1>();
             const CTransactionBase& tx = *(vecPriority.front().get<2>());
 
-            std::pop_heap(vecPriority.begin(), vecPriority.end(), comparer);
-            vecPriority.pop_back();
-
             // Size limits
             unsigned int nTxBaseSize = tx.GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
+
+            // Prioritise by fee once past the priority size or we run out of high-priority
+            // transactions/cert
+            // --
+            // This check must be done before popping back the tx from vecPriority otherwise
+            // we will have always a prio tx in the block even if nBlockPrioritySize is set to 0 or
+            // it has no enough space for it or it is free
+            if (!fSortedByFee &&
+                ((nBlockSize + nTxBaseSize >= nBlockPrioritySize) || !AllowFree(dPriority)))
+            {
+                fSortedByFee = true;
+                comparer = TxPriorityCompare(fSortedByFee);
+                std::make_heap(vecPriority.begin(), vecPriority.end(), comparer);
+                LogPrint("sc", "%s():%d - Skipping %s[%s] selected by prio (nBlockPrioritySize=%d, blSize=%d, txBaseSize=%d / priority=%.1f, AllowFree=%s)\n",
+                    __func__, __LINE__, tx.IsCertificate()?"cert":"tx", tx.GetHash().ToString(), nBlockPrioritySize, nBlockSize, nTxBaseSize,
+                    dPriority, AllowFree(dPriority)?"true":"false");
+                continue;
+            }
+
+            std::pop_heap(vecPriority.begin(), vecPriority.end(), comparer);
+            vecPriority.pop_back();
 
             if (!tx.IsCertificate())
             {
@@ -663,16 +681,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
                 LogPrint("sc", "%s():%d - Skipping [%s] because it is free (feeDelta=%lld/feeRate=%s, blsz=%u/txsz=%u/blminsz=%u)\n",
                     __func__, __LINE__, tx.GetHash().ToString(), nFeeDelta, feeRate.ToString(), nBlockSize, nTxBaseSize, nBlockMinSize );
                 continue;
-            }
-
-            // Prioritise by fee once past the priority size or we run out of high-priority
-            // transactions:
-            if (!fSortedByFee &&
-                ((nBlockSize + nTxBaseSize >= nBlockPrioritySize) || !AllowFree(dPriority)))
-            {
-                fSortedByFee = true;
-                comparer = TxPriorityCompare(fSortedByFee);
-                std::make_heap(vecPriority.begin(), vecPriority.end(), comparer);
             }
 
             // Skip transaction if max block complexity reached.
@@ -729,8 +737,11 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
                 }
 
                 nBlockSize += nTxBaseSize;
-                LogPrint("sc", "%s():%d ======> current block size                = %7d\n", __func__, __LINE__, nBlockSize);
-                LogPrint("sc", "%s():%d ======> current block tx partition size   = %7d\n", __func__, __LINE__, nBlockTxPartitionSize);
+                //LogPrint("sc", "%s():%d ======> current block size                = %7d\n", __func__, __LINE__, nBlockSize);
+                //LogPrint("sc", "%s():%d ======> current block tx partition size   = %7d\n", __func__, __LINE__, nBlockTxPartitionSize);
+
+                LogPrint("sc", "%s():%d - added %s[%s] to block (sz=%d, prio=%.1f, feeRate=%s)\n", __func__, __LINE__,
+                    tx.IsCertificate()?"cert":"tx", tx.GetHash().ToString(), nTxBaseSize, dPriority, feeRate.ToString());
 
                 nBlockSigOps += nTxSigOps;
                 nFees += nTxFees;
@@ -742,10 +753,15 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
                         dPriority, nTxFees, feeRate.ToString(), tx.GetHash().ToString());
                 }
 
-            } catch (...) {
-                LogPrintf("%s():%d - ERROR: tx [%s] cast error\n",
-                    __func__, __LINE__, hash.ToString());
+            } catch (std::bad_cast& e) {
+                LogPrintf("%s():%d - ERROR: tx [%s] cast error\n", __func__, __LINE__, hash.ToString());
                 assert("could not cast txbase obj" == 0);
+            } catch (std::exception& e) {
+                LogPrintf("%s():%d - ERROR: tx [%s] exception - %s\n", __func__, __LINE__, hash.ToString(), e.what());
+                assert("exception thrown" == 0);
+            } catch (...) {
+                LogPrintf("%s():%d - ERROR: tx [%s] unknown error\n", __func__, __LINE__, hash.ToString());
+                assert("unknown error" == 0);
             }
 
             // Add transactions that depend on this one to the priority queue

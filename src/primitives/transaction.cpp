@@ -772,7 +772,7 @@ unsigned int CTransactionBase::CalculateModifiedSize(unsigned int nTxSize) const
     return nTxSize;
 }
 
-double CTransactionBase::ComputePriority(double dPriorityInputs, unsigned int nTxSize) const
+double CTransaction::ComputePriority(double dPriorityInputs, unsigned int nTxSize) const
 {
     nTxSize = CalculateModifiedSize(nTxSize);
     if (nTxSize == 0) return 0.0;

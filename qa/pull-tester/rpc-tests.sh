@@ -117,6 +117,7 @@ testScripts=(
   'tlsprotocols.py'
   'sc_block_partitions.py'
   'sc_cert_bwt_amount_rounding.py'
+  'sc_big_certs.py'
 );
 testScriptsExt=(
   'getblocktemplate_longpoll.py'

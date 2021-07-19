@@ -119,7 +119,8 @@ class ScInvalidateTest(BitcoinTestFramework):
 
         sc_address = "0000000000000000000000000000000000000000000000000000000000000abc"
         sc_epoch = 123
-        sc_cr_amount = tx_amount
+        fee = 0.0001
+        sc_cr_amount = float(tx_amount) - fee
 
         #generate wCertVk and constant
         mcTest = CertTestUtils(self.options.tmpdir, self.options.srcdir, "darlin")
@@ -147,7 +148,8 @@ class ScInvalidateTest(BitcoinTestFramework):
         # Node 2 create rawtransaction with same UTXO
         mark_logs("\nNode 2 create rawtransaction with same UTXO...", self.nodes, DEBUG_MODE)
 
-        outputs = {self.nodes[0].getnewaddress(): sc_cr_amount}
+        fee = 0.0001
+        outputs = {self.nodes[0].getnewaddress(): Decimal(sc_cr_amount - fee)}
         rawtx2 = self.nodes[2].createrawtransaction(inputs, outputs)
         sigRawtx2 = self.nodes[2].signrawtransaction(rawtx2)
 
@@ -163,7 +165,7 @@ class ScInvalidateTest(BitcoinTestFramework):
 
         decoded_tx = self.nodes[0].getrawtransaction(crTx, 1)
         scid = decoded_tx['vsc_ccout'][0]['scid']
-        mark_logs("created SC id: {}".format(scid), self.nodes, DEBUG_MODE)
+        mark_logs("created SC id: {}, tx={}".format(scid, crTx), self.nodes, DEBUG_MODE)
 
         # Node 1 creates a BWT
         mark_logs("Node1 creates a tx with a single bwt request for sc", self.nodes, DEBUG_MODE)
@@ -191,6 +193,7 @@ class ScInvalidateTest(BitcoinTestFramework):
 
         ftTx = self.nodes[1].sc_send("abcd", fwt_amount_1, scid)
         self.sync_all()
+        mark_logs("  --> ftTx = {}.".format(ftTx), self.nodes, DEBUG_MODE)
 
         assert_true(crTx in self.nodes[0].getrawmempool())
         assert_true(mbtrTx in self.nodes[0].getrawmempool())
@@ -199,6 +202,8 @@ class ScInvalidateTest(BitcoinTestFramework):
         mark_logs("\n...Node0 generating 1 block", self.nodes, DEBUG_MODE)
         blocks.extend(self.nodes[0].generate(1))
         self.sync_all()
+
+        assert_true(len(self.nodes[0].getrawmempool()) == 0)
 
         mark_logs("\nChecking SC info on Node 2 that should not have any SC...", self.nodes, DEBUG_MODE)
         scinfoNode0 = self.nodes[0].getscinfo(scid)['items'][0]
@@ -211,6 +216,7 @@ class ScInvalidateTest(BitcoinTestFramework):
         mark_logs("\nNode 2 generate 4 blocks including the rawtx2 and now it has the longest fork...", self.nodes, DEBUG_MODE)
         finalTx2 = self.nodes[2].sendrawtransaction(sigRawtx2['hex'])
         self.sync_all()
+        mark_logs("  --> tx = {}.".format(finalTx2), self.nodes, DEBUG_MODE)
 
         self.nodes[2].generate(4)
         self.sync_all()

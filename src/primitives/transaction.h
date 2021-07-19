@@ -768,7 +768,7 @@ public:
     unsigned int CalculateModifiedSize(unsigned int nTxSize=0) const;
 
     // Compute priority, given priority of inputs and (optionally) tx size
-    double ComputePriority(double dPriorityInputs, unsigned int nTxSize=0) const;
+    virtual double ComputePriority(double dPriorityInputs, unsigned int nTxSize=0) const = 0;
 
     // Return sum of JoinSplit vpub_new if supported
     virtual CAmount GetJoinSplitValueIn() const;
@@ -961,6 +961,7 @@ public:
     bool CheckInputsLimit() const override;
     //END OF CHECK FUNCTIONS
 
+    double ComputePriority(double dPriorityInputs, unsigned int nTxSize=0) const override;
     void Relay() const override;
     std::shared_ptr<const CTransactionBase> MakeShared() const override;
 

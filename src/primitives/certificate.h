@@ -4,6 +4,11 @@
 #include "transaction.h"
 #include "sc/sidechaintypes.h"
 
+// certificate priority is computed in the same way as with transparent txes:
+//     priority = sum(input_value_in_base_units * input_age)/size_in_bytes
+// Uncomment this line for enabling certificates having the maximum priority, similarly to the approach used by shielded txes
+//#define CERT_HAS_MAXIMUM_PRIORITY 1
+
 struct CMutableScCertificate;
 
 class CBackwardTransferOut
@@ -185,6 +190,7 @@ public:
 
     //END OF CHECK FUNCTIONS
 
+    double ComputePriority(double dPriorityInputs, unsigned int nTxSize=0) const override;
     void Relay() const override;
     std::shared_ptr<const CTransactionBase> MakeShared() const override;
 

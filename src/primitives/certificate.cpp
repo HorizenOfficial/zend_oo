@@ -15,6 +15,7 @@
 #include "script/sigcache.h"
 #include "main.h"
 #include "sc/proofverifier.h"
+#include "policy/fees.h" // MAXIMUM_PRIORITY
 
 CBackwardTransferOut::CBackwardTransferOut(const CTxOut& txout): nValue(txout.nValue), pubKeyHash()
 {
@@ -256,6 +257,7 @@ bool CScCertificate::VerifyScript(
         const CScript& scriptPubKey, unsigned int nFlags, unsigned int nIn, const CChain* chain,
         bool cacheStore, ScriptError* serror) const { return true; }
 
+double CScCertificate::ComputePriority(double dPriorityInputs, unsigned int nTxSize) const { return 0.0; }
 void CScCertificate::Relay() const {}
 std::shared_ptr<const CTransactionBase> CScCertificate::MakeShared() const
 {
@@ -297,6 +299,25 @@ bool CScCertificate::VerifyScript(
     }
 
     return true;
+}
+
+double CScCertificate::ComputePriority(double dPriorityInputs, unsigned int nTxSize) const
+{
+#ifdef CERT_HAS_MAXIMUM_PRIORITY
+    // A certificate has always highest priority.
+    // ---
+    // It would be feasible computing the same way as ordinary (non-shielded txes), in that case
+    // we should use the same implementation as in CTransaction::, moving it in base class.
+    // However, the size of a cert can be quite large, therefore the priority defined as:
+    //     priority = sum(input_value_in_base_units * input_age)/size_in_bytes
+    // can be much lower than the one of txes
+    return MAXIMUM_PRIORITY;
+#else
+    nTxSize = CalculateModifiedSize(nTxSize);
+    if (nTxSize == 0) return 0.0;
+
+    return dPriorityInputs / nTxSize;
+#endif
 }
 
 void CScCertificate::Relay() const

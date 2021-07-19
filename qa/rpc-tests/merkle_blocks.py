@@ -44,10 +44,12 @@ class MerkleBlockTest(BitcoinTestFramework):
         assert_equal(self.nodes[1].getbalance(), 0)
         assert_equal(self.nodes[2].getbalance(), 0)
 
+        # we should avoid having free txes (fee=0) which might not be included in a block if the priority is not high enough
+        fee = 0.0001
         node0utxos = self.nodes[0].listunspent(1)
-        tx1 = self.nodes[0].createrawtransaction([node0utxos.pop()], {self.nodes[1].getnewaddress(): 11.4375})
+        tx1 = self.nodes[0].createrawtransaction([node0utxos.pop()], {self.nodes[1].getnewaddress(): (11.4375 - fee)})
         txid1 = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(tx1)["hex"])
-        tx2 = self.nodes[0].createrawtransaction([node0utxos.pop()], {self.nodes[1].getnewaddress(): 11.4375})
+        tx2 = self.nodes[0].createrawtransaction([node0utxos.pop()], {self.nodes[1].getnewaddress(): (11.4375 - fee)})
         txid2 = self.nodes[0].sendrawtransaction(self.nodes[0].signrawtransaction(tx2)["hex"])
         assert_raises(JSONRPCException, self.nodes[0].gettxoutproof, [txid1])
 
@@ -65,7 +67,9 @@ class MerkleBlockTest(BitcoinTestFramework):
         assert_equal(self.nodes[2].verifytxoutproof(self.nodes[2].gettxoutproof([txid1, txid2], blockhash)), txlist)
 
         txin_spent = self.nodes[1].listunspent(1).pop()
-        tx3 = self.nodes[1].createrawtransaction([txin_spent], {self.nodes[0].getnewaddress(): 11.4375})
+        txin_amount = self.nodes[3].getrawtransaction(txin_spent["txid"], 1)['vout'][int(txin_spent["vout"])]['value']
+        out_amount = float(txin_amount) - fee
+        tx3 = self.nodes[1].createrawtransaction([txin_spent], {self.nodes[0].getnewaddress(): out_amount})
         self.nodes[0].sendrawtransaction(self.nodes[1].signrawtransaction(tx3)["hex"])
         self.nodes[0].generate(1)
         self.sync_all()

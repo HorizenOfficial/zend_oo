@@ -2099,15 +2099,21 @@ double CCoinsViewCache::GetPriority(const CTransactionBase &tx, int nHeight) con
     // cannot apply the priority algorithm used for transparent utxos.  Instead, we just
     // use the maximum priority whenever a transaction contains any JoinSplits.
     // (Note that coinbase transactions cannot contain JoinSplits.)
+    
     // FIXME: this logic is partially duplicated between here and CreateNewBlock in miner.cpp.
 
     if (tx.GetVjoinsplit().size() > 0) {
         return MAXIMUM_PRIORITY;
     }
 
+#ifdef CERT_HAS_MAXIMUM_PRIORITY
+    // As of now, a certificate has always highest priority.
+    // It would be feasible computing the same way as ordinary (non-shielded txes), in that case
+    // we should modify also CScCertificate::ComputePriority
     if (tx.IsCertificate() ) {
         return MAXIMUM_PRIORITY;
     }
+#endif
 
     double dResult = 0.0;
     BOOST_FOREACH(const CTxIn& txin, tx.GetVin())
