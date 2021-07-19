@@ -323,13 +323,16 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
     obj.pushKV("blocks",           (int)chainActive.Height());
     obj.pushKV("currentblocksize", (uint64_t)nLastBlockSize);
     obj.pushKV("currentblocktx",   (uint64_t)nLastBlockTx);
+    obj.pushKV("currentblockcert", (uint64_t)nLastBlockCert);
+    obj.pushKV("currenttxpartitionused", (uint64_t)nLastBlockTxPartitionSize);
     obj.pushKV("difficulty",       (double)GetNetworkDifficulty());
     obj.pushKV("errors",           GetWarnings("statusbar"));
     obj.pushKV("genproclimit",     (int)GetArg("-genproclimit", -1));
     obj.pushKV("localsolps"  ,     getlocalsolps(params, false));
     obj.pushKV("networksolps",     getnetworksolps(params, false));
     obj.pushKV("networkhashps",    getnetworksolps(params, false));
-    obj.pushKV("pooledtx",         (uint64_t)mempool.size());
+    obj.pushKV("pooledtx",         (uint64_t)mempool.sizeTx());
+    obj.pushKV("pooledcert",       (uint64_t)mempool.sizeCert());
     obj.pushKV("testnet",          Params().TestnetToBeDeprecatedFieldRPC());
     obj.pushKV("chain",            Params().NetworkIDString());
 #ifdef ENABLE_MINING
@@ -711,13 +714,18 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
         result.pushKV("coinbaseaux", aux);
         result.pushKV("coinbasevalue", (int64_t)pblock->vtx[0].GetVout()[0].nValue);
     }
+
+    unsigned int block_size_limit = MAX_BLOCK_SIZE;
+    if (pblock->nVersion != BLOCK_VERSION_SC_SUPPORT)
+        block_size_limit = MAX_BLOCK_SIZE_BEFORE_SC;
+
     result.pushKV("longpollid", chainActive.Tip()->GetBlockHash().GetHex() + i64tostr(nTransactionsUpdatedLast));
     result.pushKV("target", hashTarget.GetHex());
     result.pushKV("mintime", (int64_t)pindexPrev->GetMedianTimePast()+1);
     result.pushKV("mutable", aMutable);
     result.pushKV("noncerange", "00000000ffffffff");
     result.pushKV("sigoplimit", (int64_t)MAX_BLOCK_SIGOPS);
-    result.pushKV("sizelimit", (int64_t)MAX_BLOCK_SIZE);
+    result.pushKV("sizelimit", (int64_t)block_size_limit);
     result.pushKV("curtime", pblock->GetBlockTime());
     result.pushKV("bits", strprintf("%08x", pblock->nBits));
     result.pushKV("height", (int64_t)(pindexPrev->nHeight+1));
@@ -920,6 +928,67 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp)
     if (superNodeFund > 0) {
         result.pushKV("supernodes", ValueFromAmount(superNodeFund));
     }
+
+    return result;
+}
+
+UniValue getblockmerkleroots(const UniValue& params, bool fHelp) {
+    if (fHelp || params.size() != 2)
+        throw runtime_error(
+                "getblockmerkleroots transactions certificates\n"
+                "\nReturns Merkleroot and ScTxsCommitment.\n"
+                "\nArguments:\n"
+                "1. transactions         (array) Array of raw transactions (HEX format).\n"
+                "2. certificates         (array) Array of raw certificates (HEX format).\n"
+                "\nResult:\n"
+                "{\n"
+                "  \"merkleTree\" : \"xxx\"           (string) Merkleroot calculated on transactions and certificates.\n"
+                "  \"scTxsCommitment\" : \"xxxx\"      (string) scTxsCommitment calculated on certificates.\n"
+                "}\n"
+                "\nExamples:\n"
+                + HelpExampleCli("getblockmerkleroots", "'[\"0100000001000000...\", ...]', '[\"0100000001000000...\", ...]'")
+                + HelpExampleRpc("getblockmerkleroots", "'[\"0100000001000000...\", ...]', '[\"0100000001000000...\", ...]'")
+        );
+    LOCK(cs_main);
+
+    UniValue txsStr =  params[0].get_array();
+    std::vector<CTransaction> txs;
+
+    for (const UniValue & tx : txsStr.getValues()) {
+    	CTransaction transaction;
+        if (!DecodeHexTx(transaction, tx.get_str()))
+            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
+        txs.push_back(transaction);
+    }
+
+    UniValue certsStr =  params[1].get_array();
+    std::vector<CScCertificate> certs;
+
+    for (const UniValue & cert : certsStr.getValues()) {
+    	CScCertificate certificate;
+        if (!DecodeHexCert(certificate, cert.get_str()))
+            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Certificate decode failed");
+        certs.push_back(certificate);
+    }
+
+    // Create new block
+    std::unique_ptr<CBlockTemplate> pblocktemplate(new CBlockTemplate());
+    CBlock *pblock = &pblocktemplate->block; // pointer for convenience
+
+    pblock->vtx = txs;
+    pblock->vcert = certs;
+    CCoinsViewCache view(pcoinsTip);
+
+    uint256 merkleTree = pblock->BuildMerkleTree();
+    uint256 scTxsCommitment;
+    scTxsCommitment.SetNull();
+    if (pblock->nVersion == BLOCK_VERSION_SC_SUPPORT){
+        scTxsCommitment = pblock->BuildScTxsCommitment(view);
+    }
+
+    UniValue result(UniValue::VOBJ);
+    result.pushKV("merkleTree", merkleTree.ToString());
+    result.pushKV("scTxsCommitment", scTxsCommitment.ToString());
 
     return result;
 }

@@ -115,6 +115,9 @@ testScripts=(
   'cbh_rpfix.py'
   'cbh_rpcheck.py'
   'tlsprotocols.py'
+  'getblockmerkleroots.py'
+  'sc_block_partitions.py'
+  'sc_cert_bwt_amount_rounding.py'
 );
 testScriptsExt=(
   'getblocktemplate_longpoll.py'
@@ -146,6 +149,7 @@ testScriptsExt=(
   'headers_09.py'
   'headers_10.py'
   'checkblockatheight.py'
+  'sc_big_block.py'
 );
 
 if [ "x$ENABLE_ZMQ" = "x1" ]; then

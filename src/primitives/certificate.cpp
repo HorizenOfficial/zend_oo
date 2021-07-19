@@ -114,12 +114,11 @@ bool CScCertificate::CheckInputsOutputsNonEmpty(CValidationState &state) const
 
 bool CScCertificate::CheckSerializedSize(CValidationState &state) const
 {
-    BOOST_STATIC_ASSERT(MAX_BLOCK_SIZE > MAX_CERT_SIZE); // sanity
     uint32_t size = GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
     if (size > MAX_CERT_SIZE) {
-        LogPrintf("CheckSerializedSize: Cert id = %s, size = %d, limit = %d, tx = %s", GetHash().ToString(), size, MAX_CERT_SIZE, ToString());
+        LogPrintf("%s():%d - Cert id = %s, size = %d, limit = %d, tx = %s", __func__, __LINE__, GetHash().ToString(), size, MAX_CERT_SIZE, ToString());
         return state.DoS(100, error("checkSerializedSizeLimits(): size limits failed"),
-                         CValidationState::Code::INVALID, "bad-txns-oversize");
+                         CValidationState::Code::INVALID, "bad-cert-oversize");
     }
 
     return true;
@@ -338,14 +337,13 @@ CFieldElement CScCertificate::GetDataHash(const Sidechain::ScFixedParameters& sc
     if (bt_list_len == 0)
         bt_list_ptr = nullptr;
 
-    wrappedFieldPtr   sptrConst  = input.constant.GetFieldElement();
-    wrappedFieldPtr   sptrCum    = input.endEpochCumScTxCommTreeRoot.GetFieldElement();
-    wrappedScProofPtr sptrProof  = input.certProof.GetProofPtr();
-    wrappedScVkeyPtr  sptrCertVk = input.CertVk.GetVKeyPtr();
+    wrappedFieldPtr sptrScId = CFieldElement(input.scId).GetFieldElement();
+    field_t* scidFe = sptrScId.get();
 
     CctpErrorCode errorCode;
 
-    field_t* certDataHash = zendoo_get_cert_data_hash(input.epochNumber,
+    field_t* certDataHash = zendoo_get_cert_data_hash(scidFe,
+                                                      input.epochNumber,
                                                       input.quality,
                                                       bt_list_ptr,
                                                       bt_list_len,
@@ -356,6 +354,11 @@ CFieldElement CScCertificate::GetDataHash(const Sidechain::ScFixedParameters& sc
                                                       input.forwardTransferScFee,
                                                       &errorCode
                                                       );
+    if (errorCode != CctpErrorCode::OK)
+    {
+        LogPrintf("%s():%d - could not get cert data hash: error code[0x%x]\n", __func__, __LINE__, errorCode);
+        assert(certDataHash == nullptr);
+    }
 
     return CFieldElement{wrappedFieldPtr{certDataHash, CFieldPtrDeleter{}}};
 }

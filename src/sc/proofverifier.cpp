@@ -76,12 +76,15 @@ bool CScProofVerifier::BatchVerify() const
         return true;
     }
 
-    CctpErrorCode code;
-    ZendooBatchProofVerifier batchVerifier;
-    uint32_t idx = 0;
+    // The paramenter in the ctor is a boolean telling mc-crypto lib if the rust verifier executing thread
+    // will be a high-priority one (default is false)
+    ZendooBatchProofVerifier batchVerifier(true);
 
-    int64_t nTime1 = GetTimeMicros();
+    uint32_t idx = 0;
+    CctpErrorCode code;
+
     LogPrint("bench", "%s():%d - starting verification\n", __func__, __LINE__);
+    int64_t nTime1 = GetTimeMicros();
     for (const auto& entry : cswEnqueuedData)
     {
         for (const auto& entry2 : entry.second)
@@ -152,6 +155,9 @@ bool CScProofVerifier::BatchVerify() const
         if (bt_list_len == 0)
             bt_list_ptr = nullptr;
 
+        wrappedFieldPtr sptrScId = CFieldElement(input.scId).GetFieldElement();
+        field_t* scidFe = sptrScId.get();
+
         wrappedFieldPtr   sptrConst  = input.constant.GetFieldElement();
         wrappedFieldPtr   sptrCum    = input.endEpochCumScTxCommTreeRoot.GetFieldElement();
         wrappedScProofPtr sptrProof  = input.certProof.GetProofPtr();
@@ -160,6 +166,7 @@ bool CScProofVerifier::BatchVerify() const
         bool ret = batchVerifier.add_certificate_proof(
             idx,
             sptrConst.get(),
+            scidFe,
             input.epochNumber,
             input.quality,
             bt_list_ptr,
@@ -175,6 +182,7 @@ bool CScProofVerifier::BatchVerify() const
         );
         idx++;
 
+        //dumpBtArr((backward_transfer_t*)bt_list_ptr, bt_list_len, "bwt list");
         //dumpFeArr((field_t**)custom_fields.get(), custom_fields_len, "custom fields");
         //dumpFe(sptrCum.get(), "cumTree");
 
@@ -221,6 +229,7 @@ CCertProofVerifierInput SidechainProofVerifier::CertificateToVerifierInput(const
     else
         certData.constant = CFieldElement{};
 
+    certData.scId = certificate.GetScId();
     certData.epochNumber = certificate.epochNumber;
     certData.quality = certificate.quality;
 

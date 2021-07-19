@@ -1117,7 +1117,7 @@ bool CheckTransactionWithoutProofVerification(const CTransaction& tx, CValidatio
     return true;
 }
 
-CAmount GetMinRelayFee(const CTransactionBase& tx, unsigned int nBytes, bool fAllowFree)
+CAmount GetMinRelayFee(const CTransactionBase& tx, unsigned int nBytes, bool fAllowFree, unsigned int block_priority_size)
 {
     {
         LOCK(mempool.cs);
@@ -1137,7 +1137,7 @@ CAmount GetMinRelayFee(const CTransactionBase& tx, unsigned int nBytes, bool fAl
         // * If we are relaying we allow transactions up to DEFAULT_BLOCK_PRIORITY_SIZE - 1000
         //   to be considered to fall into this category. We don't want to encourage sending
         //   multiple transactions instead of one big transaction to avoid fees.
-        if (nBytes < (DEFAULT_BLOCK_PRIORITY_SIZE - 1000))
+        if ((nBytes < (block_priority_size - 1000)) )
             nMinFee = 0;
     }
 
@@ -1190,6 +1190,7 @@ MempoolReturnValue AcceptCertificateToMemoryPool(CTxMemPool& pool, CValidationSt
     string reason;
     if (getRequireStandard() &&  !IsStandardTx(cert, reason, nextBlockHeight))
     {
+        LogPrintf("%s():%d - Dropping nonstandard certid %s\n", __func__, __LINE__, cert.GetHash().ToString());
         state.DoS(0, error("%s(): nonstandard certificate: %s", __func__, reason),
                             CValidationState::Code::NONSTANDARD, reason);
         return MempoolReturnValue::INVALID;
@@ -1302,8 +1303,12 @@ MempoolReturnValue AcceptCertificateToMemoryPool(CTxMemPool& pool, CValidationSt
         CCertificateMemPoolEntry entry(cert, nFees, GetTime(), dPriority, chainActive.Height());
         unsigned int nSize = entry.GetCertificateSize();
 
+        unsigned int block_priority_size = DEFAULT_BLOCK_PRIORITY_SIZE;
+        if (!ForkManager::getInstance().areSidechainsSupported(nextBlockHeight))
+            block_priority_size = DEFAULT_BLOCK_PRIORITY_SIZE_BEFORE_SC;
+
         // Don't accept it if it can't get into a block
-        CAmount txMinFee = GetMinRelayFee(cert, nSize, true);
+        CAmount txMinFee = GetMinRelayFee(cert, nSize, true, block_priority_size);
 
         LogPrintf("nFees=%d, txMinFee=%d\n", nFees, txMinFee);
         if (fLimitFree == LimitFreeFlag::ON && nFees < txMinFee)
@@ -1361,7 +1366,7 @@ MempoolReturnValue AcceptCertificateToMemoryPool(CTxMemPool& pool, CValidationSt
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
         if (!ContextualCheckCertInputs(cert, state, view, true, chainActive, STANDARD_CONTEXTUAL_SCRIPT_VERIFY_FLAGS, true, Params().GetConsensus()))
         {
-            LogPrintf("%s(): ConnectInputs failed %s", __func__, certHash.ToString());
+            LogPrintf("%s():%d - ERROR: ConnectInputs failed, cert[%s]\n", __func__, __LINE__, certHash.ToString());
             return MempoolReturnValue::INVALID;
         }
 
@@ -1376,8 +1381,8 @@ MempoolReturnValue AcceptCertificateToMemoryPool(CTxMemPool& pool, CValidationSt
         // can be exploited as a DoS attack.
         if (!ContextualCheckCertInputs(cert, state, view, true, chainActive, MANDATORY_SCRIPT_VERIFY_FLAGS, true, Params().GetConsensus()))
         {
-            LogPrintf("%s(): BUG! PLEASE REPORT THIS! ConnectInputs failed against MANDATORY but not STANDARD flags %s",
-                                __func__, certHash.ToString());
+            LogPrintf("%s():%d - BUG! PLEASE REPORT THIS! ConnectInputs failed against MANDATORY but not STANDARD flags, cert[%s]\n",
+                                __func__, __LINE__, certHash.ToString());
             return MempoolReturnValue::INVALID;
         }
 
@@ -1427,7 +1432,7 @@ MempoolReturnValue AcceptTxToMemoryPool(CTxMemPool& pool, CValidationState &stat
 
     if (!tx.CheckInputsLimit())
     {
-        LogPrintf("%s(): CheckInputsLimit failed", __func__);
+        LogPrintf("%s():%d - CheckInputsLimit failed\n", __func__, __LINE__);
         return MempoolReturnValue::INVALID;
     }
 
@@ -1483,7 +1488,7 @@ MempoolReturnValue AcceptTxToMemoryPool(CTxMemPool& pool, CValidationState &stat
 
     if (!pool.checkIncomingTxConflicts(tx))
     {
-        LogPrintf("%s():%d: tx[%s] has conflicts in mempool", __func__, __LINE__, tx.GetHash().ToString());
+        LogPrintf("%s():%d: tx[%s] has conflicts in mempool\n", __func__, __LINE__, tx.GetHash().ToString());
         return MempoolReturnValue::INVALID;
     }
 
@@ -1595,8 +1600,13 @@ MempoolReturnValue AcceptTxToMemoryPool(CTxMemPool& pool, CValidationState &stat
         if (tx.GetVjoinsplit().size() > 0 && nFees >= ASYNC_RPC_OPERATION_DEFAULT_MINERS_FEE) {
             // In future we will we have more accurate and dynamic computation of fees for tx with joinsplits.
         } else {
+            unsigned int block_priority_size = DEFAULT_BLOCK_PRIORITY_SIZE;
+            if (!ForkManager::getInstance().areSidechainsSupported(nextBlockHeight))
+                block_priority_size = DEFAULT_BLOCK_PRIORITY_SIZE_BEFORE_SC;
+    
             // Don't accept it if it can't get into a block
-            CAmount txMinFee = GetMinRelayFee(tx, nSize, true);
+            CAmount txMinFee = GetMinRelayFee(tx, nSize, true, block_priority_size);
+
             LogPrintf("nFees=%d, txMinFee=%d\n", nFees, txMinFee);
             if (fLimitFree == LimitFreeFlag::ON && nFees < txMinFee)
             {
@@ -2604,7 +2614,13 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
     bool fClean = true;
 
-    CBlockUndo blockUndo;
+    IncludeScAttributes includeSc = IncludeScAttributes::ON;
+
+    if (block.nVersion != BLOCK_VERSION_SC_SUPPORT)
+        includeSc = IncludeScAttributes::OFF;
+
+    CBlockUndo blockUndo(includeSc);
+
     CDiskBlockPos pos = pindex->GetUndoPos();
     if (pos.IsNull())
         return error("DisconnectBlock(): no undo data available");
@@ -2913,6 +2929,16 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
     }
 
+    bool pauseLowPrioZendooThread = (
+        fExpensiveChecks &&
+        fScRelatedChecks == flagScRelatedChecks::ON &&
+        fScProofVerification == flagScProofVerification::ON &&
+        SidechainTxsCommitmentBuilder::getEmptyCommitment() != block.hashScTxsCommitment // no sc related tx/certs 
+    );
+       
+    // if necessary pause rust low priority threads in order to speed up times
+    CZendooLowPrioThreadGuard lowPrioThreadGuard(pauseLowPrioZendooThread);
+     
     auto verifier = libzcash::ProofVerifier::Strict();
     auto disabledVerifier = libzcash::ProofVerifier::Disabled();
 
@@ -2964,7 +2990,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     // DERSIG (BIP66) is also always enforced, but does not have a flag.
 
-    CBlockUndo blockundo;
+    IncludeScAttributes includeSc = IncludeScAttributes::ON;
+
+    if (block.nVersion != BLOCK_VERSION_SC_SUPPORT)
+        includeSc = IncludeScAttributes::OFF;
+
+    CBlockUndo blockundo(includeSc);
 
     CCheckQueueControl<CScriptCheck> control(fExpensiveChecks && nScriptCheckThreads ? &scriptcheckqueue : NULL);
 
@@ -4340,7 +4371,12 @@ bool CheckBlock(const CBlock& block, CValidationState& state,
     // because we receive the wrong transactions for it.
 
     // Size limits
-    if (block.vtx.empty() || (block.vtx.size() + block.vcert.size()) > MAX_BLOCK_SIZE || ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION) > MAX_BLOCK_SIZE)
+    // - From the sidechains fork point on, the block size has been increased 
+    unsigned int block_size_limit = MAX_BLOCK_SIZE;
+    if (block.nVersion != BLOCK_VERSION_SC_SUPPORT)
+        block_size_limit = MAX_BLOCK_SIZE_BEFORE_SC;
+
+    if (block.vtx.empty() || ::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION) > block_size_limit)
         return state.DoS(100, error("CheckBlock(): size limits failed"),
                          CValidationState::Code::INVALID, "bad-blk-length");
 
@@ -4352,6 +4388,19 @@ bool CheckBlock(const CBlock& block, CValidationState& state,
         if (block.vtx[i].IsCoinBase())
             return state.DoS(100, error("CheckBlock(): more than one coinbase"),
                              CValidationState::Code::INVALID, "bad-cb-multiple");
+
+    if (block.nVersion == BLOCK_VERSION_SC_SUPPORT)
+    {
+        unsigned int nTxPartSize = 0;
+        for(const CTransaction& tx: block.vtx)
+        {
+            nTxPartSize += tx.GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
+            if (nTxPartSize > BLOCK_TX_PARTITION_SIZE)
+            {
+                return error("CheckBlock(): block tx partition size exceeded %d > %d", nTxPartSize, BLOCK_TX_PARTITION_SIZE);
+            }
+        }
+    }
 
     // Check transactions and certificates
     for(const CTransaction& tx: block.vtx) {
@@ -5075,7 +5124,14 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
             return error("VerifyDB(): *** found bad block at %d, hash=%s\n", pindex->nHeight, pindex->GetBlockHash().ToString());
         // check level 2: verify undo validity
         if (nCheckLevel >= 2 && pindex) {
-            CBlockUndo undo;
+
+            IncludeScAttributes includeSc = IncludeScAttributes::ON;
+
+            if (block.nVersion != BLOCK_VERSION_SC_SUPPORT)
+                includeSc = IncludeScAttributes::OFF;
+
+            CBlockUndo undo(includeSc);
+
             CDiskBlockPos pos = pindex->GetUndoPos();
             if (!pos.IsNull()) {
                 if (!UndoReadFromDisk(undo, pos, pindex->pprev->GetBlockHash()))
@@ -5498,7 +5554,7 @@ void static CheckBlockIndex()
                 // setBlockIndexCandidates.  chainActive.Tip() must also be there
                 // even if some data has been pruned.
                 if (pindexFirstMissing == NULL || pindex == chainActive.Tip()) {
-                    // LogPrintf("net","ASSERT============>%x  but  %x", pindex->phashBlock, chainActive.Tip()->phashBlock);
+                    // LogPrintf("net","ASSERT============>%x  but  %x\n", pindex->phashBlock, chainActive.Tip()->phashBlock);
                     assert(setBlockIndexCandidates.count(pindex));
                 }
                 // If some parent is missing, then it could be that this block was in

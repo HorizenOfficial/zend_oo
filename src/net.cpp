@@ -783,8 +783,8 @@ int CNetMessage::readHeader(const char *pch, unsigned int nBytes)
         return -1;
     }
 
-    // reject messages larger than MAX_SIZE
-    if (hdr.nMessageSize > MAX_SIZE)
+    // reject messages larger than MAX_SERIALIZED_COMPACT_SIZE
+    if (hdr.nMessageSize > MAX_SERIALIZED_COMPACT_SIZE)
             return -1;
 
     // switch state to reading message data
@@ -2115,16 +2115,6 @@ void CNode::NetCleanup()
     WSACleanup();
 #endif
 }
-
-#if 0
-void Relay(const CTransaction& tx)
-{
-    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-    ss.reserve(10000);
-    ss << tx;
-    Relay(tx, ss);
-}
-#endif
 
 void Relay(const CTransactionBase& tx, const CDataStream& ss)
 {
