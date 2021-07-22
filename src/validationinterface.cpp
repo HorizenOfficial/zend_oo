@@ -25,9 +25,13 @@ void RegisterValidationInterface(CValidationInterface* pwalletIn) {
     g_signals.BlockChecked.connect(boost::bind(&CValidationInterface::BlockChecked, pwalletIn, _1, _2));
     g_signals.SyncCertificate.connect(boost::bind(&CValidationInterface::SyncCertificate, pwalletIn, _1, _2, _3));
     g_signals.SyncCertStatus.connect(boost::bind(&CValidationInterface::SyncCertStatusInfo, pwalletIn, _1));
+    g_signals.MempoolChanged.connect(boost::bind(&CValidationInterface::MempoolChanged, pwalletIn));
+    g_signals.PeersChanged.connect(boost::bind(&CValidationInterface::PeersChanged, pwalletIn));
 }
 
 void UnregisterValidationInterface(CValidationInterface* pwalletIn) {
+    g_signals.PeersChanged.disconnect(boost::bind(&CValidationInterface::PeersChanged, pwalletIn));
+    g_signals.MempoolChanged.disconnect(boost::bind(&CValidationInterface::MempoolChanged, pwalletIn));
     g_signals.SyncCertStatus.disconnect(boost::bind(&CValidationInterface::SyncCertStatusInfo, pwalletIn, _1));
     g_signals.SyncCertificate.disconnect(boost::bind(&CValidationInterface::SyncCertificate, pwalletIn, _1, _2, _3));
     g_signals.BlockChecked.disconnect(boost::bind(&CValidationInterface::BlockChecked, pwalletIn, _1, _2));
@@ -53,6 +57,8 @@ void UnregisterAllValidationInterfaces() {
     g_signals.EraseTransaction.disconnect_all_slots();
     g_signals.SyncTransaction.disconnect_all_slots();
     g_signals.UpdatedBlockTip.disconnect_all_slots();
+    g_signals.MempoolChanged.disconnect_all_slots();
+    g_signals.PeersChanged.disconnect_all_slots();
 }
 
 void SyncWithWallets(const CTransaction &tx, const CBlock *pblock) {

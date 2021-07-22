@@ -19,6 +19,7 @@
 #include "script/standard.h"
 #include "uint256.h"
 #include "tinyformat.h"
+#include "validationinterface.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #endif
@@ -1872,7 +1873,7 @@ UniValue sendrawtransaction(const UniValue& params, bool fHelp)
         }
     } else if (fHaveChain)
         throw JSONRPCError(RPC_TRANSACTION_ALREADY_IN_CHAIN, "transaction already in block chain");
-
+    GetMainSignals().MempoolChanged();
     tx.Relay();
     return hashTx.GetHex();
 }
@@ -1946,6 +1947,7 @@ UniValue sendrawcertificate(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_TRANSACTION_ALREADY_IN_CHAIN, "certificate already in block chain");
 
     LogPrint("cert", "%s():%d - relaying certificate [%s]\n", __func__, __LINE__, hashCertificate.ToString());
+    GetMainSignals().MempoolChanged();
     cert.Relay();
 
     return hashCertificate.GetHex();

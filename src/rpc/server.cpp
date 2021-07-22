@@ -264,6 +264,7 @@ static const CRPCCommand vRPCCommands[] =
     { "control",            "dbg_log",                &dbg_log,                true  },
     { "control",            "dbg_do",                 &dbg_do,                 true  },
     { "control",            "getscinfo",              &getscinfo,              true  },
+    { "control",            "getscid",                &getscid,                true  },
     { "control",            "getactivecertdatahash",  &getactivecertdatahash,  true  },
     { "control",            "getceasingcumsccommtreehash", &getceasingcumsccommtreehash, true  },
     { "control",            "getscgenesisinfo",       &getscgenesisinfo,       true  },
@@ -424,8 +425,8 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet",             "send_to_sidechain",      &send_to_sidechain,      false },
     { "wallet",             "request_transfer_from_sidechain",&request_transfer_from_sidechain,false },
 
-    // TODO: rearrange into another category 
-    { "disclosure",         "z_getpaymentdisclosure", &z_getpaymentdisclosure, true  }, 
+    // TODO: rearrange into another category
+    { "disclosure",         "z_getpaymentdisclosure", &z_getpaymentdisclosure, true  },
     { "disclosure",         "z_validatepaymentdisclosure", &z_validatepaymentdisclosure, true },
     { "wallet",             "listaddresses",          &listaddresses,          true  }
 #endif // ENABLE_WALLET

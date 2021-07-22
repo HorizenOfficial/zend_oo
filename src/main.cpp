@@ -3554,6 +3554,7 @@ bool static DisconnectTip(CValidationState &state) {
         SyncCertStatusUpdate(item);
     }
 
+    GetMainSignals().MempoolChanged();
     // Update cached incremental witnesses
     GetMainSignals().ChainTip(pindexDelete, &block, newTree, false);
     return true;
@@ -6030,8 +6031,10 @@ void ProcessTxBaseAcceptToMemoryPool(const CTransactionBase& txBase, CNode* pfro
             }
         }
 
-            for(const uint256& hash: vEraseQueue)
+        for(const uint256& hash: vEraseQueue) {
             EraseOrphanTx(hash);
+        }
+        GetMainSignals().MempoolChanged();
     }
     // TODO: currently, prohibit joinsplits from entering mapOrphans
     else if (res == MempoolReturnValue::MISSING_INPUT && txBase.GetVjoinsplit().size() == 0)

@@ -13,6 +13,8 @@
 #include "primitives/transaction.h"
 #include "primitives/certificate.h"
 #include "sync.h"
+#include <stack>
+#include <vector>
 
 class CAutoFile;
 
@@ -338,6 +340,10 @@ public:
     /** Write/Read estimates to disk */
     bool WriteFeeEstimates(CAutoFile& fileout) const;
     bool ReadFeeEstimates(CAutoFile& filein);
+
+    /** Create a list of transaction hash sorted by dependency*/
+    void DFS(std::vector<std::pair<std::string, std::string> > graph, std::string node, std::map<std::string, bool> * visited, std::stack<std::string> * order);
+    std::list<uint256> TopologicalSort();
 
     size_t DynamicMemoryUsage() const;
 };

@@ -3645,6 +3645,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
                 LogPrintf("CommitTransaction(): Error: Transaction not valid\n");
                 return false;
             }
+            GetMainSignals().MempoolChanged();
             wtxNew.RelayWalletTransaction();
         }
     }
