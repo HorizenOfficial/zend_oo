@@ -795,10 +795,9 @@ void fundCcRecipients(const CTransaction& tx,
 ScRpcCmd::ScRpcCmd(
         const CBitcoinAddress& fromaddress, const CBitcoinAddress& changeaddress,
         int minConf, const CAmount& nFee): 
-        _fromMcAddress(fromaddress), _changeMcAddress(changeaddress), _minConf(minConf), _fee(nFee)
+        _fromMcAddress(fromaddress), _changeMcAddress(changeaddress), _minConf(minConf), _fee(nFee), _feeNeeded(-1),
+        _totalInputAmount(0), _totalOutputAmount(0)
 {
-    _totalOutputAmount = 0;
-
     _hasFromAddress   = !(_fromMcAddress   == CBitcoinAddress());
     _hasChangeAddress = !(_changeMcAddress == CBitcoinAddress());
 
@@ -809,8 +808,13 @@ ScRpcCmd::ScRpcCmd(
     CTxOut out(CAmount(1), scriptPubKey);
     _dustThreshold = out.GetDustThreshold(minRelayTxFee);
 
+}
+
+void ScRpcCmd::init()
+{
     _totalInputAmount = 0;
 }
+
 
 void ScRpcCmd::addInputs()
 {
@@ -859,7 +863,9 @@ void ScRpcCmd::addInputs()
 
     CAmount targetAmount = _totalOutputAmount + _fee;
 
+#if 0
     CAmount dustChange = -1;
+#endif
 
     std::vector<SelectedUTXO> vSelectedInputUTXO;
 
@@ -873,11 +879,15 @@ void ScRpcCmd::addInputs()
 
         if (_totalInputAmount >= targetAmount)
         {
+#if 0
             // Select another utxo if there is change less than the dust threshold.
             dustChange = _totalInputAmount - targetAmount;
             if (dustChange == 0 || dustChange >= _dustThreshold) {
                 break;
             }
+#else
+            break;
+#endif
         }
     }
 
@@ -892,12 +902,14 @@ void ScRpcCmd::addInputs()
             addrDetails, FormatMoney(_totalInputAmount), FormatMoney(targetAmount), _minConf));
     }
 
+#if 0
     // If there is transparent change, is it valid or is it dust?
     if (dustChange < _dustThreshold && dustChange != 0) {
         throw JSONRPCError(RPC_WALLET_INSUFFICIENT_FUNDS,
             strprintf("Insufficient transparent funds, have %s, need %s more to avoid creating invalid change output %s (dust threshold is %s)",
             FormatMoney(_totalInputAmount), FormatMoney(_dustThreshold - dustChange), FormatMoney(dustChange), FormatMoney(_dustThreshold)));
     }
+#endif
 
     // Check mempooltxinputlimit to avoid creating a transaction which the local mempool rejects
     size_t limit = (size_t)GetArg("-mempooltxinputlimit", 0);
@@ -926,6 +938,8 @@ void ScRpcCmd::addChange()
 
     if (change > 0)
     {
+        CReserveKey keyChange(pwalletMain);
+
         // handle the address for the change
         CScript scriptPubKey;
         if (_hasChangeAddress)
@@ -939,7 +953,6 @@ void ScRpcCmd::addChange()
         }
         else
         {
-            CReserveKey keyChange(pwalletMain);
             CPubKey vchPubKey;
 
             if (!keyChange.GetReservedKey(vchPubKey))
@@ -948,7 +961,23 @@ void ScRpcCmd::addChange()
             scriptPubKey = GetScriptForDestination(vchPubKey.GetID());
         }
 
-        addOutput(CTxOut(change, scriptPubKey));
+        // Never create dust outputs; if we would, just add the dust to the fee.
+        CTxOut newTxOut(change, scriptPubKey);
+        if (newTxOut.IsDust(::minRelayTxFee))
+        {
+            LogPrint("sc", "%s():%d - adding dust change=%lld to fee\n", __func__, __LINE__, change);
+                
+            _fee += change;
+            // un-reserve the key if needed
+            if (!_hasChangeAddress && !_hasFromAddress)
+            {
+                keyChange.ReturnKey();
+            }
+        }
+        else
+        {
+            addOutput(CTxOut(change, scriptPubKey));
+        }
     }
 }
 
@@ -965,13 +994,32 @@ ScRpcCmdCert::ScRpcCmdCert(
 
 void ScRpcCmdCert::execute()
 {
-    addInputs();
-    addChange();
-    addBackwardTransfers();
-    addCustomFields();
-    addScFees();
-    sign();
-    send();
+    static const int MAX_LOOP = 10;
+    int safeCount = MAX_LOOP;
+    while (true)
+    {
+        init();
+
+        addInputs();
+        addChange();
+        addBackwardTransfers();
+        addCustomFields();
+        addScFees();
+        sign();
+
+        LogPrint("sc", "%s():%d - cnt=%d, fee=%lld, feeNeeded=%lld\n", __func__, __LINE__,
+            (MAX_LOOP - safeCount + 1), _fee, _feeNeeded);
+
+        bool ret = send();
+        if (ret)
+        {
+            break;
+        }
+        if (safeCount-- <= 0)
+        {
+            throw JSONRPCError(RPC_WALLET_ERROR, "Could not set minimum fee");
+        }
+    }
 }
 
 void ScRpcCmdCert::sign()
@@ -1023,17 +1071,69 @@ void ScRpcCmdCert::sign()
     _cert = certStreamed;
 }
 
-void ScRpcCmdCert::send()
+bool ScRpcCmd::checkFeeRate()
 {
+    // if the _fee is intentionally set to 0, go on and skip the check
+    if (_fee == 0)
+        return true;
+
+    unsigned int nBytes = getSignedObjSize();
+
+    // this function checks that the returned value is also not lower than minRelayFee
+    _feeNeeded = CWallet::GetMinimumFee(nBytes, nTxConfirmTarget, mempool);
+    if (_fee < _feeNeeded)
+    {
+        // we have to retry with this value
+        _fee = _feeNeeded;
+        return false;
+    }
+    return true;
+}
+
+void ScRpcCmdCert::init()
+{
+    ScRpcCmd::init();
+
+    _cert.vin.clear();
+    _cert.resizeOut(0);
+    _cert.resizeBwt(0);
+
+    _cert.forwardTransferScFee = CScCertificate::INT_NULL;
+    _cert.mainchainBackwardTransferRequestScFee = CScCertificate::INT_NULL;
+    _cert.vFieldElementCertificateField.clear();
+    _cert.vBitVectorCertificateField.clear();
+}
+
+bool ScRpcCmdCert::send()
+{
+    unsigned int nSize = getSignedObjSize();
+
+    // check we do not exceed max certificate size
+    if (nSize > MAX_CERT_SIZE)
+    {
+        LogPrintf("%s():%d - certificate size[%d] > max size(%d)\n", __func__, __LINE__, nSize, MAX_CERT_SIZE);
+            throw JSONRPCError(RPC_VERIFY_ERROR, strprintf(
+                "certificate size %d > max cert size(%d)", nSize, MAX_CERT_SIZE));
+    }
+
+    // check that the feerate is above the minimum threshold. Note that if the user has explicitly set fee=0
+    // the check will return true
+    if (!checkFeeRate())
+    {
+        return false;
+    }
+
     UniValue val = UniValue(UniValue::VARR);
     val.push_back(_signedObjHex);
 
-    UniValue sendResultValue = sendrawcertificate(val, false);
-    if (sendResultValue.isNull())
+    UniValue certHash = sendrawcertificate(val, /*fHelp*/false);
+    if (certHash.isNull())
     {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Send raw transaction did not return an error or a txid.");
+        // should never happen, since the above command returns a valid cert hash or throws an exception itself
+        throw JSONRPCError(RPC_WALLET_ERROR, "sending raw certificate has failed");
     }
-    LogPrint("sc", "cert sent[%s]\n", sendResultValue.get_str());
+    LogPrint("sc", "cert sent[%s]\n", certHash.get_str());
+    return true;
 }
 
 void ScRpcCmdCert::addBackwardTransfers()
@@ -1057,6 +1157,17 @@ void ScRpcCmdCert::addScFees()
 {
     _cert.forwardTransferScFee = _ftScFee;
     _cert.mainchainBackwardTransferRequestScFee = _mbtrScFee;
+}
+
+void ScRpcCmdTx::init()
+{
+    ScRpcCmd::init();
+
+    _tx.vin.clear();
+    _tx.resizeOut(0);
+    _tx.vsc_ccout.clear();
+    _tx.vft_ccout.clear();
+    _tx.vmbtr_out.clear();
 }
 
 ScRpcCmdTx::ScRpcCmdTx(
@@ -1113,25 +1224,70 @@ void ScRpcCmdTx::sign()
     _tx = txStreamed;
 }
 
-void ScRpcCmdTx::send()
+bool ScRpcCmdTx::send()
 {
+    unsigned int nSize = getSignedObjSize();
+
+    // check we do not exceed max certificate size
+    if (nSize > MAX_TX_SIZE)
+    {
+        LogPrintf("%s():%d - tx size[%d] > max size(%d)\n", __func__, __LINE__, nSize, MAX_TX_SIZE);
+            throw JSONRPCError(RPC_VERIFY_ERROR, strprintf(
+                "certificate size %d > max cert size(%d)", nSize, MAX_TX_SIZE));
+    }
+
+    if (!checkFeeRate())
+    {
+        // TODO if the number of attempts increases, add a multiplier
+        _fee = _feeNeeded;
+        return false;
+    }
+
     UniValue val = UniValue(UniValue::VARR);
     val.push_back(_signedObjHex);
 
-    UniValue sendResultValue = sendrawtransaction(val, false);
-    if (sendResultValue.isNull())
+    UniValue txHash = sendrawtransaction(val, /*fHelp*/false);
+    if (txHash.isNull())
     {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Send raw transaction did not return an error or a txid.");
+        // should never happen, since the above command returns a valid hash or throws an exception itself
+        throw JSONRPCError(RPC_WALLET_ERROR, "sending raw transaction has failed");
     }
+    return true;
 }
 
 void ScRpcCmdTx::execute()
 {
-    addInputs();
-    addChange();
-    addCcOutputs();
-    sign();
-    send();
+    // we need a safety counter for the case when we have a large number of very small inputs that gets added to
+    // the tx increasing its size and the fee needed
+    // An alternative might as well be letting it fail when we do not have utxo's anymore
+    static const int MAX_LOOP = 1000;
+
+    // TODO this can be a data member, in this way we can add a multiplier when checkFeeRate fails too many time
+    int safeCount = MAX_LOOP;
+
+    while (true)
+    {
+        init();
+
+        addInputs();
+        addChange();
+        addCcOutputs();
+        sign();
+
+        LogPrint("sc", "%s():%d - cnt=%d, fee=%lld, feeNeeded=%lld\n", __func__, __LINE__,
+            (MAX_LOOP - safeCount + 1), _fee, _feeNeeded);
+
+        bool ret = send();
+
+        if (ret)
+        {
+            break;
+        }
+        if (safeCount-- <= 0)
+        {
+            throw JSONRPCError(RPC_WALLET_ERROR, "Could not set minimum fee");
+        }
+    }
 }
 
 ScRpcCreationCmdTx::ScRpcCreationCmdTx(
