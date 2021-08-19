@@ -225,19 +225,19 @@ private:
         WsEvent* wse = new WsEvent(msgType);
         LogPrint("ws", "%s():%d - allocated %p\n", __func__, __LINE__, wse);
         UniValue rspPayload(UniValue::VOBJ);
-        rspPayload.push_back(Pair("size", size));
+        rspPayload.pushKV("size", size);
 
         UniValue txHashes(UniValue::VARR);
 
         for(std::list<uint256>::const_iterator it = listHashes.begin(); it != listHashes.end(); ++it) {
             txHashes.push_back(it->GetHex());
         }
-        rspPayload.push_back(Pair("transactions", txHashes));
+        rspPayload.pushKV("transactions", txHashes);
 
         UniValue* rv = wse->getPayload();
         if (!clientRequestId.empty())
-            rv->push_back(Pair("requestId", clientRequestId));
-        rv->push_back(Pair("responsePayload", rspPayload));
+            rv->pushKV("requestId", clientRequestId);
+        rv->pushKV("responsePayload", rspPayload);
         wsq.push(wse);
     }
 
@@ -247,7 +247,7 @@ private:
         WsEvent* wse = new WsEvent(WsEvent::MSG_EVENT);
         LogPrint("ws", "%s():%d - allocated %p\n", __func__, __LINE__, wse);
         UniValue rspPayload(UniValue::VOBJ);
-        rspPayload.push_back(Pair("size", size));
+        rspPayload.pushKV("size", size);
 
         UniValue txHashes(UniValue::VARR);
 
@@ -256,12 +256,12 @@ private:
         }
 
         UniValue certHashes(UniValue::VARR);
-        rspPayload.push_back(Pair("transactions", txHashes));
-        rspPayload.push_back(Pair("certificates", certHashes));
+        rspPayload.pushKV("transactions", txHashes);
+        rspPayload.pushKV("certificates", certHashes);
 
         UniValue* rv = wse->getPayload();
-        rv->push_back(Pair("eventType", eventType));
-        rv->push_back(Pair("eventPayload", rspPayload));
+        rv->pushKV("eventType", eventType);
+        rv->pushKV("eventPayload", rspPayload);
         wsq.push(wse);
     }
 
@@ -277,11 +277,11 @@ private:
         for(std::list<std::string>::const_iterator it = peers.begin(); it != peers.end(); ++it) {
             peerList.push_back(it->c_str());
         }
-        rspPayload.push_back(Pair("peers", peerList));
+        rspPayload.pushKV("peers", peerList);
 
         UniValue* rv = wse->getPayload();
-        rv->push_back(Pair("eventType", eventType));
-        rv->push_back(Pair("eventPayload", rspPayload));
+        rv->pushKV("eventType", eventType);
+        rv->pushKV("eventPayload", rspPayload);
         wsq.push(wse);
     }
 
@@ -298,11 +298,11 @@ private:
         for(std::list<std::string>::const_iterator it = listHex.begin(); it != listHex.end(); ++it) {
             txHex.push_back(*it);
         }
-        rspPayload.push_back(Pair("hex", txHex));
+        rspPayload.pushKV("hex", txHex);
         UniValue* rv = wse->getPayload();
         if (!clientRequestId.empty())
-            rv->push_back(Pair("requestId", clientRequestId));
-        rv->push_back(Pair("responsePayload", rspPayload));
+            rv->pushKV("requestId", clientRequestId);
+        rv->pushKV("responsePayload", rspPayload);
         wsq.push(wse);
 
     }
@@ -316,29 +316,29 @@ private:
         LogPrint("ws", "%s():%d - allocated %p\n", __func__, __LINE__, wse);
         UniValue rspPayload(UniValue::VOBJ);
 
-        rspPayload.push_back(Pair("version", version));
-        rspPayload.push_back(Pair("protocolversion", protocolVersion));
-        rspPayload.push_back(Pair("timeoffset", timeoffset));
-        rspPayload.push_back(Pair("relayfee", relayfee));
-        rspPayload.push_back(Pair("proxy", proxy));
-        rspPayload.push_back(Pair("errors", errors));
-        rspPayload.push_back(Pair("blocks", blocks));
-        rspPayload.push_back(Pair("connections", connections));
-        rspPayload.push_back(Pair("testnet", testnet));
-        rspPayload.push_back(Pair("difficulty", difficulty));
-        rspPayload.push_back(Pair("networkDifficulty", networkDifficulty));
+        rspPayload.pushKV("version", version);
+        rspPayload.pushKV("protocolversion", protocolVersion);
+        rspPayload.pushKV("timeoffset", timeoffset);
+        rspPayload.pushKV("relayfee", relayfee);
+        rspPayload.pushKV("proxy", proxy);
+        rspPayload.pushKV("errors", errors);
+        rspPayload.pushKV("blocks", blocks);
+        rspPayload.pushKV("connections", connections);
+        rspPayload.pushKV("testnet", testnet);
+        rspPayload.pushKV("difficulty", difficulty);
+        rspPayload.pushKV("networkDifficulty", networkDifficulty);
 
         UniValue peerList(UniValue::VARR);
 
         for(std::list<std::string>::const_iterator it = peers.begin(); it != peers.end(); ++it) {
             peerList.push_back(it->c_str());
         }
-        rspPayload.push_back(Pair("peers", peerList));
+        rspPayload.pushKV("peers", peerList);
 
         UniValue* rv = wse->getPayload();
         if (!clientRequestId.empty())
-            rv->push_back(Pair("requestId", clientRequestId));
-        rv->push_back(Pair("responsePayload", rspPayload));
+            rv->pushKV("requestId", clientRequestId);
+        rv->pushKV("responsePayload", rspPayload);
         wsq.push(wse);
     }
 
@@ -350,12 +350,12 @@ private:
         LogPrint("ws", "%s():%d - allocated %p\n", __func__, __LINE__, wse);
         UniValue rspPayload(UniValue::VOBJ);
 
-        rspPayload.push_back(Pair("feerate", estimatedFee));
+        rspPayload.pushKV("feerate", estimatedFee);
 
         UniValue* rv = wse->getPayload();
         if (!clientRequestId.empty())
-            rv->push_back(Pair("requestId", clientRequestId));
-        rv->push_back(Pair("responsePayload", rspPayload));
+            rv->pushKV("requestId", clientRequestId);
+        rv->pushKV("responsePayload", rspPayload);
         wsq.push(wse);
     }
 
