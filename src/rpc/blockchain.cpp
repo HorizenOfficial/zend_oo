@@ -1529,6 +1529,59 @@ UniValue getscinfo(const UniValue& params, bool fHelp)
     return ret;
 }
 
+UniValue getscid(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 2)
+        throw runtime_error(
+            "getscid (\"txHash\" pos)\n"
+            "\nArgument:\n"
+            "   \"txHash\"   (string, mandatory)  Hash of the transaction that create the sidechain\n"
+            "     pos        (int, mandatory)     Index of the vsc_ccout"
+            "\nReturns the sidechain id of the created sidechain.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"scid\":              xxxxx,   (string)  Sidechain id.\n"
+            "}\n"
+
+            "\nExamples\n"
+            + HelpExampleCli("getscid", "\"eb4f2f4457bf8ee998d5410125ec9ed52eef5cafa22aa1122852e551e288df1d\" 0")
+        );
+
+    string txHashString = params[0].get_str();
+    {
+        if (txHashString.find_first_not_of("0123456789abcdefABCDEF", 0) != std::string::npos)
+            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid txHash format: not an hex");
+    }
+    int nVsc = params[1].get_int();
+    if (nVsc < 0)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Vsc_ccout index out of range");
+
+    uint256 txHash;
+    txHash.SetHex(txHashString);
+    const uint256 generatedScId;
+
+    CctpErrorCode code;
+    const BufferWithSize bws_tx_hash(txHash.begin(), txHash.size());
+    field_t* scid_fe = zendoo_compute_sc_id(&bws_tx_hash, nVsc, &code); 
+    assert(code == CctpErrorCode::OK);
+    assert(scid_fe != nullptr);
+
+    unsigned char serialized_buffer[CFieldElement::ByteSize()] = {};
+    zendoo_serialize_field(scid_fe, serialized_buffer, &code);
+    assert(code == CctpErrorCode::OK);
+
+    const std::vector<unsigned char> tmp((uint8_t*)serialized_buffer, (uint8_t*)serialized_buffer + Sidechain::SC_FE_SIZE_IN_BYTES);
+    uint256 scid(tmp);
+    *const_cast<uint256*>(&generatedScId) = scid;
+
+    zendoo_field_free(scid_fe);
+    UniValue ret(UniValue::VOBJ);
+    ret.setObject();
+    ret.pushKV("scid", generatedScId.GetHex());
+
+    return ret;
+}
+
 UniValue getactivecertdatahash(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
