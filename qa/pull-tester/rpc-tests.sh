@@ -118,6 +118,7 @@ testScripts=(
   'getblockmerkleroots.py'
   'sc_block_partitions.py'
   'sc_cert_bwt_amount_rounding.py'
+  'sc_stale_ft_and_mbtr.py'
 );
 testScriptsExt=(
   'getblocktemplate_longpoll.py'
