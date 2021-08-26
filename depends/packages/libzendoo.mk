@@ -3,8 +3,8 @@ $(package)_version=0.1.0
 $(package)_download_path=https://github.com/HorizenOfficial/zendoo-mc-cryptolib/archive/
 $(package)_file_name=$(package)-$($(package)_git_commit).tar.gz
 $(package)_download_file=$($(package)_git_commit).tar.gz
-$(package)_sha256_hash=b48eb2712208b4d5f7b1be090d47caf70c053683d2cb04b226f789c586198ca1
-$(package)_git_commit=05653e1e39b52d483eadf6f82190efad8a4a78e4
+$(package)_sha256_hash=aa2ae754133edd2f0a3a9362fd61e738c326ed2ef881c7d91cf170cc1b880177
+$(package)_git_commit=f2c2fb1dcb7836584b128b179ed6a202ab6c2eb8
 $(package)_dependencies=rust $(rust_crates_z)
 $(package)_patches=cargo.config
 
@@ -12,6 +12,12 @@ ifeq ($(host_os),mingw32)
 $(package)_library_file=target/x86_64-pc-windows-gnu/release/libzendoo_mc.a
 else
 $(package)_library_file=target/release/libzendoo_mc.a
+endif
+
+ifeq ($(LIBZENDOO_LEGACY_CPU),true)
+$(package)_target_feature=
+else
+$(package)_target_feature=-C target-feature=+bmi2,+adx
 endif
 
 define $(package)_set_vars
@@ -25,7 +31,7 @@ define $(package)_preprocess_cmds
 endef
 
 define $(package)_build_cmds
-  RUSTFLAGS="-C target-feature=+bmi2,+adx --emit=asm" cargo build $($(package)_build_opts)
+  RUSTFLAGS="$($(package)_target_feature)" cargo build $($(package)_build_opts)
 endef
 
 
