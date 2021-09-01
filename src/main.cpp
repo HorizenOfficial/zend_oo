@@ -1393,7 +1393,7 @@ MempoolReturnValue AcceptCertificateToMemoryPool(CTxMemPool& pool, CValidationSt
         }
         else if (fProofVerification == MempoolProofVerificationFlag::SYNC)
         {
-            CScProofVerifier scVerifier{CScProofVerifier::Verification::Strict};
+            CScProofVerifier scVerifier{CScProofVerifier::Verification::Strict, CScProofVerifier::Priority::Low};
             scVerifier.LoadDataForCertVerification(view, cert);
 
             LogPrint("sc", "%s():%d - calling scVerifier.BatchVerify()\n", __func__, __LINE__);
@@ -1701,7 +1701,7 @@ MempoolReturnValue AcceptTxToMemoryPool(CTxMemPool& pool, CValidationState &stat
             }
             else if (fProofVerification == MempoolProofVerificationFlag::SYNC)
             {
-                CScProofVerifier scVerifier{CScProofVerifier::Verification::Strict};
+                CScProofVerifier scVerifier{CScProofVerifier::Verification::Strict, CScProofVerifier::Priority::Low};
                 scVerifier.LoadDataForCswVerification(view, tx);
 
                 LogPrint("sc", "%s():%d - calling scVerifier.BatchVerify()\n", __func__, __LINE__);
@@ -2943,8 +2943,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         fScProofVerification == flagScProofVerification::ON &&
         SidechainTxsCommitmentBuilder::getEmptyCommitment() != block.hashScTxsCommitment // no sc related tx/certs 
     );
-       
+
     // if necessary pause rust low priority threads in order to speed up times
+    // Note: it works even if the same code was executed for the high priority proof verifier
     CZendooLowPrioThreadGuard lowPrioThreadGuard(pauseLowPrioZendooThread);
      
     auto verifier = libzcash::ProofVerifier::Strict();
@@ -3040,7 +3041,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     const auto scVerifierMode = fExpensiveChecks ?
                 CScProofVerifier::Verification::Strict : CScProofVerifier::Verification::Loose;
-    CScProofVerifier scVerifier{scVerifierMode};
+    // Set high priority to verify the proofs as soon as possible (pausing mempool verification operations if any.)
+    CScProofVerifier scVerifier{scVerifierMode, CScProofVerifier::Priority::High};
     SidechainTxsCommitmentBuilder scCommitmentBuilder;
      
     for (unsigned int txIdx = 0; txIdx < block.vtx.size(); ++txIdx) // Processing transactions loop
