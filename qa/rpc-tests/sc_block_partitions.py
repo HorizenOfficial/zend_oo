@@ -106,6 +106,7 @@ class sc_block_partitions(BitcoinTestFramework):
         mark_logs("Created SC with scid={} via tx={}".format(scid, tx), self.nodes,DEBUG_MODE)
         self.sync_all()
 
+        scid_swapped = str(swap_bytes(scid))
         # advance epoch
         self.nodes[0].generate(EPOCH_LENGTH)
         self.sync_all()
@@ -120,7 +121,7 @@ class sc_block_partitions(BitcoinTestFramework):
         while True:
             t0 = time.time()
             proof = certMcTest.create_test_proof(
-                "scs", epoch_number, (q+tot_num_cert), MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [], [], [])
+                "scs", scid_swapped, epoch_number, (q+tot_num_cert), MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [], [], [])
             assert_true(proof != None)
             t1 = time.time()
             print "...proof generated: {} secs".format(t1-t0)
