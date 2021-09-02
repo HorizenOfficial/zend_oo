@@ -1696,8 +1696,8 @@ TEST(CctpLibrary, CreateAndVerifyMarlinCertificateProof)
     std::cout << "Temp folder for proof verification test: " << testManager.TempFolderPath() << std::endl;
 
     CCertProofVerifierInput certInput = CreateDefaultCertInput();
-    certInput.CertVk = testManager.GetTestVerificationKey(provingSystem, circuitType);
-    certInput.certProof = testManager.GenerateTestCertificateProof(certInput, provingSystem);
+    certInput.verificationKey = testManager.GetTestVerificationKey(provingSystem, circuitType);
+    certInput.proof = testManager.GenerateTestCertificateProof(certInput, provingSystem);
 
     ASSERT_TRUE(testManager.VerifyCertificateProof(certInput));
 }
@@ -1718,8 +1718,8 @@ TEST(CctpLibrary, CreateAndVerifyDarlinCertificateProof)
     std::cout << "Temp folder for proof verification test: " << testManager.TempFolderPath() << std::endl;
 
     CCertProofVerifierInput certInput = CreateDefaultCertInput();
-    certInput.CertVk = testManager.GetTestVerificationKey(provingSystem, circuitType);
-    certInput.certProof = testManager.GenerateTestCertificateProof(certInput, provingSystem);
+    certInput.verificationKey = testManager.GetTestVerificationKey(provingSystem, circuitType);
+    certInput.proof = testManager.GenerateTestCertificateProof(certInput, provingSystem);
 
     ASSERT_TRUE(testManager.VerifyCertificateProof(certInput));
 }
@@ -1740,8 +1740,8 @@ TEST(CctpLibrary, CreateAndVerifyMarlinCswProof)
     std::cout << "Temp folder for proof verification test: " << testManager.TempFolderPath() << std::endl;
 
     CCswProofVerifierInput cswInput = CreateDefaultCswInput();
-    cswInput.ceasedVk = testManager.GetTestVerificationKey(provingSystem, circuitType);
-    cswInput.cswProof = testManager.GenerateTestCswProof(cswInput, provingSystem);
+    cswInput.verificationKey = testManager.GetTestVerificationKey(provingSystem, circuitType);
+    cswInput.proof = testManager.GenerateTestCswProof(cswInput, provingSystem);
 
     ASSERT_TRUE(testManager.VerifyCswProof(cswInput));
 }
@@ -1762,8 +1762,8 @@ TEST(CctpLibrary, CreateAndVerifyDarlinCswProof)
     std::cout << "Temp folder for proof verification test: " << testManager.TempFolderPath() << std::endl;
 
     CCswProofVerifierInput cswInput = CreateDefaultCswInput();
-    cswInput.ceasedVk = testManager.GetTestVerificationKey(provingSystem, circuitType);
-    cswInput.cswProof = testManager.GenerateTestCswProof(cswInput, provingSystem);
+    cswInput.verificationKey = testManager.GetTestVerificationKey(provingSystem, circuitType);
+    cswInput.proof = testManager.GenerateTestCswProof(cswInput, provingSystem);
 
     ASSERT_TRUE(testManager.VerifyCswProof(cswInput));
 }

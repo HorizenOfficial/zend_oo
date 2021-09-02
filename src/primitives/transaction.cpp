@@ -520,7 +520,8 @@ bool CTransaction::CheckSerializedSize(CValidationState &state) const
 {
     uint32_t size = GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
     if (size > MAX_TX_SIZE) {
-        LogPrintf("CheckSerializedSize: Tx id = %s, size = %d, limit = %d, tx = %s", GetHash().ToString(), size, MAX_TX_SIZE, ToString());
+        LogPrintf("%s():%d - Tx id = %s, size = %d, limit = %d, tx = %s\n",
+            __func__, __LINE__, GetHash().ToString(), size, MAX_TX_SIZE, ToString());
         return state.DoS(100, error("checkSerializedSizeLimits(): size limits failed"),
                          CValidationState::Code::INVALID, "bad-txns-oversize");
     }

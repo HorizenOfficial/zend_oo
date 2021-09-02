@@ -46,13 +46,14 @@ class AsyncProofVerifierTest(BitcoinTestFramework):
 
     def setup_network(self, split=False):
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir,
-                                 extra_args=[["-forcelocalban", "-sccoinsmaturity=0", '-scproofqueuesize=10', '-logtimemicros=1', '-debug=sc',
-                                              '-debug=py', '-debug=mempool', '-debug=net', '-debug=bench'],
-                                             ["-forcelocalban", "-sccoinsmaturity=0", '-scproofqueuesize=10', '-logtimemicros=1', '-debug=sc',
-                                              '-debug=py', '-debug=mempool', '-debug=net', '-debug=bench'],
+                                 extra_args=[["-forcelocalban", "-sccoinsmaturity=0", '-logtimemicros=1', '-debug=sc',
+                                              '-debug=py', '-debug=mempool', '-debug=net', '-debug=bench', '-debug=cert'],
+                                             ["-forcelocalban", "-sccoinsmaturity=0", '-logtimemicros=1', '-debug=sc',
+                                              '-debug=py', '-debug=mempool', '-debug=net', '-debug=bench', '-debug=cert'],
                                              # Skip proof verification for the last node
-                                             ["-forcelocalban", "-skipscproof", "-sccoinsmaturity=0", '-scproofqueuesize=10', '-logtimemicros=1',
-                                              '-debug=sc', '-debug=py', '-debug=mempool', '-debug=net', '-debug=bench']])
+                                             ["-forcelocalban", "-skipscproof", "-sccoinsmaturity=0", '-logtimemicros=1',
+                                              '-debug=sc', '-debug=py', '-debug=mempool', '-debug=net', '-debug=bench',
+                                              '-debug=cert']])
 
         connect_nodes_bi(self.nodes, 0, 1)
         connect_nodes_bi(self.nodes, 1, 2)
@@ -167,7 +168,7 @@ class AsyncProofVerifierTest(BitcoinTestFramework):
         # mark_logs("\nTest the node ban mechanism by sending a certificate with invalid proof", self.nodes, DEBUG_MODE)
 
         # Create an invalid proof by providing the wrong epoch_number
-        proof = cert_mc_test.create_test_proof("sc", scid_swapped, epoch_number + 1, cert_quality, mbtr_fee, ft_fee, constant, epoch_cum_tree_hash, [], [])
+        proof = cert_mc_test.create_test_proof("sc", scid_swapped, epoch_number + 1, cert_quality, mbtr_fee, ft_fee, epoch_cum_tree_hash, constant, [], [])
 
         try:
             # The send_certificate call must be ok since the proof verification is disabled on node 2
@@ -208,7 +209,7 @@ class AsyncProofVerifierTest(BitcoinTestFramework):
 
         # Create the valid proof
         proof = cert_mc_test.create_test_proof("sc", scid_swapped, epoch_number, cert_quality, mbtr_fee, ft_fee,
-                                               constant, epoch_cum_tree_hash, [], [])
+                                               epoch_cum_tree_hash, constant, [], [])
 
         try:
             cert2 = self.nodes[0].send_certificate(scid, epoch_number, cert_quality, epoch_cum_tree_hash,
