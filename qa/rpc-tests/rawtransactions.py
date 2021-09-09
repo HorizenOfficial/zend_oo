@@ -149,7 +149,11 @@ class RawTransactionsTest(BitcoinTestFramework):
         mSigObjValid = self.nodes[2].validateaddress(mSigObj)
         assert_equal(mSigObjValid['isvalid'], True)
 
-        txId       = self.nodes[0].sendtoaddress(mSigObj, 2.2);
+        txId = self.nodes[0].sendtoaddress(mSigObj, 2.2)
+        # Check verbose rawmempool entry
+        mempool_tx = self.nodes[0].getrawmempool(True)[txId]
+        assert_equal(False, mempool_tx["isCert"])
+        assert_equal(1, mempool_tx["version"])
         decTx = self.nodes[0].gettransaction(txId)
         rawTx = self.nodes[0].decoderawtransaction(decTx['hex'])
         sPK = rawTx['vout'][0]['scriptPubKey']['hex']
@@ -255,12 +259,15 @@ class RawTransactionsTest(BitcoinTestFramework):
         for outpoint in decoded_tx['vout']:
             if outpoint['value'] == sc_cr_amount + sc_cr_amount2:
                 vout = outpoint
-                break;
+                break
 
         inputs = [{'txid': txid, 'vout': vout['n']}]
         rawtx=self.nodes[0].createrawtransaction(inputs, {}, [], sc_cr, [])
         sigRawtx = self.nodes[0].signrawtransaction(rawtx)
         finalRawtx = self.nodes[0].sendrawtransaction(sigRawtx['hex'])
+        mempool_tx = self.nodes[0].getrawmempool(True)[finalRawtx]
+        assert_equal(False, mempool_tx["isCert"])
+        assert_equal(-4, mempool_tx["version"])
 
         self.sync_all()
 
@@ -287,13 +294,13 @@ class RawTransactionsTest(BitcoinTestFramework):
 
         assert(len(decoded_tx['vsc_ccout'])==2)
         assert_equal(decoded_tx['vsc_ccout'][0]['scid'],scid)
-        assert_equal(decoded_tx['vsc_ccout'][0]['withdrawal epoch length'],sc_epoch_len)
+        assert_equal(decoded_tx['vsc_ccout'][0]['withdrawalEpochLength'],sc_epoch_len)
         assert_equal(decoded_tx['vsc_ccout'][0]['wCertVk'],vk)
         assert_equal(decoded_tx['vsc_ccout'][0]['constant'],constant)
         assert_equal(decoded_tx['vsc_ccout'][0]['value'],sc_cr_amount)
         assert_equal(decoded_tx['vsc_ccout'][0]['address'],sc_address)
         assert_equal(decoded_tx['vsc_ccout'][1]['scid'],scid2)
-        assert_equal(decoded_tx['vsc_ccout'][1]['withdrawal epoch length'],sc_epoch2_len)
+        assert_equal(decoded_tx['vsc_ccout'][1]['withdrawalEpochLength'],sc_epoch2_len)
         assert_equal(decoded_tx['vsc_ccout'][1]['value'],sc_cr_amount2)
 
         #Try create a FT

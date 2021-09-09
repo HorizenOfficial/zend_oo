@@ -711,14 +711,14 @@ UniValue sendtoaddress(const UniValue& params, bool fHelp)
     return wtx.getWrappedTx().GetHash().GetHex();
 }
 
-UniValue sc_send(const UniValue& params, bool fHelp)
+UniValue dep_sc_send(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
     if (fHelp || params.size() != 4)
         throw runtime_error(
-            "sc_send \"address\" amount \"scid\"\n"
+            "dep_sc_send \"address\" amount \"scid\"\n"
             "\nSend a ZEN amount to an address of the given SC\n"
             + HelpRequiringPassphrase() +
             "\nArguments:\n"
@@ -730,7 +730,7 @@ UniValue sc_send(const UniValue& params, bool fHelp)
             "\nResult:\n"
             "\"transactionid\"  (string) The transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("sc_send", "\"1a3e7ccbfd40c4e2304c3215f76d204e4de63c578ad835510f580d529516a874\" 0.1 \"ea3e7ccbfd40c4e2304c4215f76d204e4de63c578ad835510f580d529516a874\" \"e7ccbfd40c4e2304c4215f76d204e4de63c578ad\"")
+            + HelpExampleCli("dep_sc_send", "\"1a3e7ccbfd40c4e2304c3215f76d204e4de63c578ad835510f580d529516a874\" 0.1 \"ea3e7ccbfd40c4e2304c4215f76d204e4de63c578ad835510f580d529516a874\" \"e7ccbfd40c4e2304c4215f76d204e4de63c578ad\"")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -817,14 +817,14 @@ static void ScHandleTransaction(CWalletTx& wtx, std::vector<CRecipientScCreation
         throw JSONRPCError(RPC_WALLET_ERROR, "Transaction commit failed");
 }
 
-UniValue sc_create(const UniValue& params, bool fHelp)
+UniValue dep_sc_create(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
     if (fHelp ||  params.size() < 4 ) 
         throw runtime_error(
-            "sc_create withdrawalEpochLength [{\"address\":... ,\"amount\":...,\"wCertVk\":...,\"customData\":...,\"constant\":...,...},...]\n"
+            "dep_sc_create withdrawalEpochLength [{\"address\":... ,\"amount\":...,\"wCertVk\":...,\"customData\":...,\"constant\":...,...},...]\n"
             "\nCreate a Side chain.\n"
             "\nArguments:\n"
             " 1. withdrawalEpochLength:    (numeric, required) Length of the withdrawal epochs. The minimum valid value for " +
@@ -848,7 +848,7 @@ UniValue sc_create(const UniValue& params, bool fHelp)
             "\"transactionid\"    (string) The transaction id. Only 1 transaction is created regardless of \n"
             "                                    the number of addresses.\n"
             "\nExamples:\n"
-            + HelpExampleCli("sc_create"," 123456 \"8aaddc9671dc5c8d33a3494df262883411935f4f54002fe283745fb394be508a\" 5.0 \"abcd..ef\" \"abcd..ef\" \"abcd..ef\" ")
+            + HelpExampleCli("dep_sc_create"," 123456 \"8aaddc9671dc5c8d33a3494df262883411935f4f54002fe283745fb394be508a\" 5.0 \"abcd..ef\" \"abcd..ef\" \"abcd..ef\" ")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -1018,14 +1018,14 @@ UniValue sc_create(const UniValue& params, bool fHelp)
     return ret;
 }
 
-UniValue create_sidechain(const UniValue& params, bool fHelp)
+UniValue sc_create(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
     if (fHelp ||  params.size() != 1)
         throw runtime_error(
-            "create_sidechain {\"withdrawalEpochLength\":... , \"fromaddress\":..., \"toaddress\":... ,\"amount\":... ,\"minconf\":..., \"fee\":..., \"wCertVk\":..., \"customData\":..., \"constant\":...}\n"
+            "sc_create {\"withdrawalEpochLength\":... , \"fromaddress\":..., \"toaddress\":... ,\"amount\":... ,\"minconf\":..., \"fee\":..., \"wCertVk\":..., \"customData\":..., \"constant\":...}\n"
             "\nCreate a Side chain.\n"
             "\nArguments:\n"
             "{\n"                     
@@ -1060,7 +1060,7 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
             "  \"scid\": sidechainid       (string) The id of the sidechain created by this tx.\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("create_sidechain", "'{\"toaddress\": \"8aaddc9671dc5c8d33a3494df262883411935f4f54002fe283745fb394be508a\" ,\"amount\": 5.0, \"wCertVk\": abcd..ef}'")
+            + HelpExampleCli("sc_create", "'{\"toaddress\": \"8aaddc9671dc5c8d33a3494df262883411935f4f54002fe283745fb394be508a\" ,\"amount\": 5.0, \"wCertVk\": abcd..ef}'")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -1364,14 +1364,14 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     return ret;
 }
 
-UniValue send_to_sidechain(const UniValue& params, bool fHelp)
+UniValue sc_send(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
     if (fHelp || (params.size() != 1 && params.size() != 2))
         throw runtime_error(
-            "send_to_sidechain {...}\n"
+            "sc_send {...}\n"
             "\nArguments:\n"
             "1. \"outputs\"                       (string, required) A json array of json objects representing the amounts to send.\n"
             "[{\n"
@@ -1392,7 +1392,7 @@ UniValue send_to_sidechain(const UniValue& params, bool fHelp)
             "\nResult:\n"
             "\"transactionid\"    (string) The resulting transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("send_to_sidechain", "'{TODO}]'")
+            + HelpExampleCli("sc_send", "'{TODO}]'")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -1595,14 +1595,14 @@ UniValue send_to_sidechain(const UniValue& params, bool fHelp)
 }
 
 // request a backward transfer (BWT)
-UniValue request_transfer_from_sidechain(const UniValue& params, bool fHelp)
+UniValue sc_request_transfer(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
     if (fHelp || (params.size() != 1 && params.size() != 2))
         throw runtime_error(
-            "request_transfer_from_sidechain {TODO}\n"
+            "sc_request_transfer {TODO}\n"
             "\nArguments:\n"
             "1. \"outputs\"                       (string, required) A json array of json objects representing the amounts to send.\n"
             "[{\n"
@@ -1626,7 +1626,7 @@ UniValue request_transfer_from_sidechain(const UniValue& params, bool fHelp)
             "\"transactionid\"    (string) The resulting transaction id.\n"
 
             "\nExamples:\n"
-            + HelpExampleCli("request_transfer_from_sidechain", "'[{ \"pubkeyhash\": \"aa57c2e03eb533b361e748acb6f25ffc2f1e5e20\", \"vScRequestData\": [\"06f75b4e1c1f49e6f329aa23f57e42bf305644b5b85c4d4ac60d7ef3b50679e81ec06841065f425fe3f11f903672c73be5a70e3e254efca4ac01a5795d125c3ded49dedac58a48ee94070b24106126bc1ffd57653f0974a0e93ab5729e870000\"], \"scid\": \"13a3083bdcf42635c8ce5d46c2cae26cfed7dc889d9b4ac0b9939c6631a73bdc\", \"scFee\": 19.0 }]'")
+            + HelpExampleCli("sc_request_transfer", "'[{ \"pubkeyhash\": \"aa57c2e03eb533b361e748acb6f25ffc2f1e5e20\", \"vScRequestData\": [\"06f75b4e1c1f49e6f329aa23f57e42bf305644b5b85c4d4ac60d7ef3b50679e81ec06841065f425fe3f11f903672c73be5a70e3e254efca4ac01a5795d125c3ded49dedac58a48ee94070b24106126bc1ffd57653f0974a0e93ab5729e870000\"], \"scid\": \"13a3083bdcf42635c8ce5d46c2cae26cfed7dc889d9b4ac0b9939c6631a73bdc\", \"scFee\": 19.0 }]'")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -2017,11 +2017,18 @@ UniValue getreceivedbyaddress(const UniValue& params, bool fHelp)
     for (auto it = pwalletMain->getMapWallet().begin(); it != pwalletMain->getMapWallet().end(); ++it)
     {
         const CWalletTransactionBase& wtx = *((*it).second);
-        if (wtx.getTxBase()->IsCoinBase() || !CheckFinalTx(*wtx.getTxBase()))
+        if (wtx.getTxBase()->IsCoinBase() || !CheckFinalTx(*wtx.getTxBase()) || !wtx.HasMatureOutputs())
             continue;
 
-        BOOST_FOREACH(const CTxOut& txout, wtx.getTxBase()->GetVout())
+        for(unsigned int pos = 0; pos < wtx.getTxBase()->GetVout().size(); ++pos)
         {
+            const CTxOut& txout = wtx.getTxBase()->GetVout()[pos];
+
+            if (wtx.getTxBase()->IsCertificate()) {
+                if (wtx.IsOutputMature(pos) != CCoins::outputMaturity::MATURE)
+                    continue;
+            }
+
             /* Check that txout.scriptPubKey starts with scriptPubKey instead of full match,
              * cause we cant compare OP_CHECKBLOCKATHEIGHT arguments, they are different all the time */
             auto res = std::search(txout.scriptPubKey.begin(), txout.scriptPubKey.end(), scriptPubKey.begin(),
@@ -2081,11 +2088,18 @@ UniValue getreceivedbyaccount(const UniValue& params, bool fHelp)
     for (auto it = pwalletMain->getMapWallet().begin(); it != pwalletMain->getMapWallet().end(); ++it)
     {
         const CWalletTransactionBase& wtx = *((*it).second);
-        if (wtx.getTxBase()->IsCoinBase() || !CheckFinalTx(*wtx.getTxBase()))
+        if (wtx.getTxBase()->IsCoinBase() || !CheckFinalTx(*wtx.getTxBase()) || !wtx.HasMatureOutputs())
             continue;
 
-        BOOST_FOREACH(const CTxOut& txout, wtx.getTxBase()->GetVout())
+        for(unsigned int pos = 0; pos < wtx.getTxBase()->GetVout().size(); ++pos)
         {
+            const CTxOut& txout = wtx.getTxBase()->GetVout()[pos];
+
+            if (wtx.getTxBase()->IsCertificate()) {
+                if (wtx.IsOutputMature(pos) != CCoins::outputMaturity::MATURE)
+                    continue;
+            }
+
             CTxDestination address;
             if (ExtractDestination(txout.scriptPubKey, address) && IsMine(*pwalletMain, address) && setAddress.count(address))
                 if (wtx.GetDepthInMainChain() >= nMinDepth)
@@ -2185,8 +2199,7 @@ UniValue getbalance(const UniValue& params, bool fHelp)
             string strSentAccount;
             list<COutputEntry> listReceived;
             list<COutputEntry> listSent;
-            list<CScOutputEntry> listScSent;
-            wtx->GetAmounts(listReceived, listSent, listScSent, allFee, strSentAccount, filter);
+            wtx->GetAmounts(listReceived, listSent, allFee, strSentAccount, filter);
             if (wtx->GetDepthInMainChain() >= nMinDepth) {
                 for(const COutputEntry& r: listReceived)
                     if (r.maturity == CCoins::outputMaturity::MATURE)
@@ -2194,8 +2207,6 @@ UniValue getbalance(const UniValue& params, bool fHelp)
             }
 
             for(const COutputEntry& s: listSent)
-                nBalance -= s.amount;
-            for(const CScOutputEntry& s: listScSent)
                 nBalance -= s.amount;
 
             nBalance -= allFee;
@@ -2762,21 +2773,20 @@ static void MaybePushAddress(UniValue & entry, const CTxDestination &dest)
         entry.pushKV("address", addr.ToString());
 }
 
-void ListTransactions(const CWalletTransactionBase& wtx, const string& strAccount, int nMinDepth, bool fLong, UniValue& ret, const isminefilter& filter)
+void ListTransactions(const CWalletTransactionBase& wtx, const string& strAccount, int nMinDepth, bool fLong, UniValue& ret, const isminefilter& filter, bool includeImmatureBTs)
 {
     CAmount nFee;
     string strSentAccount;
     list<COutputEntry> listReceived;
     list<COutputEntry> listSent;
-    list<CScOutputEntry> listScSent;
 
-    wtx.GetAmounts(listReceived, listSent, listScSent, nFee, strSentAccount, filter);
+    wtx.GetAmounts(listReceived, listSent, nFee, strSentAccount, filter);
 
     bool fAllAccounts = (strAccount == string("*"));
     bool involvesWatchonly = wtx.IsFromMe(ISMINE_WATCH_ONLY);
 
     // Sent
-    if (( (!listSent.empty() || !listScSent.empty() ) || nFee != 0) && (fAllAccounts || strAccount == strSentAccount))
+    if ((!listSent.empty() || nFee != 0) && (fAllAccounts || strAccount == strSentAccount))
     {
         BOOST_FOREACH(const COutputEntry& s, listSent)
         {
@@ -2794,19 +2804,6 @@ void ListTransactions(const CWalletTransactionBase& wtx, const string& strAccoun
                 WalletTxToJSON(wtx, entry, filter);
 
             entry.pushKV("size", (int)(wtx.getTxBase()->GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION)) );
-            ret.push_back(entry);
-        }
-        BOOST_FOREACH(const CScOutputEntry& s, listScSent)
-        {
-            UniValue entry(UniValue::VOBJ);
-            entry.pushKV("sc address", s.address.GetHex());
-            entry.pushKV("category", "crosschain");
-            entry.pushKV("amount", ValueFromAmount(-s.amount));
-            entry.pushKV("fee", ValueFromAmount(-nFee));
-            if (fLong)
-                WalletTxToJSON(wtx, entry, filter);
-
-            entry.pushKV("size", (int)(wtx.getTxBase()->GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION)));
             ret.push_back(entry);
         }
     }
@@ -2837,8 +2834,10 @@ void ListTransactions(const CWalletTransactionBase& wtx, const string& strAccoun
                 {
                     if (r.maturity == CCoins::outputMaturity::MATURE)
                         entry.pushKV("category", "receive");
-                    else
+                    else if(includeImmatureBTs)
                         entry.pushKV("category", "immature");
+                    else
+                        continue; // Don't add immature BT entry
                 }
                 entry.pushKV("amount", ValueFromAmount(r.amount));
                 if (r.vout != -1)
@@ -2875,9 +2874,9 @@ UniValue listtransactions(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    if (fHelp || params.size() > 5)
+    if (fHelp || params.size() > 6)
         throw runtime_error(
-            "listtransactions ( \"account\" count from includeWatchonly)\n"
+            "listtransactions   ( \"account\" count from includeWatchonly includeImmatureBTs )n"
             "\nReturns up to 'count' most recent transactions skipping the first 'from' transactions for address 'address'.\n"
             
             "\nArguments:\n"
@@ -2886,6 +2885,7 @@ UniValue listtransactions(const UniValue& params, bool fHelp)
             "3. from                                 (numeric, optional, default=0) the number of transactions to skip\n"
             "4. includeWatchonly                     (bool, optional, default=false) include transactions to watchonly addresses (see 'importaddress')\n"
             "5. address                              (string, optional) include only transactions involving this address\n"
+            "6. includeImmatureBTs                   (bool, optional, default=false) Whether to include immature certificate Backward transfers\n"
             
             "\nResult:\n"
             "[\n"
@@ -2967,6 +2967,11 @@ UniValue listtransactions(const UniValue& params, bool fHelp)
         }
     }
 
+    bool includeImmatureBTs = false;
+    if(params.size() > 5)
+        if(params[5].get_bool())
+            includeImmatureBTs = true;
+
     UniValue ret(UniValue::VARR);
     const TxItems & txOrdered = pwalletMain->wtxOrdered;
     // iterate backwards until we have nCount items to return:
@@ -2978,13 +2983,13 @@ UniValue listtransactions(const UniValue& params, bool fHelp)
                 for(const CTxOut& txout : pwtx->getTxBase()->GetVout()) {
                     auto res = std::search(txout.scriptPubKey.begin(), txout.scriptPubKey.end(), scriptPubKey.begin(), scriptPubKey.end());
                     if (res == txout.scriptPubKey.begin()) {
-                        ListTransactions(*pwtx, strAccount, 0, true, ret, filter);
+                        ListTransactions(*pwtx, strAccount, 0, true, ret, filter, includeImmatureBTs);
                         break;
                     }
                 }
             }
             else {
-                ListTransactions(*pwtx, strAccount, 0, true, ret, filter);
+                ListTransactions(*pwtx, strAccount, 0, true, ret, filter, includeImmatureBTs);
             }
         }
         CAccountingEntry *const pacentry = (*it).second.second;
@@ -3025,7 +3030,7 @@ UniValue getunconfirmedtxdata(const UniValue &params, bool fHelp)
     if (fHelp || params.size() > 3)
         throw runtime_error(
             "getunconfirmedtxdata ( \"address\")\n"
-            "\nReturns the server's total unconfirmed data relevanto to the input address\n"
+            "\nReturns the server's total unconfirmed data relevant to the input address\n"
             "\nArguments:\n"
             "1. \"address\"            (string, mandatory) consider transactions involving this address\n"
             "2. spendzeroconfchange  (boolean, optional) If provided the command will force zero confirmation change\n"
@@ -3227,19 +3232,15 @@ UniValue listaccounts(const UniValue& params, bool fHelp)
         string strSentAccount;
         list<COutputEntry> listReceived;
         list<COutputEntry> listSent;
-        list<CScOutputEntry> listScSent;
 
         if (!wtx.HasMatureOutputs())
             continue;
 
-        wtx.GetAmounts(listReceived, listSent, listScSent, nFee, strSentAccount, includeWatchonly);
+        wtx.GetAmounts(listReceived, listSent, nFee, strSentAccount, includeWatchonly);
 
         mapAccountBalances[strSentAccount] -= nFee;
 
         for(const COutputEntry& s: listSent)
-            mapAccountBalances[strSentAccount] -= s.amount;
-
-        for(const CScOutputEntry& s: listScSent)
             mapAccountBalances[strSentAccount] -= s.amount;
 
         if (wtx.GetDepthInMainChain() >= nMinDepth) {
@@ -3280,7 +3281,8 @@ UniValue listsinceblock(const UniValue& params, bool fHelp)
             "1. \"blockhash\"                       (string, optional) the block hash to list transactions since\n"
             "2. target-confirmations:               (numeric, optional) the confirmations required, must be 1 or more\n"
             "3. includeWatchonly:                   (bool, optional, default=false) include transactions to watchonly addresses (see 'importaddress')"
-            
+            "4. includeImmatureBTs:                 (bool, optional, default=false) Whether to include immature certificate Backward transfers\n"
+
             "\nResult:\n"
             "{\n"
             "  \"transactions\": [\n"
@@ -3338,6 +3340,11 @@ UniValue listsinceblock(const UniValue& params, bool fHelp)
         if(params[2].get_bool())
             filter = filter | ISMINE_WATCH_ONLY;
 
+    bool includeImmatureBTs = false;
+    if(params.size() > 3)
+        if(params[3].getBool())
+            includeImmatureBTs = true;
+
     int depth = pindex ? (1 + chainActive.Height() - pindex->nHeight) : -1;
 
     UniValue transactions(UniValue::VARR);
@@ -3352,7 +3359,7 @@ UniValue listsinceblock(const UniValue& params, bool fHelp)
         const CWalletTransactionBase& tx = *((*it).second);
 #endif
         if (depth == -1 || tx.GetDepthInMainChain() < depth)
-            ListTransactions(tx, "*", 0, true, transactions, filter);
+            ListTransactions(tx, "*", 0, true, transactions, filter, includeImmatureBTs);
     }
 
     CBlockIndex *pblockLast = chainActive[chainActive.Height() + 1 - target_confirms];
@@ -3370,14 +3377,15 @@ UniValue gettransaction(const UniValue& params, bool fHelp)
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
-    if (fHelp || params.size() < 1 || params.size() > 2)
+    if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
-            "gettransaction \"txid\" ( includeWatchonly )\n"
+            "gettransaction \"txid\" ( includeWatchonly includeImmatureBTs )\n"
             "\nGet detailed information about in-wallet transaction <txid>\n"
             
             "\nArguments:\n"
             "1. \"txid\"                                (string, required) the transaction id\n"
             "2. \"includeWatchonly\"                    (bool, optional, default=false) whether to include watchonly addresses in balance calculation and details[]\n"
+            "3. \"includeImmatureBTs\"                  (bool, optional, default=false) Whether to include immature certificate Backward transfersin balance calculation and details[]\n"
             
             "\nResult:\n"
             "{\n"
@@ -3429,6 +3437,11 @@ UniValue gettransaction(const UniValue& params, bool fHelp)
         if(params[1].get_bool())
             filter = filter | ISMINE_WATCH_ONLY;
 
+    bool includeImmatureBTs = false;
+    if(params.size() > 2)
+        if(params[2].getBool())
+            includeImmatureBTs = true;
+
     UniValue entry(UniValue::VOBJ);
     if (!pwalletMain->getMapWallet().count(hash))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid or non-wallet transaction id");
@@ -3454,7 +3467,7 @@ UniValue gettransaction(const UniValue& params, bool fHelp)
     WalletTxToJSON(wtx, entry, filter);
 
     UniValue details(UniValue::VARR);
-    ListTransactions(wtx, "*", 0, false, details, filter);
+    ListTransactions(wtx, "*", 0, false, details, filter, includeImmatureBTs);
     entry.pushKV("details", details);
 
     string strHex = wtx.getTxBase()->EncodeHex();
@@ -4038,14 +4051,15 @@ UniValue listunspent(const UniValue& params, bool fHelp)
             "\nResult\n"
             "[                              (array of json object)\n"
             "  {\n"
-            "    \"txid\": \"txid\",        (string) the transaction id\n"
-            "    \"vout\": n,               (numeric) the vout value\n"
-            "    \"generated\": true|false  (boolean) true if txout is a coinbase transaction output\n"
-            "    \"address\": \"address\",  (string) the horizen address\n"
-            "    \"account\": \"account\",  (string) DEPRECATED. The associated account, or \"\" for the default account\n"
-            "    \"scriptPubKey\": \"key\", (string) the script key\n"
-            "    \"amount\": xxxx,          (numeric) the transaction amount in " + CURRENCY_UNIT + "\n"
-            "    \"confirmations\": n       (numeric) the number of confirmations\n"
+            "    \"txid\" : \"txid\",        (string) the transaction id \n"
+            "    \"vout\" : n,               (numeric) the vout value\n"
+            "    \"generated\" : true|false  (boolean) true if txout is a coinbase transaction output\n"
+            "    \"address\" : \"address\",  (string) the horizen address\n"
+            "    \"account\" : \"account\",  (string) DEPRECATED. The associated account, or \"\" for the default account\n"
+            "    \"scriptPubKey\" : \"key\", (string) the script key\n"
+            "    \"amount\" : x.xxx,         (numeric) the transaction amount in " + CURRENCY_UNIT + "\n"
+            "    \"confirmations\" : n       (numeric) The number of confirmations\n"
+            "    \"isCert\": true|false,     (boolean) true if a certificate\n"
             "  }\n"
             "  ,...\n"
             "]\n"
@@ -4103,14 +4117,9 @@ UniValue listunspent(const UniValue& params, bool fHelp)
         UniValue entry(UniValue::VOBJ);
         entry.pushKV("txid", out.tx->getTxBase()->GetHash().GetHex());
         entry.pushKV("vout", out.pos);
-        if (out.tx->getTxBase()->IsCertificate() )
-        {
-            entry.pushKV("certified", true);
-        }
-        else
-        {
-            entry.pushKV("generated", out.tx->getTxBase()->IsCoinBase());
-        }
+        entry.pushKV("isCert", out.tx->getTxBase()->IsCertificate());
+        entry.pushKV("generated", out.tx->getTxBase()->IsCoinBase());
+
         CTxDestination address;
         if (ExtractDestination(out.tx->getTxBase()->GetVout()[out.pos].scriptPubKey, address)) {
             entry.pushKV("address", CBitcoinAddress(address).ToString());
@@ -5476,14 +5485,14 @@ UniValue sc_sendmany(const UniValue& params, bool fHelp)
     return wtx.getWrappedTx().GetHash().GetHex();
 }
 
-UniValue send_certificate(const UniValue& params, bool fHelp)
+UniValue sc_send_certificate(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
     if (fHelp || params.size() < 8  )
         throw runtime_error(
-            "send_certificate scid epochNumber quality endEpochCumScTxCommTreeRoot scProof [{\"pubkeyhash\":... ,\"amount\":...},...] (subtractfeefromamount) (fee)\n"
+            "sc_send_certificate scid epochNumber quality endEpochCumScTxCommTreeRoot scProof [{\"pubkeyhash\":... ,\"amount\":...},...] (subtractfeefromamount) (fee)\n"
             "\nSend cross chain backward transfers from SC to MC as a certificate."
             "\nArguments:\n"
             " 1. \"scid\"                        (string, required) The uint256 side chain ID\n"
@@ -5510,8 +5519,8 @@ UniValue send_certificate(const UniValue& params, bool fHelp)
             "\nResult:\n"
             "  \"certificateId\"   (string) The resulting certificate id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("send_certificate", "\"ea3e7ccbfd40c4e2304c4215f76d204e4de63c578ad835510f580d529516a874\" 12 5 \"04a1527384c67d9fce3d091ababfc1de325dbac9b3b14025a53722ff6c53d40e\" \"abcd..ef\" \"abcd..ef\" '[{\"pubkeyhash\":\"813551c928d41c0436ba7361850797d9b30ad4ed\" ,\"amount\": 5.0}]'")
-            + HelpExampleCli("send_certificate", "\"054671870079a64a491ea68e08ed7579ec2e0bd148c51c6e2fe6385b597540f4\" 10 7 \"0a85efb37d1130009f1b588dcddd26626bbb159ae4a19a703715277b51033144\" \"abcd..ef\" \"abcd..ef\" '[{\"pubkeyhash\":\"76fea046133b0acc74ebabbd17b80e99816228ab\", \"amount\":33.5}]' false 0.00001")
+            + HelpExampleCli("sc_send_certificate", "\"054671870079a64a491ea68e08ed7579ec2e0bd148c51c6e2fe6385b597540f4\" 10 7 \"0a85efb37d1130009f1b588dcddd26626bbb159ae4a19a703715277b51033144\" \"abcd..ef\" \"abcd..ef\" '[{\"pubkeyhash\":\"76fea046133b0acc74ebabbd17b80e99816228ab\", \"amount\":33.5}]' false 0.00001")
+            + HelpExampleCli("sc_send_certificate", "\"ea3e7ccbfd40c4e2304c4215f76d204e4de63c578ad835510f580d529516a874\" 12 5 \"04a1527384c67d9fce3d091ababfc1de325dbac9b3b14025a53722ff6c53d40e\" \"abcd..ef\" \"abcd..ef\" '[{\"pubkeyhash\":\"813551c928d41c0436ba7361850797d9b30ad4ed\" ,\"amount\": 5.0}]'")
 
         );
 

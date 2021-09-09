@@ -88,7 +88,7 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
         # SCs creation
         #----------------------------------------------------------------------
         vk = mcTest.generate_params("sc1")
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "abcdef", constant)
+        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "abcdef", constant)
         creating_tx = ret['txid']
         mark_logs("Node 0 created SC spending {} coins via tx1 {}.".format(creation_amount, creating_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
@@ -121,7 +121,7 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
 
         mark_logs("Node 0 sends a cert for scid {} with a bwd transfer of {} coins to Node1 pkh".format(scid, bwt_amount_1, pkh_node1), self.nodes, DEBUG_MODE)
         try:
-            cert_1 = self.nodes[0].send_certificate(scid, epoch_number, quality,
+            cert_1 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amounts_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_1), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -154,7 +154,7 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
 
         mark_logs("Node 0 sends a cert for scid {} with a bwd transfer of {} coins to Node1 pkh".format(scid, bwt_amount_2, pkh_node1), self.nodes, DEBUG_MODE)
         try:
-            cert_2 = self.nodes[0].send_certificate(scid, epoch_number, quality,
+            cert_2 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amounts_2, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_2), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -178,12 +178,16 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
         assert_equal(ret['epoch'], 2)
         print "#### chain height=", self.nodes[0].getblockcount()
         print
+        mature_only = False
         utx_out1 = self.nodes[1].gettxout(cert_1, 1)
-        utx_out2 = self.nodes[1].gettxout(cert_2, 1)
+        assert_equal(utx_out1["mature"], True)
+        assert_equal(utx_out1["maturityHeight"], 0)
+        assert_equal(utx_out1["blocksToMaturity"], 0)
+        utx_out2 = self.nodes[1].gettxout(cert_2, 1, True, mature_only)
         print "BWT coins:     -------------------------"
         if utx_out1:
             print "cert 1 has coins: {}, confirmations={}".format(utx_out1['value'], utx_out1['confirmations'])
-        if utx_out1:
+        if utx_out2:
             print "cert 2 has coins: {}, confirmations={}".format(utx_out2['value'], utx_out2['confirmations'])
         winfo = self.nodes[1].getwalletinfo()
         assert_equal(bwt_amount_1, winfo['balance'])
@@ -247,7 +251,7 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
             quality = 2
             proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [], [])
 
-            cert_2 = self.nodes[0].send_certificate(scid, epoch_number, quality,
+            cert_2 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, [], FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_2), self.nodes, DEBUG_MODE)
             assert(False)
