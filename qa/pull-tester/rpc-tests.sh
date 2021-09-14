@@ -122,6 +122,7 @@ testScripts=(
   'sc_csw_eviction_from_mempool.py'
   'sc_stale_ft_and_mbtr.py'
   'sc_cert_getblocktemplate.py'
+  'sc_big_certificate.py'
 );
 testScriptsExt=(
   'getblocktemplate_longpoll.py'
