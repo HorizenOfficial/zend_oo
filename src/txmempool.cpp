@@ -275,7 +275,7 @@ void CTxMemPool::addAddressIndex(const CTxMemPoolEntry &entry, const CCoinsViewC
         }
     }
 
-    mapAddressInserted.insert(make_pair(txhash, inserted));
+    mapAddressInserted.insert(std::make_pair(txhash, inserted));
 }
 
 bool CTxMemPool::getAddressIndex(std::vector<std::pair<uint160, int> > &addresses,
@@ -341,7 +341,7 @@ void CTxMemPool::addSpentIndex(const CTxMemPoolEntry &entry, const CCoinsViewCac
 
     }
 
-    mapSpentInserted.insert(make_pair(txhash, inserted));
+    mapSpentInserted.insert(std::make_pair(txhash, inserted));
 }
 
 bool CTxMemPool::getSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value)
@@ -624,6 +624,10 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
             LogPrint("mempool", "%s():%d - removing cert [%s] from mempool\n", __func__, __LINE__, hash.ToString() );
             mapCertificate.erase(hash);
             nCertificatesUpdated++;
+
+            // TODO
+            //removeAddressIndex(hash);
+            //removeSpentIndex(hash);
         }
     }
 }
