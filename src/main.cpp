@@ -1416,17 +1416,15 @@ MempoolReturnValue AcceptCertificateToMemoryPool(CTxMemPool& pool, CValidationSt
         // Store transaction in memory
         pool.addUnchecked(certHash, entry, !IsInitialBlockDownload());
 
-#if 0 // TODO
         // Add memory address index
         if (fAddressIndex) {
-            pool.addAddressIndex(entry, view);
+            pool.addAddressIndex(entry.GetCertificate(), entry.GetTime(), view);
         }
 
         // Add memory spent index
         if (fSpentIndex) {
-            pool.addSpentIndex(entry, view);
+            pool.addSpentIndex(entry.GetCertificate(), view);
         }
-#endif
     }
     return MempoolReturnValue::VALID;
 }
@@ -1730,12 +1728,12 @@ MempoolReturnValue AcceptTxToMemoryPool(CTxMemPool& pool, CValidationState &stat
 
         // Add memory address index
         if (fAddressIndex) {
-            pool.addAddressIndex(entry, view);
+            pool.addAddressIndex(entry.GetTx(), entry.GetTime(), view);
         }
 
         // Add memory spent index
         if (fSpentIndex) {
-            pool.addSpentIndex(entry, view);
+            pool.addSpentIndex(entry.GetTx(), view);
         }
     }
 
