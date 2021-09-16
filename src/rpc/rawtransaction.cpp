@@ -320,6 +320,88 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
     }
 }
 
+void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue& entry,
+                      int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
+{
+
+    uint256 txid = tx.GetHash();
+    entry.pushKV("txid", txid.GetHex());
+    entry.pushKV("version", tx.nVersion);
+    entry.pushKV("locktime", (int64_t)tx.GetLockTime());
+    UniValue vin(UniValue::VARR);
+    BOOST_FOREACH(const CTxIn& txin, tx.GetVin()) {
+        UniValue in(UniValue::VOBJ);
+        if (tx.IsCoinBase())
+            in.pushKV("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
+        else {
+            in.pushKV("txid", txin.prevout.hash.GetHex());
+            in.pushKV("vout", (int64_t)txin.prevout.n);
+            UniValue o(UniValue::VOBJ);
+            o.pushKV("asm", txin.scriptSig.ToString());
+            o.pushKV("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
+            in.pushKV("scriptSig", o);
+
+            // Add address and value info if spentindex enabled
+            CSpentIndexValue spentInfo;
+            CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
+            if (GetSpentIndex(spentKey, spentInfo)) {
+                in.pushKV("value", ValueFromAmount(spentInfo.satoshis));
+                in.pushKV("valueSat", spentInfo.satoshis);
+                if (spentInfo.addressType == 1) {
+                    in.pushKV("address", CBitcoinAddress(CKeyID(spentInfo.addressHash)).ToString());
+                } else if (spentInfo.addressType == 2)  {
+                    in.pushKV("address", CBitcoinAddress(CScriptID(spentInfo.addressHash)).ToString());
+                }
+            }
+
+        }
+        in.pushKV("sequence", (int64_t)txin.nSequence);
+        vin.push_back(in);
+    }
+    entry.pushKV("vin", vin);
+    UniValue vout(UniValue::VARR);
+    for (unsigned int i = 0; i < tx.GetVout().size(); i++) {
+        const CTxOut& txout = tx.GetVout()[i];
+        UniValue out(UniValue::VOBJ);
+        out.pushKV("value", ValueFromAmount(txout.nValue));
+        out.pushKV("valueSat", txout.nValue);
+        out.pushKV("n", (int64_t)i);
+        UniValue o(UniValue::VOBJ);
+        ScriptPubKeyToJSON(txout.scriptPubKey, o, true);
+        out.pushKV("scriptPubKey", o);
+
+        // Add spent information if spentindex is enabled
+        CSpentIndexValue spentInfo;
+        CSpentIndexKey spentKey(txid, i);
+        if (GetSpentIndex(spentKey, spentInfo)) {
+            out.pushKV("spentTxId", spentInfo.txid.GetHex());
+            out.pushKV("spentIndex", (int)spentInfo.inputIndex);
+            out.pushKV("spentHeight", spentInfo.blockHeight);
+        }
+
+        vout.push_back(out);
+    }
+    entry.pushKV("vout", vout);
+
+    UniValue vjoinsplit = TxJoinSplitToJSON(tx);
+    entry.pushKV("vjoinsplit", vjoinsplit);
+
+    if (!hashBlock.IsNull()) {
+        entry.pushKV("blockhash", hashBlock.GetHex());
+
+        if (nConfirmations > 0) {
+            entry.pushKV("height", nHeight);
+            entry.pushKV("confirmations", nConfirmations);
+            entry.pushKV("time", nBlockTime);
+            entry.pushKV("blocktime", nBlockTime);
+        } else {
+            entry.pushKV("height", -1);
+            entry.pushKV("confirmations", 0);
+        }
+    }
+
+}
+
 UniValue getrawtransaction(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
@@ -505,10 +587,18 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
     try {
         if (pTxBase->IsCertificate()) {
             CScCertificate cert(dynamic_cast<const CScCertificate&>(*pTxBase));
+            // TODO call the expanded Json API if the case
             CertToJSON(cert, hashBlock, result);
         } else {
             CTransaction tx(dynamic_cast<const CTransaction&>(*pTxBase));
-            TxToJSON(tx, hashBlock, result);
+            if (fAddressIndex)
+            {
+                TxToJSONExpanded(tx, hashBlock, result, nHeight, nConfirmations, nBlockTime);
+            }
+            else
+            {
+                TxToJSON(tx, hashBlock, result);
+            }
         }
     } catch (std::exception& e) {
         throw JSONRPCError(RPC_INTERNAL_ERROR, std::string("internal error: ") + std::string(e.what() ));
