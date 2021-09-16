@@ -1792,7 +1792,7 @@ bool GetSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value)
 }
 
 bool GetAddressIndex(uint160 addressHash, int type,
-                     std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex, int start, int end)
+                     std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > &addressIndex, int start, int end)
 {
     if (!fAddressIndex)
         return error("address index not enabled");
@@ -1825,17 +1825,17 @@ bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock
 
     if (fTxIndex)
     {
-        CDiskTxPos postx;
-        if (pblocktree->ReadTxIndex(hash, postx))
+        CTxIndexValue txIndexValue;
+        if (pblocktree->ReadTxIndex(hash, txIndexValue))
         {
-            CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
+            CAutoFile file(OpenBlockFile(txIndexValue.txPosition, true), SER_DISK, CLIENT_VERSION);
             if (file.IsNull())
                 return error("%s: OpenBlockFile failed", __func__);
             CBlockHeader header;
             try
             {
                 file >> header;
-                fseek(file.Get(), postx.nTxOffset, SEEK_CUR);
+                fseek(file.Get(), txIndexValue.txPosition.nTxOffset, SEEK_CUR);
                 file >> txOut;
             } catch (const std::exception& e)
             {
@@ -1892,17 +1892,17 @@ bool GetCertificate(const uint256 &hash, CScCertificate &certOut, uint256 &hashB
 
     if (fTxIndex)
     {
-        CDiskTxPos postx;
-        if (pblocktree->ReadTxIndex(hash, postx))
+        CTxIndexValue txIndexValue;
+        if (pblocktree->ReadTxIndex(hash, txIndexValue))
         {
-            CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
+            CAutoFile file(OpenBlockFile(txIndexValue.txPosition, true), SER_DISK, CLIENT_VERSION);
             if (file.IsNull())
                 return error("%s: OpenBlockFile failed", __func__);
             CBlockHeader header;
             try
             {
                 file >> header;
-                fseek(file.Get(), postx.nTxOffset, SEEK_CUR);
+                fseek(file.Get(), txIndexValue.txPosition.nTxOffset, SEEK_CUR);
                 file >> certOut;
             } catch (const std::exception& e)
             {
@@ -2718,7 +2718,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     std::map<uint256, uint256> highQualityCertData = HighQualityCertData(block, blockUndo);
     // key: current block top quality cert for given sc --> value: prev block superseeded cert hash (possibly null)
 
-    std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex;
+    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndex;
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
 
@@ -2823,7 +2823,8 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                     vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
 
                     // undo receiving activity
-                    addressIndex.push_back(make_pair(CAddressIndexKey(2, uint160(hashBytes), pindex->nHeight, i, hash, k, false), out.nValue));
+                    addressIndex.push_back(make_pair(CAddressIndexKey(2, uint160(hashBytes), pindex->nHeight, i, hash, k, false),
+                                                     CAddressIndexValue(out.nValue, 0)));
 
                     // undo unspent index
                     addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(2, uint160(hashBytes), hash, k), CAddressUnspentValue()));
@@ -2832,7 +2833,8 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                     vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
 
                     // undo receiving activity
-                    addressIndex.push_back(make_pair(CAddressIndexKey(1, uint160(hashBytes), pindex->nHeight, i, hash, k, false), out.nValue));
+                    addressIndex.push_back(make_pair(CAddressIndexKey(1, uint160(hashBytes), pindex->nHeight, i, hash, k, false),
+                                                     CAddressIndexValue(out.nValue, 0)));
 
                     // undo unspent index
                     addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, uint160(hashBytes), hash, k), CAddressUnspentValue()));
@@ -2915,20 +2917,24 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                         vector<unsigned char> hashBytes(prevout.scriptPubKey.begin()+2, prevout.scriptPubKey.begin()+22);
 
                         // undo spending activity
-                        addressIndex.push_back(make_pair(CAddressIndexKey(2, uint160(hashBytes), pindex->nHeight, i, hash, j, true), prevout.nValue * -1));
+                        addressIndex.push_back(make_pair(CAddressIndexKey(2, uint160(hashBytes), pindex->nHeight, i, hash, j, true),
+                                                         CAddressIndexValue(prevout.nValue * -1, 0)));
 
                         // restore unspent index
-                        addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(2, uint160(hashBytes), input.prevout.hash, input.prevout.n), CAddressUnspentValue(prevout.nValue, prevout.scriptPubKey, undo.nHeight)));
+                        addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(2, uint160(hashBytes), input.prevout.hash, input.prevout.n),
+                                                                CAddressUnspentValue(prevout.nValue, prevout.scriptPubKey, undo.nHeight, 0)));
 
 
                     } else if (prevout.scriptPubKey.IsPayToPublicKeyHash()) {
                         vector<unsigned char> hashBytes(prevout.scriptPubKey.begin()+3, prevout.scriptPubKey.begin()+23);
 
                         // undo spending activity
-                        addressIndex.push_back(make_pair(CAddressIndexKey(1, uint160(hashBytes), pindex->nHeight, i, hash, j, true), prevout.nValue * -1));
+                        addressIndex.push_back(make_pair(CAddressIndexKey(1, uint160(hashBytes), pindex->nHeight, i, hash, j, true),
+                                                         CAddressIndexValue(prevout.nValue * -1, 0)));
 
                         // restore unspent index
-                        addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, uint160(hashBytes), input.prevout.hash, input.prevout.n), CAddressUnspentValue(prevout.nValue, prevout.scriptPubKey, undo.nHeight)));
+                        addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, uint160(hashBytes), input.prevout.hash, input.prevout.n),
+                                                                CAddressUnspentValue(prevout.nValue, prevout.scriptPubKey, undo.nHeight, 0)));
 
                     } else {
                         continue;
@@ -3173,11 +3179,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     int nInputs = 0;
     unsigned int nSigOps = 0;
     CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
-    std::vector<std::pair<uint256, CDiskTxPos> > vPos;
-    vPos.reserve(block.vtx.size());
+    CTxIndexValue txIndexValue = CTxIndexValue(pos, 0);
+    std::vector<std::pair<uint256, CTxIndexValue> > vTxIndexValues;
+    vTxIndexValues.reserve(block.vtx.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1 + block.vcert.size());
 
-    std::vector<std::pair<CAddressIndexKey, CAmount> > addressIndex;
+    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndex;
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
 
@@ -3264,7 +3271,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
                     if (fAddressIndex && addressType > 0) {
                         // record spending activity
-                        addressIndex.push_back(make_pair(CAddressIndexKey(addressType, hashBytes, pindex->nHeight, txIdx, tx.GetHash(), j, true), prevout.nValue * -1));
+                        addressIndex.push_back(make_pair(CAddressIndexKey(addressType, hashBytes, pindex->nHeight, txIdx, tx.GetHash(), j, true),
+                                                         CAddressIndexValue(prevout.nValue * -1, 0)));
 
                         // remove address from unspent index
                         addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(addressType, hashBytes, input.prevout.hash, input.prevout.n), CAddressUnspentValue()));
@@ -3304,19 +3312,23 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
 
                     // record receiving activity
-                    addressIndex.push_back(make_pair(CAddressIndexKey(2, uint160(hashBytes), pindex->nHeight, txIdx, tx.GetHash(), k, false), out.nValue));
+                    addressIndex.push_back(make_pair(CAddressIndexKey(2, uint160(hashBytes), pindex->nHeight, txIdx, tx.GetHash(), k, false),
+                                                     CAddressIndexValue(out.nValue, 0)));
 
                     // record unspent output
-                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(2, uint160(hashBytes), tx.GetHash(), k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight)));
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(2, uint160(hashBytes), tx.GetHash(), k),
+                                                            CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight, 0)));
 
                 } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
                     vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
 
                     // record receiving activity
-                    addressIndex.push_back(make_pair(CAddressIndexKey(1, uint160(hashBytes), pindex->nHeight, txIdx, tx.GetHash(), k, false), out.nValue));
+                    addressIndex.push_back(make_pair(CAddressIndexKey(1, uint160(hashBytes), pindex->nHeight, txIdx, tx.GetHash(), k, false),
+                                                     CAddressIndexValue(out.nValue, 0)));
 
                     // record unspent output
-                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, uint160(hashBytes), tx.GetHash(), k), CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight)));
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(1, uint160(hashBytes), tx.GetHash(), k),
+                                                            CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight, 0)));
 
                 } else {
                     continue;
@@ -3355,7 +3367,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             }
         }
 
-        vPos.push_back(std::make_pair(tx.GetHash(), pos));
+        vTxIndexValues.push_back(std::make_pair(tx.GetHash(), CTxIndexValue(pos, 0)));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
 
         if (fScRelatedChecks == flagScRelatedChecks::ON)
@@ -3450,7 +3462,16 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             pos.nTxOffset += sz;
             LogPrint("cert", "%s():%d - nTxOffset=%d\n", __func__, __LINE__, pos.nTxOffset );
         }
-        vPos.push_back(std::make_pair(cert.GetHash(), pos));
+
+        CSidechain sidechain;
+        assert(view.GetSidechain(cert.GetScId(), sidechain));
+        int certMaturityHeight = sidechain.GetCertMaturityHeight(cert.epochNumber);
+
+        if (!isBlockTopQualityCert) {
+            certMaturityHeight *= -1;   // A negative maturity height indicates that the certificate is superseded
+        }
+
+        vTxIndexValues.push_back(std::make_pair(cert.GetHash(), CTxIndexValue(pos, certMaturityHeight)));
         pos.nTxOffset += cert.GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
 
         if (fScRelatedChecks == flagScRelatedChecks::ON)
@@ -3564,7 +3585,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     }
 
     if (fTxIndex)
-        if (!pblocktree->WriteTxIndex(vPos))
+        if (!pblocktree->WriteTxIndex(vTxIndexValues))
             return AbortNode(state, "Failed to write transaction index");
 
     if (fAddressIndex) {

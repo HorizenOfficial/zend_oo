@@ -434,13 +434,13 @@ bool CBlockTreeDB::WriteBatchSync(const std::vector<std::pair<int, const CBlockF
     return WriteBatch(batch, true);
 }
 
-bool CBlockTreeDB::ReadTxIndex(const uint256 &txid, CDiskTxPos &pos) {
-    return Read(make_pair(DB_TXINDEX, txid), pos);
+bool CBlockTreeDB::ReadTxIndex(const uint256 &txid, CTxIndexValue &val) {
+    return Read(make_pair(DB_TXINDEX, txid), val);
 }
 
-bool CBlockTreeDB::WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> >&vect) {
+bool CBlockTreeDB::WriteTxIndex(const std::vector<std::pair<uint256, CTxIndexValue> >&vect) {
     CLevelDBBatch batch;
-    for (std::vector<std::pair<uint256,CDiskTxPos> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
+    for (std::vector<std::pair<uint256,CTxIndexValue> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
         batch.Write(make_pair(DB_TXINDEX, it->first), it->second);
     return WriteBatch(batch);
 }
@@ -513,22 +513,22 @@ bool CBlockTreeDB::ReadAddressUnspentIndex(uint160 addressHash, int type,
     return true;
 }
 
-bool CBlockTreeDB::WriteAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAmount > >&vect) {
+bool CBlockTreeDB::WriteAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> >&vect) {
     CLevelDBBatch batch;
-    for (std::vector<std::pair<CAddressIndexKey, CAmount> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
+    for (std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
         batch.Write(make_pair(DB_ADDRESSINDEX, it->first), it->second);
     return WriteBatch(batch);
 }
 
-bool CBlockTreeDB::EraseAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAmount > >&vect) {
+bool CBlockTreeDB::EraseAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> >&vect) {
     CLevelDBBatch batch;
-    for (std::vector<std::pair<CAddressIndexKey, CAmount> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
+    for (std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
         batch.Erase(make_pair(DB_ADDRESSINDEX, it->first));
     return WriteBatch(batch);
 }
 
 bool CBlockTreeDB::ReadAddressIndex(uint160 addressHash, int type,
-                                    std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex,
+                                    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > &addressIndex,
                                     int start, int end) {
 
     boost::scoped_ptr<leveldb::Iterator> pcursor(NewIterator());
@@ -557,10 +557,10 @@ bool CBlockTreeDB::ReadAddressIndex(uint160 addressHash, int type,
                 try {
                     leveldb::Slice slValue = pcursor->value();
                     CDataStream ssValue(slValue.data(), slValue.data()+slValue.size(), SER_DISK, CLIENT_VERSION);
-                    CAmount nValue;
-                    ssValue >> nValue;
+                    CAddressIndexValue indexValue;
+                    ssValue >> indexValue;
 
-                    addressIndex.push_back(make_pair(indexKey, nValue));
+                    addressIndex.push_back(make_pair(indexKey, indexValue));
                     pcursor->Next();
                 } catch (const std::exception& e) {
                     return error("failed to get address index value");

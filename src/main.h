@@ -543,6 +543,7 @@ struct CAddressUnspentValue {
     CAmount satoshis;
     CScript script;
     int blockHeight;
+    int maturityHeight;
 
     ADD_SERIALIZE_METHODS;
 
@@ -551,12 +552,14 @@ struct CAddressUnspentValue {
         READWRITE(satoshis);
         READWRITE(script);
         READWRITE(blockHeight);
+        READWRITE(VARINT(maturityHeight));
     }
 
-    CAddressUnspentValue(CAmount sats, CScript scriptPubKey, int height) {
+    CAddressUnspentValue(CAmount sats, CScript scriptPubKey, int height, int maturity) {
         satoshis = sats;
         script = scriptPubKey;
         blockHeight = height;
+        maturityHeight = maturity;
     }
 
     CAddressUnspentValue() {
@@ -567,6 +570,7 @@ struct CAddressUnspentValue {
         satoshis = -1;
         script.clear();
         blockHeight = 0;
+        maturityHeight = 0;
     }
 
     bool IsNull() const {
@@ -635,6 +639,33 @@ struct CAddressIndexKey {
         spending = false;
     }
 
+};
+
+struct CAddressIndexValue {
+    CAmount satoshis;
+    int maturityHeight;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(satoshis);
+        READWRITE(VARINT(maturityHeight));
+    }
+
+    CAddressIndexValue(CAmount sats, int height) {
+        satoshis = sats;
+        maturityHeight = height;
+    }
+
+    CAddressIndexValue() {
+        SetNull();
+    }
+
+    void SetNull() {
+        satoshis = -1;
+        maturityHeight = 0;
+    }
 };
 
 struct CAddressIndexIteratorKey {
@@ -730,6 +761,33 @@ struct CDiskTxPos : public CDiskBlockPos
     void SetNull() {
         CDiskBlockPos::SetNull();
         nTxOffset = 0;
+    }
+};
+
+struct CTxIndexValue {
+    CDiskTxPos txPosition;
+    int maturityHeight;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(txPosition);
+        READWRITE(VARINT(maturityHeight));
+    }
+
+    CTxIndexValue(CDiskTxPos txPos, int maturity) {
+        txPosition = txPos;
+        maturityHeight = maturity;
+    }
+
+    CTxIndexValue() {
+        SetNull();
+    }
+
+    void SetNull() {
+        txPosition = CDiskTxPos();
+        maturityHeight = 0;
     }
 };
 
@@ -861,7 +919,7 @@ public:
 bool GetTimestampIndex(const unsigned int &high, const unsigned int &low, const bool fActiveOnly, std::vector<std::pair<uint256, unsigned int> > &hashes);
 bool GetSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);
 bool GetAddressIndex(uint160 addressHash, int type,
-                     std::vector<std::pair<CAddressIndexKey, CAmount> > &addressIndex,
+                     std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > &addressIndex,
                      int start = 0, int end = 0);
 bool GetAddressUnspent(uint160 addressHash, int type,
                        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
