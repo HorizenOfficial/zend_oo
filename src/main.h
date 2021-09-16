@@ -776,7 +776,7 @@ struct CTxIndexValue {
         READWRITE(VARINT(maturityHeight));
     }
 
-    CTxIndexValue(CDiskTxPos txPos, int maturity) {
+    CTxIndexValue(const CDiskTxPos& txPos, int maturity) {
         txPosition = txPos;
         maturityHeight = maturity;
     }
