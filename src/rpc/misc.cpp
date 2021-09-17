@@ -830,7 +830,7 @@ UniValue getaddressdeltas(const UniValue& params, bool fHelp)
 
 UniValue getaddressbalance(const UniValue& params, bool fHelp)
 {
-    if (fHelp || params.size() != 1)
+    if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
             "getaddressbalance\n"
             "\nReturns the balance for an address(es) (requires addressindex to be enabled).\n"
@@ -838,14 +838,16 @@ UniValue getaddressbalance(const UniValue& params, bool fHelp)
             "{\n"
             "  \"addresses\"\n"
             "    [\n"
-            "      \"address\"  (string) The base58check encoded address\n"
+            "      \"address\"               (string) The base58check encoded address\n"
             "      ,...\n"
             "    ]\n"
             "}\n"
+            "\"includeImmatureBTs\"          (bool, optional, default = false) Whether to include ImmatureBTs in the balance calculation\n"
             "\nResult:\n"
             "{\n"
-            "  \"balance\"  (string) The current balance in satoshis\n"
-            "  \"received\"  (string) The total number of satoshis received (including change)\n"
+            "  \"balance\"                   (string) The current balance in satoshis\n"
+            "  \"received\"                  (string) The total number of satoshis received (including change)\n"
+            "  \"immature\"                  (string) The current immature balance in satoshis\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getaddressbalance", "'{\"addresses\": [\"znXWB3XGptd5T3jA9VuoGEEnVTAVHejj5bB\"]}'")
@@ -858,6 +860,10 @@ UniValue getaddressbalance(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
 
+    bool includeImmatureBTs = false;
+    if (params.size() > 1)
+        includeImmatureBTs = params[1].get_bool();
+
     std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndex;
 
     for (std::vector<std::pair<uint160, int> >::iterator it = addresses.begin(); it != addresses.end(); it++) {
@@ -868,17 +874,37 @@ UniValue getaddressbalance(const UniValue& params, bool fHelp)
 
     CAmount balance = 0;
     CAmount received = 0;
+    CAmount immature = 0;
+
+    int currentTipHeight = chainActive.Tip()->nHeight;
 
     for (std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> >::const_iterator it=addressIndex.begin(); it!=addressIndex.end(); it++) {
-        if (it->second.satoshis > 0) {
-            received += it->second.satoshis;
+        //If maturityHeight is negative it's superseded and we skip it
+        if (it->second.maturityHeight < 0)
+            continue;
+        //If maturityHeight > currentTipHeight it's immature and we store the immature balance
+        //and the balance only if specified
+        if (it->second.maturityHeight > currentTipHeight) {
+            immature += it->second.satoshis;
+            if (includeImmatureBTs) {
+                if (it->second.satoshis > 0) {
+                    received += it->second.satoshis;
+                }
+                balance += it->second.satoshis;
+            }
         }
-        balance += it->second.satoshis;
+        else {
+            if (it->second.satoshis > 0) {
+                received += it->second.satoshis;
+            }
+            balance += it->second.satoshis;
+        }
     }
 
     UniValue result(UniValue::VOBJ);
     result.pushKV("balance", balance);
     result.pushKV("received", received);
+    result.pushKV("immature", immature);
 
     return result;
 
