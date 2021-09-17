@@ -258,18 +258,49 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
         }
     }
 
+    // default value for non-certificates outputs
+    CMempoolAddressDelta::OutputStatus certBwtStatus = CMempoolAddressDelta::OutputStatus::NOT_A_CERT_BACKWARD_TRANSFER;
+    int certFirstBwtPos = -1;
+
+    if (txBase.IsCertificate())
+    {
+        const CScCertificate* cert = dynamic_cast<const CScCertificate*>(&txBase);
+        assert(cert != nullptr);
+
+        bool isTopQualityCert = mapSidechains.at(cert->GetScId()).GetTopQualityCert()->second == cert->GetHash();
+
+        // set certificate bwts status
+        certBwtStatus = isTopQualityCert ?
+            CMempoolAddressDelta::OutputStatus::TOP_QUALITY_CERT_BACKWARD_TRANSFER :
+                CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER;
+
+        // and position in vout
+        certFirstBwtPos = cert->nFirstBwtPos;
+    }
+
     for (unsigned int k = 0; k < txBase.GetVout().size(); k++) {
         const CTxOut &out = txBase.GetVout()[k];
+
+        CMempoolAddressDelta::OutputStatus outStatus =
+            CMempoolAddressDelta::OutputStatus::NOT_A_CERT_BACKWARD_TRANSFER;
+
+        if (certFirstBwtPos >= 0 && k >= certFirstBwtPos)
+        {
+            // here we have a bwt output from a certificate
+            outStatus = certBwtStatus;
+        }
+
         if (out.scriptPubKey.IsPayToScriptHash()) {
+            // should not concern certificates as of now
             std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
             CMempoolAddressDeltaKey key(2, uint160(hashBytes), txBaseHash, k, 0);
-            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(nTime, out.nValue)));
+            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(nTime, out.nValue, outStatus)));
             inserted.push_back(key);
         } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
             std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
             std::pair<addressDeltaMap::iterator,bool> ret;
             CMempoolAddressDeltaKey key(1, uint160(hashBytes), txBaseHash, k, 0);
-            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(nTime, out.nValue)));
+            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(nTime, out.nValue, outStatus)));
             inserted.push_back(key);
         }
     }

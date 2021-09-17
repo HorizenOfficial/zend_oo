@@ -11,23 +11,34 @@
 
 struct CMempoolAddressDelta
 {
+    enum OutputStatus
+    {
+        // TODO maybe add a NOT_AN_OUTPUT for inputs
+        NOT_A_CERT_BACKWARD_TRANSFER, 
+        TOP_QUALITY_CERT_BACKWARD_TRANSFER,    /**< top quality certificate, it has a possibility to reach maturity one day*/
+        LOW_QUALITY_CERT_BACKWARD_TRANSFER     /**< low quality compared to another cert for the same scid in the mempool */
+    };
+
     int64_t time;
     CAmount amount;
     uint256 prevhash;
     unsigned int prevout;
+    OutputStatus outStatus;
 
-    CMempoolAddressDelta(int64_t t, CAmount a, uint256 hash, unsigned int out) {
+    CMempoolAddressDelta(int64_t t, CAmount a, uint256 hash, unsigned int out, OutputStatus status = NOT_A_CERT_BACKWARD_TRANSFER) {
         time = t;
         amount = a;
         prevhash = hash;
         prevout = out;
+        outStatus = status;
     }
 
-    CMempoolAddressDelta(int64_t t, CAmount a) {
+    CMempoolAddressDelta(int64_t t, CAmount a, OutputStatus status = NOT_A_CERT_BACKWARD_TRANSFER) {
         time = t;
         amount = a;
         prevhash.SetNull();
         prevout = 0;
+        outStatus = status;
     }
 };
 

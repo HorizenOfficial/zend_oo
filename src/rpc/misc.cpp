@@ -607,6 +607,10 @@ UniValue getaddressmempool(const UniValue& params, bool fHelp)
             delta.pushKV("prevtxid", it->second.prevhash.GetHex());
             delta.pushKV("prevout", (int)it->second.prevout);
         }
+        else
+        {
+            delta.pushKV("outstatus", (int)it->second.outStatus);
+        }
         result.push_back(delta);
     }
 
