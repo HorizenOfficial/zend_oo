@@ -239,10 +239,10 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
     LOCK(cs);
     std::vector<CMempoolAddressDeltaKey> inserted;
 
-    uint256 txBaseHash = txBase.GetHash();
+    const uint256& txBaseHash = txBase.GetHash();
     for (unsigned int j = 0; j < txBase.GetVin().size(); j++) {
-        const CTxIn input = txBase.GetVin()[j];
-        const CTxOut &prevout = view.GetOutputFor(input);
+        const CTxIn& input = txBase.GetVin()[j];
+        const CTxOut& prevout = view.GetOutputFor(input);
         if (prevout.scriptPubKey.IsPayToScriptHash()) {
             std::vector<unsigned char> hashBytes(prevout.scriptPubKey.begin()+2, prevout.scriptPubKey.begin()+22);
             CMempoolAddressDeltaKey key(2, uint160(hashBytes), txBaseHash, j, 1);
@@ -258,8 +258,8 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
         }
     }
 
-    // default value for non-certificates outputs
-    CMempoolAddressDelta::OutputStatus certBwtStatus = CMempoolAddressDelta::OutputStatus::NOT_A_CERT_BACKWARD_TRANSFER;
+    // default value for non-cert-bwt outputs
+    CMempoolAddressDelta::OutputStatus certBwtStatus = CMempoolAddressDelta::OutputStatus::ORDINARY_OUTPUT;
     int certFirstBwtPos = -1;
 
     if (txBase.IsCertificate())
@@ -267,7 +267,8 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
         const CScCertificate* cert = dynamic_cast<const CScCertificate*>(&txBase);
         assert(cert != nullptr);
 
-        bool isTopQualityCert = mapSidechains.at(cert->GetScId()).GetTopQualityCert()->second == cert->GetHash();
+        const uint256& topQualHash = mapSidechains.at(cert->GetScId()).GetTopQualityCert()->second;
+        bool isTopQualityCert = (topQualHash == cert->GetHash());
 
         // set certificate bwts status
         certBwtStatus = isTopQualityCert ?
@@ -276,13 +277,50 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
 
         // and position in vout
         certFirstBwtPos = cert->nFirstBwtPos;
+
+        LogPrint("mempool", "%s():%d - cert[%s], isTopQualityCert[%s], certBwtStatus[%d], certFirstBwtPos[%d]\n",
+            __func__, __LINE__, cert->GetHash().ToString(), isTopQualityCert?"Y":"N", (int)certBwtStatus, certFirstBwtPos);
+
+        // if this is a top quality, we must modify the entry which was the previous top quality (if any)
+        if (isTopQualityCert && mapSidechains.at(cert->GetScId()).mBackwardCertificates.size() > 1)
+        {
+            // get the former top cert for this scid.
+
+            // Entries are ordered by quality, therefore the former top-quality is the second starting from the bottom
+            const auto& mempoolCertEntry = *(++mapSidechains.at(cert->GetScId()).mBackwardCertificates.crbegin());
+
+            const uint256& certHash = mempoolCertEntry.second;
+            const CScCertificate& certSuperseeded = mapCertificate[certHash].GetCertificate();
+            int64_t nTime = mapCertificate[certHash].GetTime();
+            int certSuperseededFirstBwtPos = certSuperseeded.nFirstBwtPos;
+
+            LogPrint("mempool", "%s():%d - cert[%s] is now superseeded\n", __func__, __LINE__, certHash.ToString());
+
+            for (unsigned int m = certSuperseededFirstBwtPos; m < certSuperseeded.GetVout().size(); m++)
+            {
+                const CTxOut &out = certSuperseeded.GetVout()[m];
+  
+                if (out.scriptPubKey.IsPayToScriptHash()) {
+                    // should not concern certificates as of now
+                    std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
+                    CMempoolAddressDeltaKey key(2, uint160(hashBytes), certHash, m, 0);
+                    CMempoolAddressDelta val(nTime, out.nValue, CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER);
+                    mapAddress[key] = val;
+                } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
+                    std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
+                    std::pair<addressDeltaMap::iterator,bool> ret;
+                    CMempoolAddressDeltaKey key(1, uint160(hashBytes), certHash, m, 0);
+                    mapAddress[key] = CMempoolAddressDelta(
+                        nTime, out.nValue, CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER);
+                }
+            }
+        }
     }
+
+    CMempoolAddressDelta::OutputStatus outStatus = CMempoolAddressDelta::OutputStatus::ORDINARY_OUTPUT;
 
     for (unsigned int k = 0; k < txBase.GetVout().size(); k++) {
         const CTxOut &out = txBase.GetVout()[k];
-
-        CMempoolAddressDelta::OutputStatus outStatus =
-            CMempoolAddressDelta::OutputStatus::NOT_A_CERT_BACKWARD_TRANSFER;
 
         if (certFirstBwtPos >= 0 && k >= certFirstBwtPos)
         {
@@ -322,10 +360,10 @@ bool CTxMemPool::getAddressIndex(std::vector<std::pair<uint160, int> > &addresse
     return true;
 }
 
-bool CTxMemPool::removeAddressIndex(const uint256 txhash)
+bool CTxMemPool::removeAddressIndex(const uint256& txBaseHash)
 {
     LOCK(cs);
-    addressDeltaMapInserted::iterator it = mapAddressInserted.find(txhash);
+    addressDeltaMapInserted::iterator it = mapAddressInserted.find(txBaseHash);
 
     if (it != mapAddressInserted.end()) {
         std::vector<CMempoolAddressDeltaKey> keys = (*it).second;
@@ -344,10 +382,10 @@ void CTxMemPool::addSpentIndex(const CTransactionBase &txBase, const CCoinsViewC
 
     std::vector<CSpentIndexKey> inserted;
 
-    uint256 txBaseHash = txBase.GetHash();
+    const uint256& txBaseHash = txBase.GetHash();
     for (unsigned int j = 0; j < txBase.GetVin().size(); j++) {
-        const CTxIn input = txBase.GetVin()[j];
-        const CTxOut &prevout = view.GetOutputFor(input);
+        const CTxIn&  input = txBase.GetVin()[j];
+        const CTxOut& prevout = view.GetOutputFor(input);
         uint160 addressHash;
         int addressType;
 
@@ -386,10 +424,10 @@ bool CTxMemPool::getSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value)
     return false;
 }
 
-bool CTxMemPool::removeSpentIndex(const uint256 txhash)
+bool CTxMemPool::removeSpentIndex(const uint256& txBaseHash)
 {
     LOCK(cs);
-    mapSpentIndexInserted::iterator it = mapSpentInserted.find(txhash);
+    mapSpentIndexInserted::iterator it = mapSpentInserted.find(txBaseHash);
 
     if (it != mapSpentInserted.end()) {
         std::vector<CSpentIndexKey> keys = (*it).second;
@@ -625,8 +663,10 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
 
             nTransactionsUpdated++;
             minerPolicyEstimator->removeTx(hash);
-            removeAddressIndex(hash);
-            removeSpentIndex(hash);
+            if (fAddressIndex)
+                removeAddressIndex(hash);
+            if (fSpentIndex)
+                removeSpentIndex(hash);
         } else if (mapCertificate.count(hash))
         {
             const CScCertificate& cert = mapCertificate[hash].GetCertificate();
@@ -654,9 +694,10 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
             mapCertificate.erase(hash);
             nCertificatesUpdated++;
 
-            // TODO
-            //removeAddressIndex(hash);
-            //removeSpentIndex(hash);
+            if (fAddressIndex)
+                removeAddressIndex(hash);
+            if (fSpentIndex)
+                removeSpentIndex(hash);
         }
     }
 }
@@ -1404,7 +1445,7 @@ bool CTxMemPool::checkCswInputsPerScLimit(const CTransaction& incomingTx) const
 
     for(const CTxCeasedSidechainWithdrawalInput& csw: incomingTx.GetVcswCcIn())
     {
-        const uint256 scid = csw.scId;
+        const uint256& scid = csw.scId;
         totNumCswInputs[scid] += 1;
     }
 
@@ -1523,7 +1564,7 @@ bool CTxMemPool::checkIncomingCertConflicts(const CScCertificate& incomingCert) 
             continue; //no certs conflicts with certs of other sidechains
         if (certDep.quality >= incomingCert.quality)
         {
-            return error("%s():%d - cert %s depends on worse-quality ancestorCert %s\n", __func__, __LINE__,
+            return error("%s():%d - cert %s depends on better-quality ancestorCert %s\n", __func__, __LINE__,
                     incomingCert.GetHash().ToString(), certDep.GetHash().ToString());
         }
     }

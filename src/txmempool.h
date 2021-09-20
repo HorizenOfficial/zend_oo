@@ -216,11 +216,11 @@ public:
     void addAddressIndex(const CTransactionBase &txBase, int64_t nTime, const CCoinsViewCache &view);
     bool getAddressIndex(std::vector<std::pair<uint160, int> > &addresses,
                          std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results);
-    bool removeAddressIndex(const uint256 txhash);
+    bool removeAddressIndex(const uint256& txBaseHash);
 
     void addSpentIndex(const CTransactionBase& txBase, const CCoinsViewCache &view);
     bool getSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);
-    bool removeSpentIndex(const uint256 txhash);
+    bool removeSpentIndex(const uint256& txBaseHash);
 
     std::vector<uint256> mempoolDirectDependenciesFrom(const CTransactionBase& root) const;
     std::vector<uint256> mempoolDirectDependenciesOf(const CTransactionBase& root) const;

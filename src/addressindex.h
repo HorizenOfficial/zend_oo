@@ -257,10 +257,12 @@ struct CMempoolAddressDelta
 {
     enum OutputStatus
     {
-        // TODO maybe add a NOT_AN_OUTPUT for inputs
-        NOT_A_CERT_BACKWARD_TRANSFER, 
-        TOP_QUALITY_CERT_BACKWARD_TRANSFER,    /**< top quality certificate, it has a possibility to reach maturity one day*/
-        LOW_QUALITY_CERT_BACKWARD_TRANSFER     /**< low quality compared to another cert for the same scid in the mempool */
+        // do not change order or values, rpc clients might relay on that 
+        // --
+        NOT_APPLICABLE = -1,                    /**< not an output: the mem map records refer also to inputs */
+        ORDINARY_OUTPUT = 0,                    /**< the output of an ordnary tx or a non-bwt output of a certificate (e.g. change) */ 
+        TOP_QUALITY_CERT_BACKWARD_TRANSFER = 1, /**< top quality certificate, it has a possibility to reach maturity one day*/
+        LOW_QUALITY_CERT_BACKWARD_TRANSFER = 2  /**< low quality compared to another cert for the same scid in the mempool */
     };
 
     int64_t time;
@@ -269,21 +271,33 @@ struct CMempoolAddressDelta
     unsigned int prevout;
     OutputStatus outStatus;
 
-    CMempoolAddressDelta(int64_t t, CAmount a, uint256 hash, unsigned int out, OutputStatus status = NOT_A_CERT_BACKWARD_TRANSFER) {
+    // used for inputs
+    CMempoolAddressDelta(int64_t t, CAmount a, uint256 hash, unsigned int out) {
         time = t;
         amount = a;
         prevhash = hash;
         prevout = out;
-        outStatus = status;
+        outStatus = NOT_APPLICABLE;
     }
 
-    CMempoolAddressDelta(int64_t t, CAmount a, OutputStatus status = NOT_A_CERT_BACKWARD_TRANSFER) {
+    // used for outputs
+    CMempoolAddressDelta(int64_t t, CAmount a, OutputStatus status = ORDINARY_OUTPUT) {
         time = t;
         amount = a;
         prevhash.SetNull();
         prevout = 0;
         outStatus = status;
     }
+
+    // default ctor
+    CMempoolAddressDelta() {
+        time = 0;
+        amount = 0;
+        prevhash.SetNull();
+        prevout = 0;
+        outStatus = NOT_APPLICABLE;
+    }
+
 };
 
 struct CMempoolAddressDeltaKey

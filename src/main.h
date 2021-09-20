@@ -138,6 +138,7 @@ extern bool fReindex;
 extern bool fReindexFast;
 extern int nScriptCheckThreads;
 extern bool fAddressIndex;
+extern bool fSpentIndex;
 extern bool fTxIndex;
 extern bool fIsBareMultisigStd;
 extern bool fCheckBlockIndex;
