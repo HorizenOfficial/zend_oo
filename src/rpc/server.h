@@ -300,9 +300,6 @@ extern UniValue z_getbalance(const UniValue& params, bool fHelp); // in rpcwalle
 extern UniValue z_gettotalbalance(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue z_sendmany(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue send_certificate(const UniValue& params, bool fHelp);
-extern UniValue sc_send(const UniValue& params, bool fHelp);
-extern UniValue sc_sendmany(const UniValue& params, bool fHelp); // in rpcwallet.cpp
-extern UniValue sc_create(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue create_sidechain(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue send_to_sidechain(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue request_transfer_from_sidechain(const UniValue& params, bool fHelp); // in rpcwallet.cpp
