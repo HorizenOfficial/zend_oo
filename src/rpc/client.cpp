@@ -121,6 +121,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "getaddressbalance", 1},
     { "getaddressdeltas", 0},
     { "getaddressutxos", 0},
+    { "getaddressutxos", 1},
     { "getaddressmempool", 0},
     { "zcrawjoinsplit", 1 },
     { "zcrawjoinsplit", 2 },

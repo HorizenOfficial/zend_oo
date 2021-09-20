@@ -619,7 +619,7 @@ UniValue getaddressmempool(const UniValue& params, bool fHelp)
 
 UniValue getaddressutxos(const UniValue& params, bool fHelp)
 {
-    if (fHelp || params.size() != 1)
+    if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
             "getaddressutxos\n"
             "\nReturns all unspent outputs for an address (requires addressindex to be enabled).\n"
@@ -627,20 +627,22 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
             "{\n"
             "  \"addresses\"\n"
             "    [\n"
-            "      \"address\"  (string) The base58check encoded address\n"
+            "      \"address\"          (string) The base58check encoded address\n"
             "      ,...\n"
             "    ],\n"
-            "  \"chainInfo\"  (boolean) Include chain info with results\n"
+            "  \"chainInfo\"            (boolean, optional) Include chain info with results\n"
             "}\n"
+            "\"includeImmatureBTs\"   (bool, optional, default = false) Whether to include ImmatureBTs in the utxos list\n"
             "\nResult\n"
             "[\n"
             "  {\n"
-            "    \"address\"  (string) The address base58check encoded\n"
-            "    \"txid\"  (string) The output txid\n"
-            "    \"height\"  (number) The block height\n"
-            "    \"outputIndex\"  (number) The output index\n"
-            "    \"script\"  (strin) The script hex encoded\n"
-            "    \"satoshis\"  (number) The number of satoshis of the output\n"
+            "    \"address\"            (string) The address base58check encoded\n"
+            "    \"txid\"               (string) The output txid\n"
+            "    \"height\"             (number) The block height\n"
+            "    \"outputIndex\"        (number) The output index\n"
+            "    \"script\"             (string) The script hex encoded\n"
+            "    \"satoshis\"           (number) The number of satoshis of the output\n"
+            "    \"maturityHeight\"     (number) The maturity height when the utxo'll became spendable (0 means already spendable)\n"           
             "  }\n"
             "]\n"
             "\nExamples:\n"
@@ -655,6 +657,10 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
             includeChainInfo = chainInfo.get_bool();
         }
     }
+
+    bool includeImmatureBTs = false;
+    if (params.size() > 1)
+        includeImmatureBTs = params[1].get_bool();
 
     std::vector<std::pair<uint160, int> > addresses;
 
@@ -673,12 +679,20 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
     std::sort(unspentOutputs.begin(), unspentOutputs.end(), heightSort);
 
     UniValue utxos(UniValue::VARR);
+    int currentTipHeight = chainActive.Tip()->nHeight;
 
     for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> >::const_iterator it=unspentOutputs.begin(); it!=unspentOutputs.end(); it++) {
         UniValue output(UniValue::VOBJ);
         std::string address;
         if (!getAddressFromIndex(it->first.type, it->first.hashBytes, address)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unknown address type");
+        }
+        //If maturityHeight is negative it's superseded and we skip it
+        if (it->second.maturityHeight < 0)
+            continue;
+        //If it's immature and we don't include immature BTS, skip it
+        if (it->second.maturityHeight > currentTipHeight && !includeImmatureBTs) {
+            continue;
         }
 
         output.pushKV("address", address);
@@ -687,6 +701,7 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
         output.pushKV("script", HexStr(it->second.script.begin(), it->second.script.end()));
         output.pushKV("satoshis", it->second.satoshis);
         output.pushKV("height", it->second.blockHeight);
+        output.pushKV("maturityHeight", it->second.maturityHeight);
         utxos.push_back(output);
     }
 
