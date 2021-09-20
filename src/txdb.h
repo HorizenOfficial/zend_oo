@@ -6,6 +6,7 @@
 #ifndef BITCOIN_TXDB_H
 #define BITCOIN_TXDB_H
 
+#include "chain.h"
 #include "coins.h"
 #include "leveldbwrapper.h"
 
@@ -37,6 +38,58 @@ static const int64_t nDefaultDbCache = 100;
 static const int64_t nMaxDbCache = sizeof(void*) > 4 ? 16384 : 1024;
 //! min. -dbcache in (MiB)
 static const int64_t nMinDbCache = 4;
+
+struct CDiskTxPos : public CDiskBlockPos
+{
+    unsigned int nTxOffset; // after header
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(*(CDiskBlockPos*)this);
+        READWRITE(VARINT(nTxOffset));
+    }
+
+    CDiskTxPos(const CDiskBlockPos &blockIn, unsigned int nTxOffsetIn) : CDiskBlockPos(blockIn.nFile, blockIn.nPos), nTxOffset(nTxOffsetIn) {
+    }
+
+    CDiskTxPos() {
+        SetNull();
+    }
+
+    void SetNull() {
+        CDiskBlockPos::SetNull();
+        nTxOffset = 0;
+    }
+};
+
+struct CTxIndexValue {
+    CDiskTxPos txPosition;
+    int maturityHeight;
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(txPosition);
+        READWRITE(VARINT(maturityHeight));
+    }
+
+    CTxIndexValue(const CDiskTxPos& txPos, int maturity) {
+        txPosition = txPos;
+        maturityHeight = maturity;
+    }
+
+    CTxIndexValue() {
+        SetNull();
+    }
+
+    void SetNull() {
+        txPosition = CDiskTxPos();
+        maturityHeight = 0;
+    }
+};
 
 /** CCoinsView backed by the LevelDB coin database (chainstate/) */
 class CCoinsViewDB : public CCoinsView
