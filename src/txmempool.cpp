@@ -392,24 +392,13 @@ void CTxMemPool::addSpentIndex(const CTransactionBase &txBase, const CCoinsViewC
 
     const uint256& txBaseHash = txBase.GetHash();
     for (unsigned int j = 0; j < txBase.GetVin().size(); j++) {
-        const CTxIn&  input = txBase.GetVin()[j];
+        const CTxIn&  input   = txBase.GetVin()[j];
         const CTxOut& prevout = view.GetOutputFor(input);
-        uint160 addressHash;
-        int addressType;
-
-        if (prevout.scriptPubKey.IsPayToScriptHash()) {
-            addressHash = uint160(std::vector<unsigned char> (prevout.scriptPubKey.begin()+2, prevout.scriptPubKey.begin()+22));
-            addressType = 2;
-        } else if (prevout.scriptPubKey.IsPayToPublicKeyHash()) {
-            addressHash = uint160(std::vector<unsigned char> (prevout.scriptPubKey.begin()+3, prevout.scriptPubKey.begin()+23));
-            addressType = 1;
-        } else {
-            addressHash.SetNull();
-            addressType = 0;
-        }
 
         CSpentIndexKey key = CSpentIndexKey(input.prevout.hash, input.prevout.n);
-        CSpentIndexValue value = CSpentIndexValue(txBaseHash, j, -1, prevout.nValue, addressType, addressHash);
+        CSpentIndexValue value = CSpentIndexValue(txBaseHash, j, -1, prevout.nValue,
+            prevout.scriptPubKey.GetType(),
+            prevout.scriptPubKey.AddressHash());
 
         mapSpent.insert(std::make_pair(key, value));
         inserted.push_back(key);
