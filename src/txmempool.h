@@ -217,6 +217,7 @@ public:
     bool getAddressIndex(std::vector<std::pair<uint160, int> > &addresses,
                          std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results);
     bool removeAddressIndex(const uint256& txBaseHash);
+    void updateTopQualCertAddressIndex(const uint256& scid);
 
     void addSpentIndex(const CTransactionBase& txBase, const CCoinsViewCache &view);
     bool getSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);

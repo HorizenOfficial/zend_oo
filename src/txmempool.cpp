@@ -344,6 +344,36 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
     mapAddressInserted.insert(std::make_pair(txBaseHash, inserted));
 }
 
+void CTxMemPool::updateTopQualCertAddressIndex(const uint256& scid)
+{
+    // we have something to do only if there is still any certificate for this scid
+    if (mapSidechains.count(scid) && !mapSidechains.at(scid).mBackwardCertificates.empty())
+    {
+        const uint256& topQualHash = mapSidechains.at(scid).GetTopQualityCert()->second;
+        const CScCertificate& certTopQual = mapCertificate[topQualHash].GetCertificate();
+
+        LogPrint("mempool", "%s():%d - cert[%s] is now top quality\n", __func__, __LINE__, topQualHash.ToString());
+
+        for (unsigned int m = certTopQual.nFirstBwtPos; m < certTopQual.GetVout().size(); m++)
+        {
+            const CTxOut &out = certTopQual.GetVout()[m];
+  
+            if (out.scriptPubKey.IsPayToScriptHash())
+            {
+                std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
+                CMempoolAddressDeltaKey key(2, uint160(hashBytes), topQualHash, m, 0);
+                mapAddress[key].outStatus = CMempoolAddressDelta::OutputStatus::TOP_QUALITY_CERT_BACKWARD_TRANSFER;
+            }
+            else if (out.scriptPubKey.IsPayToPublicKeyHash())
+            {
+                std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
+                CMempoolAddressDeltaKey key(1, uint160(hashBytes), topQualHash, m, 0);
+                mapAddress[key].outStatus = CMempoolAddressDelta::OutputStatus::TOP_QUALITY_CERT_BACKWARD_TRANSFER;
+            }
+        }
+    }
+}
+
 bool CTxMemPool::getAddressIndex(std::vector<std::pair<uint160, int> > &addresses,
                                  std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results)
 {
@@ -673,16 +703,22 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
             for(const CTxIn& txin: cert.GetVin())
                 mapNextTx.erase(txin.prevout);
 
+            const uint256& scid = cert.GetScId();
+
+            // are we removing a top-quality cert?
+            const uint256& topQualHash = mapSidechains.at(scid).GetTopQualityCert()->second;
+            bool isTopQualityCert = (topQualHash == hash);
+
             // remove certificate hash from list
             LogPrint("mempool", "%s():%d - removing cert [%s] from mapSidechain[%s]\n",
-                __func__, __LINE__, hash.ToString(), cert.GetScId().ToString());
-            mapSidechains.at(cert.GetScId()).EraseCert(hash);
+                __func__, __LINE__, hash.ToString(), scid.ToString());
+            mapSidechains.at(scid).EraseCert(hash);
 
-            if (mapSidechains.at(cert.GetScId()).IsNull())
+            if (mapSidechains.at(scid).IsNull())
             {
-                assert(mapSidechains.at(cert.GetScId()).mBackwardCertificates.empty());
+                assert(mapSidechains.at(scid).mBackwardCertificates.empty());
                 LogPrint("mempool", "%s():%d - erasing scid [%s] from mapSidechain\n", __func__, __LINE__, cert.GetScId().ToString() );
-                mapSidechains.erase(cert.GetScId());
+                mapSidechains.erase(scid);
             }
 
             removedCerts.push_back(cert);
@@ -693,7 +729,15 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
             nCertificatesUpdated++;
 
             if (fAddressIndex)
+            {
                 removeAddressIndex(hash);
+                if (isTopQualityCert)
+                {
+                    // we have removed a top quality cert, if another one is promoted to be the next top quality, we have to
+                    // set the status properly in the address index data
+                    updateTopQualCertAddressIndex(scid);
+                }
+            }
             if (fSpentIndex)
                 removeSpentIndex(hash);
         }
