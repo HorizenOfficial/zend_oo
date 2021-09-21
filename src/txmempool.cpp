@@ -243,19 +243,15 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
     for (unsigned int j = 0; j < txBase.GetVin().size(); j++) {
         const CTxIn& input = txBase.GetVin()[j];
         const CTxOut& prevout = view.GetOutputFor(input);
-        if (prevout.scriptPubKey.IsPayToScriptHash()) {
-            std::vector<unsigned char> hashBytes(prevout.scriptPubKey.begin()+2, prevout.scriptPubKey.begin()+22);
-            CMempoolAddressDeltaKey key(2, uint160(hashBytes), txBaseHash, j, 1);
-            CMempoolAddressDelta delta(nTime, prevout.nValue * -1, input.prevout.hash, input.prevout.n);
-            mapAddress.insert(std::make_pair(key, delta));
-            inserted.push_back(key);
-        } else if (prevout.scriptPubKey.IsPayToPublicKeyHash()) {
-            std::vector<unsigned char> hashBytes(prevout.scriptPubKey.begin()+3, prevout.scriptPubKey.begin()+23);
-            CMempoolAddressDeltaKey key(1, uint160(hashBytes), txBaseHash, j, 1);
-            CMempoolAddressDelta delta(nTime, prevout.nValue * -1, input.prevout.hash, input.prevout.n);
-            mapAddress.insert(std::make_pair(key, delta));
-            inserted.push_back(key);
-        }
+
+        CScript::ScriptType type = prevout.scriptPubKey.GetType();
+        if (type == CScript::UNKNOWN)
+            continue;
+
+        CMempoolAddressDeltaKey key(type, prevout.scriptPubKey.AddressHash(), txBaseHash, j, 1);
+        CMempoolAddressDelta delta(nTime, prevout.nValue * -1, input.prevout.hash, input.prevout.n);
+        mapAddress.insert(std::make_pair(key, delta));
+        inserted.push_back(key);
     }
 
     // default values for cert handling, not used for ordinary txes
@@ -299,18 +295,13 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
             {
                 const CTxOut &out = certSuperseeded.GetVout()[m];
   
-                if (out.scriptPubKey.IsPayToScriptHash())
-                {
-                    std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
-                    CMempoolAddressDeltaKey key(2, uint160(hashBytes), certSuperseededHash, m, 0);
-                    mapAddress[key].outStatus = CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER;
-                }
-                else if (out.scriptPubKey.IsPayToPublicKeyHash())
-                {
-                    std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
-                    CMempoolAddressDeltaKey key(1, uint160(hashBytes), certSuperseededHash, m, 0);
-                    mapAddress[key].outStatus = CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER;
-                }
+                CScript::ScriptType type = out.scriptPubKey.GetType();
+                if (type == CScript::UNKNOWN)
+                    continue;
+
+                CMempoolAddressDeltaKey key(type, out.scriptPubKey.AddressHash(), certSuperseededHash, m, 0);
+                mapAddress[key].outStatus = CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER;
+
             }
         }
     }
@@ -327,18 +318,13 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
             outStatus = certBwtStatus;
         }
 
-        if (out.scriptPubKey.IsPayToScriptHash()) {
-            // should not concern certificates as of now
-            std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
-            CMempoolAddressDeltaKey key(2, uint160(hashBytes), txBaseHash, k, 0);
-            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(nTime, out.nValue, outStatus)));
-            inserted.push_back(key);
-        } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
-            std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
-            CMempoolAddressDeltaKey key(1, uint160(hashBytes), txBaseHash, k, 0);
-            mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(nTime, out.nValue, outStatus)));
-            inserted.push_back(key);
-        }
+        CScript::ScriptType type = out.scriptPubKey.GetType();
+        if (type == CScript::UNKNOWN)
+            continue;
+
+        CMempoolAddressDeltaKey key(type, out.scriptPubKey.AddressHash(), txBaseHash, k, 0);
+        mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(nTime, out.nValue, outStatus)));
+        inserted.push_back(key);
     }
 
     mapAddressInserted.insert(std::make_pair(txBaseHash, inserted));
@@ -358,18 +344,12 @@ void CTxMemPool::updateTopQualCertAddressIndex(const uint256& scid)
         {
             const CTxOut &out = certTopQual.GetVout()[m];
   
-            if (out.scriptPubKey.IsPayToScriptHash())
-            {
-                std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
-                CMempoolAddressDeltaKey key(2, uint160(hashBytes), topQualHash, m, 0);
-                mapAddress[key].outStatus = CMempoolAddressDelta::OutputStatus::TOP_QUALITY_CERT_BACKWARD_TRANSFER;
-            }
-            else if (out.scriptPubKey.IsPayToPublicKeyHash())
-            {
-                std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
-                CMempoolAddressDeltaKey key(1, uint160(hashBytes), topQualHash, m, 0);
-                mapAddress[key].outStatus = CMempoolAddressDelta::OutputStatus::TOP_QUALITY_CERT_BACKWARD_TRANSFER;
-            }
+            CScript::ScriptType type = out.scriptPubKey.GetType();
+            if (type == CScript::UNKNOWN)
+                continue;
+ 
+            CMempoolAddressDeltaKey key(type, out.scriptPubKey.AddressHash(), topQualHash, m, 0);
+            mapAddress[key].outStatus = CMempoolAddressDelta::OutputStatus::TOP_QUALITY_CERT_BACKWARD_TRANSFER;
         }
     }
 }

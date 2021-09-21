@@ -259,10 +259,10 @@ struct CMempoolAddressDelta
     {
         // do not change order or values, rpc clients might relay on that 
         // --
-        NOT_APPLICABLE = -1,                    /**< not an output: the mem map records refer also to inputs */
         ORDINARY_OUTPUT = 0,                    /**< the output of an ordnary tx or a non-bwt output of a certificate (e.g. change) */ 
         TOP_QUALITY_CERT_BACKWARD_TRANSFER = 1, /**< top quality certificate, it has a possibility to reach maturity one day*/
-        LOW_QUALITY_CERT_BACKWARD_TRANSFER = 2  /**< low quality compared to another cert for the same scid in the mempool */
+        LOW_QUALITY_CERT_BACKWARD_TRANSFER = 2, /**< low quality compared to another cert for the same scid in the mempool */
+        NOT_APPLICABLE = 0xFF                   /**< not an output: the mempool map refer to both inputs and outputs */
     };
 
     int64_t time;
