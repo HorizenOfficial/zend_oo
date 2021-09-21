@@ -383,6 +383,9 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
     }
     entry.pushKV("vout", vout);
 
+    // add to entry obj the cross chain outputs
+    Sidechain::AddSidechainOutsToJSON(tx, entry);
+
     UniValue vjoinsplit = TxJoinSplitToJSON(tx);
     entry.pushKV("vjoinsplit", vjoinsplit);
 
