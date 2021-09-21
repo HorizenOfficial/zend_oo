@@ -210,13 +210,13 @@ UniValue blockToDeltasJSON(const CBlock& block, const CBlockIndex* blockindex)
 
             UniValue delta(UniValue::VOBJ);
 
+            uint160 const addrHash = out.scriptPubKey.AddressHash();
+
             if (out.scriptPubKey.IsPayToScriptHash()) {
-                vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
-                delta.pushKV("address", CBitcoinAddress(CScriptID(uint160(hashBytes))).ToString());
+                delta.pushKV("address", CBitcoinAddress(CScriptID(addrHash)).ToString());
 
             } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
-                vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
-                delta.pushKV("address", CBitcoinAddress(CKeyID(uint160(hashBytes))).ToString());
+                delta.pushKV("address", CBitcoinAddress(CKeyID(addrHash)).ToString());
             } else {
                 continue;
             }
