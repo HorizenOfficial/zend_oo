@@ -4,9 +4,10 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_true, assert_equal, initialize_chain_clean, \
-    get_epoch_data, \
+    get_epoch_data, swap_bytes, \
     start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, p2p_port, mark_logs
 from test_framework.mc_test.mc_test import *
 import os
@@ -39,7 +40,7 @@ class sc_rawcert(BitcoinTestFramework):
         self.nodes = []
 
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir, extra_args=
-            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-debug=zendoo_mc_cryptolib', '-logtimemicros=1', '-txindex=1', '-zapwallettxes=2']] * NUMB_OF_NODES)
+            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-scproofqueuesize=0', '-logtimemicros=1', '-txindex=1', '-zapwallettxes=2']] * NUMB_OF_NODES)
 
         for idx, _ in enumerate(self.nodes):
             if idx < (NUMB_OF_NODES - 1):
@@ -86,8 +87,8 @@ class sc_rawcert(BitcoinTestFramework):
         mark_logs("Node 0 generates 1 block", self.nodes, DEBUG_MODE)
         self.nodes[0].generate(1)
         self.sync_all()
-        mark_logs("Node 3 generates 219 block", self.nodes, DEBUG_MODE)
-        self.nodes[3].generate(219)
+        mark_logs("Node 3 generates {} block".format(MINIMAL_SC_HEIGHT-1), self.nodes, DEBUG_MODE)
+        self.nodes[3].generate(MINIMAL_SC_HEIGHT - 1)
         self.sync_all()
 
         # node 1 has just the coinbase which is now mature
@@ -112,6 +113,7 @@ class sc_rawcert(BitcoinTestFramework):
 
         decoded_tx = self.nodes[1].getrawtransaction(creating_tx, 1)
         scid = decoded_tx['vsc_ccout'][0]['scid']
+        scid_swapped = str(swap_bytes(scid))
         mark_logs("created SC id: {}".format(scid), self.nodes, DEBUG_MODE)
 
         #retrieve previous_end_epoch_mc_b_hash
@@ -139,7 +141,7 @@ class sc_rawcert(BitcoinTestFramework):
         # create wCert proof
         quality = 0
         proof = mcTest.create_test_proof(
-            "sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node2], [bt_amount])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node2], [bt_amount])
 
         utx, change = get_spendable(0, CERT_FEE)
         raw_inputs  = [ {'txid' : utx['txid'], 'vout' : utx['vout']}]
@@ -242,7 +244,7 @@ class sc_rawcert(BitcoinTestFramework):
         # create wCert proof
         quality = 1
         proof = mcTest.create_test_proof(
-            "sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [], [])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [], [])
 
         raw_params = {
             "scid": scid,
@@ -313,7 +315,7 @@ class sc_rawcert(BitcoinTestFramework):
         decoded_coinbase = self.nodes[2].getrawtransaction(coinbase, 1)
         miner_quota = decoded_coinbase['vout'][0]['value']
         mark_logs("check that the miner has got the cert fee", self.nodes, DEBUG_MODE)
-        assert_equal(miner_quota, Decimal("7.5") + CERT_FEE)
+        assert_equal(miner_quota, Decimal(MINER_REWARD_POST_H200) + CERT_FEE)
 
         # check that the Node 0 has been charged with the cert fee
         node0_bal_after = self.nodes[0].getbalance()
@@ -378,7 +380,7 @@ class sc_rawcert(BitcoinTestFramework):
             amounts.append(amount)
 
         proof = mcTest.create_test_proof(
-            "sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, pks, amounts)
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, pks, amounts)
 
         raw_params = {
             "scid": scid,
@@ -436,7 +438,7 @@ class sc_rawcert(BitcoinTestFramework):
         quality = 3
 
         proof = mcTest.create_test_proof(
-            "sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [], [])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [], [])
 
         raw_inputs   = [ {'txid' : utx['txid'], 'vout' : utx['vout']}]
         raw_outs     = { self.nodes[0].getnewaddress() : change }
@@ -544,7 +546,7 @@ class sc_rawcert(BitcoinTestFramework):
         quality = 1
 
         proof = mcTest.create_test_proof(
-            "sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [], [])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [], [])
 
         raw_params = {
             "scid": scid,

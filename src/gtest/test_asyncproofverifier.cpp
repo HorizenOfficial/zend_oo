@@ -62,7 +62,7 @@ public:
 
 protected:
 
-    static const uint kDummyAmount = 1;
+    static const CAmount kDummyAmount = 1;
 
     CNode dummyNode;
     CSidechain sidechain;
@@ -139,22 +139,103 @@ TEST_F(AsyncProofVerifierTestSuite, Check_Valid_Certificate_Proof_Processing)
     CScAsyncProofVerifier::GetInstance().LoadDataForCertVerification(*blockchain.CoinsViewCache(), cert, &dummyNode);
 
     // Check that the async proof verifier queue is not empty anymore.
-    ASSERT_EQ(blockchain.PendingAsyncCertProves(), 1);
-    ASSERT_EQ(blockchain.PendingAsyncCswProves(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 1);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), 0);
 
     uint32_t counter = 0;
     const uint32_t delay = 100;
 
     // Wait until the certificate proof is processed for a specific maximum time (to avoid to get stuck).
-    while (blockchain.PendingAsyncCertProves() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
+    while (blockchain.PendingAsyncCertProofs() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
     {
         MilliSleep(delay);
         counter += delay;
     }
 
     // Check that the async proof verifier queue is empty again.
-    ASSERT_EQ(blockchain.PendingAsyncCertProves(), 0);
-    ASSERT_EQ(blockchain.PendingAsyncCswProves(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), 0);
+
+    // Check that the certificate proof has been correctly verified.
+    stats = blockchain.GetAsyncProofVerifierStatistics();
+    ASSERT_EQ(stats.failedCertCounter, 0);
+    ASSERT_EQ(stats.okCertCounter, 1);
+    ASSERT_EQ(stats.failedCswCounter, 0);
+    ASSERT_EQ(stats.okCswCounter, 0);
+}
+
+/**
+ * @brief Test async proof verifier batch verification pause on CZendooLowPrioThreadGuard.
+ */
+TEST_F(AsyncProofVerifierTestSuite, Check_CZendooLowPrioThreadGuard)
+{
+    BlockchainTestManager& blockchain = BlockchainTestManager::GetInstance();
+    blockchain.Reset();
+
+    // Store the test sidechain and extend the blockchain to complete at least one epoch.
+    blockchain.StoreSidechainWithCurrentHeight(sidechainId, sidechain, sidechain.creationBlockHeight + sidechain.fixedParams.withdrawalEpochLength);
+
+    int epochNumber = 0;
+    int64_t quality = 1;
+
+    // Generate a valid certificate.
+    CMutableScCertificate cert = blockchain.GenerateCertificate(sidechainId, epochNumber, quality, testProvingSystem);
+
+    // Check that the async proof verifier queues are empty.
+    AsyncProofVerifierStatistics stats = blockchain.GetAsyncProofVerifierStatistics();
+    ASSERT_EQ(stats.failedCertCounter, 0);
+    ASSERT_EQ(stats.failedCswCounter, 0);
+    ASSERT_EQ(stats.okCertCounter, 0);
+    ASSERT_EQ(stats.okCswCounter, 0);
+
+    // Add the certificate proof to the async queue.
+    CScAsyncProofVerifier::GetInstance().LoadDataForCertVerification(*blockchain.CoinsViewCache(), cert, &dummyNode);
+
+    // Check that the async proof verifier queue is not empty anymore.
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 1);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), 0);
+
+    uint32_t counter = 0;
+    const uint32_t delay = 100;
+
+    {
+        // Lock low priority verification thread - so lock CScAsyncProofVerifier
+        CZendooLowPrioThreadGuard lowPrioThreadGuard(true);
+
+        // Wait until the certificate proof verification is started for a specific maximum time (to avoid to get stuck).
+        while (blockchain.PendingAsyncCertProofs() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
+        {
+            MilliSleep(delay);
+            counter += delay;
+        }
+
+        // Check that Cert is not in the queue, but not yet verified
+        ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 0);
+        stats = blockchain.GetAsyncProofVerifierStatistics();
+        ASSERT_EQ(stats.failedCertCounter, 0);
+        ASSERT_EQ(stats.failedCswCounter, 0);
+        ASSERT_EQ(stats.okCertCounter, 0);
+        ASSERT_EQ(stats.okCswCounter, 0);
+
+        // Unlock the low priority threads
+    }
+
+
+    counter = 0;
+    // Wait until the certificate proof is processed for a specific maximum time (to avoid to get stuck).
+    while (counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
+    {
+        stats = blockchain.GetAsyncProofVerifierStatistics();
+        if(stats.okCertCounter == 1)
+            break;
+
+        MilliSleep(delay);
+        counter += delay;
+    }
+
+    // Check that the async proof verifier queue is empty again.
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), 0);
 
     // Check that the certificate proof has been correctly verified.
     stats = blockchain.GetAsyncProofVerifierStatistics();
@@ -195,22 +276,22 @@ TEST_F(AsyncProofVerifierTestSuite, Check_Invalid_Certificate_Proof_Processing)
     CScAsyncProofVerifier::GetInstance().LoadDataForCertVerification(*blockchain.CoinsViewCache(), cert, &dummyNode);
 
     // Check that the async proof verifier queue is not empty anymore.
-    ASSERT_EQ(blockchain.PendingAsyncCertProves(), 1);
-    ASSERT_EQ(blockchain.PendingAsyncCswProves(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 1);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), 0);
 
     uint32_t counter = 0;
     const uint32_t delay = 100;
 
     // Wait until the certificate proof is processed for a specific maximum time (to avoid to get stuck).
-    while (blockchain.PendingAsyncCertProves() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
+    while (blockchain.PendingAsyncCertProofs() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
     {
         MilliSleep(delay);
         counter += delay;
     }
 
     // Check that the async proof verifier queue is empty again.
-    ASSERT_EQ(blockchain.PendingAsyncCertProves(), 0);
-    ASSERT_EQ(blockchain.PendingAsyncCswProves(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), 0);
 
     // Check that the certificate proof has been detected as invalid.
     stats = blockchain.GetAsyncProofVerifierStatistics();
@@ -257,15 +338,15 @@ TEST_F(AsyncProofVerifierTestSuite, Check_Valid_CSW_Proof_Processing)
     const uint32_t delay = 100;
 
     // Wait until the CSW proof is processed for a specific maximum time (to avoid to get stuck).
-    while (blockchain.PendingAsyncCswProves() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
+    while (blockchain.PendingAsyncCswProofs() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
     {
         MilliSleep(delay);
         counter += delay;
     }
 
     // Check that the async proof verifier queue is empty again.
-    ASSERT_EQ(blockchain.PendingAsyncCertProves(), 0);
-    ASSERT_EQ(blockchain.PendingAsyncCswProves(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), 0);
 
     // Check that the CSW proof has been correctly verified.
     stats = blockchain.GetAsyncProofVerifierStatistics();
@@ -315,15 +396,15 @@ TEST_F(AsyncProofVerifierTestSuite, Check_Invalid_CSW_Proof_Processing)
     const uint32_t delay = 100;
 
     // Wait until the CSW proof is processed for a specific maximum time (to avoid to get stuck).
-    while (blockchain.PendingAsyncCswProves() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
+    while (blockchain.PendingAsyncCswProofs() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
     {
         MilliSleep(delay);
         counter += delay;
     }
 
     // Check that the async proof verifier queue is empty again.
-    ASSERT_EQ(blockchain.PendingAsyncCertProves(), 0);
-    ASSERT_EQ(blockchain.PendingAsyncCswProves(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), 0);
 
     // Check that the CSW proof has been detected as invalid.
     stats = blockchain.GetAsyncProofVerifierStatistics();
@@ -376,15 +457,15 @@ TEST_F(AsyncProofVerifierTestSuite, Check_Tx_With_Several_Csw_Inputs)
     const uint32_t delay = 100;
 
     // Wait until the CSW proof is processed for a specific maximum time (to avoid to get stuck).
-    while (blockchain.PendingAsyncCswProves() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
+    while (blockchain.PendingAsyncCswProofs() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
     {
         MilliSleep(delay);
         counter += delay;
     }
 
     // Check that the async proof verifier queue is empty again.
-    ASSERT_EQ(blockchain.PendingAsyncCertProves(), 0);
-    ASSERT_EQ(blockchain.PendingAsyncCswProves(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), 0);
 
     // Check that the CSW proof has been detected as invalid.
     stats = blockchain.GetAsyncProofVerifierStatistics();
@@ -396,11 +477,11 @@ TEST_F(AsyncProofVerifierTestSuite, Check_Tx_With_Several_Csw_Inputs)
 
 /**
  * @brief Test that in case of failure during the batch verification
- * the verifier processes the proves one by one.
+ * the verifier processes the proofs one by one.
  */
 TEST_F(AsyncProofVerifierTestSuite, Check_One_By_One_Verification)
 {
-    const uint numberOfValidTransactions = 3;
+    const uint8_t numberOfValidTransactions = 3;
 
     BlockchainTestManager& blockchain = BlockchainTestManager::GetInstance();
     blockchain.Reset();
@@ -423,8 +504,8 @@ TEST_F(AsyncProofVerifierTestSuite, Check_One_By_One_Verification)
     // Create the invalid transaction.
     transactions.push_back(CTransaction(blockchain.CreateTransaction(invalidArgs)));
 
-    uint amount = 1;
-    for (int i = 0; i < numberOfValidTransactions; i++)
+    CAmount amount = 1;
+    for (uint8_t i = 0; i < numberOfValidTransactions; i++)
     {
         // Create a new CSW input with valid proof.
         CTxCeasedSidechainWithdrawalInput cswInputValid = blockchain.CreateCswInput(sidechainId, kDummyAmount + i, testProvingSystem);
@@ -445,7 +526,7 @@ TEST_F(AsyncProofVerifierTestSuite, Check_One_By_One_Verification)
     ASSERT_EQ(stats.okCertCounter, 0);
     ASSERT_EQ(stats.okCswCounter, 0);
 
-    // Add the CSW proves to the async queue.
+    // Add the CSW proofs to the async queue.
     for (CTransaction tx : transactions)
     {
         std::string hash = tx.GetHash().ToString();
@@ -453,22 +534,22 @@ TEST_F(AsyncProofVerifierTestSuite, Check_One_By_One_Verification)
     }
 
     // Check that the async proof verifier queue contains all the pushed transactions.
-    ASSERT_EQ(blockchain.PendingAsyncCertProves(), 0);
-    ASSERT_EQ(blockchain.PendingAsyncCswProves(), numberOfValidTransactions + 1);
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), numberOfValidTransactions + 1);
 
     uint32_t counter = 0;
     const uint32_t delay = 100;
 
     // Wait until the CSW proof is processed for a specific maximum time (to avoid to get stuck).
-    while (blockchain.PendingAsyncCswProves() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
+    while (blockchain.PendingAsyncCswProofs() > 0 || counter < blockchain.GetAsyncProofVerifierMaxBatchVerifyDelay() * 2)
     {
         MilliSleep(delay);
         counter += delay;
     }
 
     // Check that the async proof verifier queue is empty again.
-    ASSERT_EQ(blockchain.PendingAsyncCertProves(), 0);
-    ASSERT_EQ(blockchain.PendingAsyncCswProves(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCertProofs(), 0);
+    ASSERT_EQ(blockchain.PendingAsyncCswProofs(), 0);
 
     // Check that the CSW proof has been detected as invalid.
     stats = blockchain.GetAsyncProofVerifierStatistics();
@@ -502,16 +583,15 @@ TEST_F(AsyncProofVerifierTestSuite, Csw_Queue_Move)
 
     for (int i = 0; i < cswMutTransaction.vcsw_ccin.size(); i++)
     {
-        CCswProofVerifierInput input = { .ceasedVk = CScVKey{SAMPLE_CSW_DARLIN_VK},
-                                         .ceasingCumScTxCommTree = cswInput1.ceasingCumScTxCommTree,
-                                         .certDataHash = cswInput1.actCertDataHash,
-                                         .cswProof = cswInput1.scProof,
-                                         .node = &dummyNode,
-                                         .nValue = cswInput1.nValue,
-                                         .nullifier = cswInput1.nullifier,
-                                         .pubKeyHash = cswInput1.pubKeyHash,
-                                         .scId = cswInput1.scId,
-                                         .transactionPtr = std::make_shared<CTransaction>(cswTransaction)};
+        CCswProofVerifierInput input;
+        input.verificationKey = CScVKey{SAMPLE_CSW_DARLIN_VK},
+        input.ceasingCumScTxCommTree = cswInput1.ceasingCumScTxCommTree,
+        input.certDataHash = cswInput1.actCertDataHash,
+        input.proof = cswInput1.scProof,
+        input.nValue = cswInput1.nValue,
+        input.nullifier = cswInput1.nullifier,
+        input.pubKeyHash = cswInput1.pubKeyHash,
+        input.scId = cswInput1.scId,
 
         inputs.push_back(input);
         element.insert(std::make_pair(i, input));
@@ -538,14 +618,12 @@ TEST_F(AsyncProofVerifierTestSuite, Csw_Queue_Move)
     
     for (int i = 0; i < tempElement.size(); i++)
     {
-        ASSERT_EQ(tempElement.at(i).ceasedVk, inputs.at(i).ceasedVk);
+        ASSERT_EQ(tempElement.at(i).verificationKey, inputs.at(i).verificationKey);
         ASSERT_EQ(tempElement.at(i).ceasingCumScTxCommTree, inputs.at(i).ceasingCumScTxCommTree);
         ASSERT_EQ(tempElement.at(i).certDataHash, inputs.at(i).certDataHash);
-        ASSERT_EQ(tempElement.at(i).cswProof, inputs.at(i).cswProof);
-        ASSERT_EQ(tempElement.at(i).node, inputs.at(i).node);
+        ASSERT_EQ(tempElement.at(i).proof, inputs.at(i).proof);
         ASSERT_EQ(tempElement.at(i).nValue, inputs.at(i).nValue);
         ASSERT_EQ(tempElement.at(i).pubKeyHash, inputs.at(i).pubKeyHash);
         ASSERT_EQ(tempElement.at(i).scId, inputs.at(i).scId);
-        ASSERT_EQ(tempElement.at(i).transactionPtr, inputs.at(i).transactionPtr);
     }
 }

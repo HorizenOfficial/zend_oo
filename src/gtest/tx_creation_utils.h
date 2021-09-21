@@ -179,16 +179,16 @@ public:
     // SIDECHAIN HELPERS
     CScCertificate GenerateCertificate(uint256 scId, int epochNumber, int64_t quality, ProvingSystem provingSystem, CTransactionBase* inputTxBase = nullptr) const;
     void GenerateSidechainTestParameters(ProvingSystem provingSystem, TestCircuitType circuitType) const;
-    CScProof GenerateTestCertificateProof(CCertProofVerifierInput certificate, ProvingSystem provingSystem) const;
-    CScProof GenerateTestCswProof(CCswProofVerifierInput csw, ProvingSystem provingSystem) const;
+    CScProof GenerateTestCertificateProof(CCertProofVerifierInput certificate, ProvingSystem provingSystem, TestCircuitType circuitType = TestCircuitType::Certificate) const;
+    CScProof GenerateTestCswProof(CCswProofVerifierInput csw, ProvingSystem provingSystem, TestCircuitType circuitType = TestCircuitType::CSW) const;
     CScVKey GetTestVerificationKey(ProvingSystem provingSystem, TestCircuitType circuitType) const;
     void StoreSidechainWithCurrentHeight(const uint256& scId, const CSidechain& sidechain, int chainActiveHeight) const;
     bool VerifyCertificateProof(CCertProofVerifierInput certificate) const;
     bool VerifyCswProof(CCswProofVerifierInput csw) const;
 
     // ASYNC PROOF VERIFIER HELPERS
-    size_t PendingAsyncCertProves() const;
-    size_t PendingAsyncCswProves() const;
+    size_t PendingAsyncCertProofs() const;
+    size_t PendingAsyncCswProofs() const;
     AsyncProofVerifierStatistics GetAsyncProofVerifierStatistics() const;
     uint32_t GetAsyncProofVerifierMaxBatchVerifyDelay() const;
     void ResetAsyncProofVerifier() const;
@@ -216,6 +216,8 @@ private:
     boost::filesystem::path tempFolderPath;
 
 };
+
+void RandomSidechainField(CFieldElement &fe);
 
 } // namespace blockchain_test_utils
 

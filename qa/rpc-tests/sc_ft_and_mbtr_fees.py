@@ -8,7 +8,7 @@ from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, assert_true, assert_false, initialize_chain_clean, \
     stop_nodes, wait_bitcoinds, \
     start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, disconnect_nodes, mark_logs, \
-    dump_sc_info_record, get_epoch_data
+    dump_sc_info_record, get_epoch_data, swap_bytes
 from test_framework.mc_test.mc_test import *
 import os
 from decimal import Decimal
@@ -35,7 +35,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
         self.nodes = []
 
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir,
-                                 extra_args=[["-sccoinsmaturity=%d" % SC_COINS_MAT, '-logtimemicros=1', '-debug=sc',
+                                 extra_args=[["-sccoinsmaturity=%d" % SC_COINS_MAT, '-scproofqueuesize=0', '-logtimemicros=1', '-debug=sc',
                                               '-debug=py', '-debug=mempool', '-debug=net',
                                               '-debug=bench']] * NUMB_OF_NODES)
 
@@ -197,7 +197,8 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         errorString = ""
         ftFee = Decimal(ftScFee - 1)
-        forwardTransferOuts = [{'toaddress': address, 'amount': ftFee, "scid":scid}]
+        mc_return_address = self.nodes[1].getnewaddress("", True)
+        forwardTransferOuts = [{'toaddress': address, 'amount': ftFee, "scid": scid, "mcReturnAddress": mc_return_address}]
 
         try:
             tx = self.nodes[1].send_to_sidechain(forwardTransferOuts)
@@ -237,7 +238,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         errorString = ""
         ftFee = Decimal(ftScFee)
-        forwardTransferOuts = [{'toaddress': address, 'amount': ftFee, "scid":scid}]
+        forwardTransferOuts = [{'toaddress': address, 'amount': ftFee, "scid": scid, "mcReturnAddress": mc_return_address}]
 
         try:
             tx = self.nodes[1].send_to_sidechain(forwardTransferOuts)
@@ -276,7 +277,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         errorString = ""
         ftFee = Decimal(ftScFee + 1)
-        forwardTransferOuts = [{'toaddress': address, 'amount': ftFee, "scid":scid}]
+        forwardTransferOuts = [{'toaddress': address, 'amount': ftFee, "scid": scid, "mcReturnAddress": mc_return_address}]
 
         try:
             tx = self.nodes[1].send_to_sidechain(forwardTransferOuts)
@@ -332,9 +333,10 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
         mbtrFee = mbtrScFee
         newFtFee = ftFee + 1
         newMbtrFee = mbtrFee + 1
+        scid_swapped = str(swap_bytes(scid))
 
         proof = mcTest.create_test_proof(
-            vk_tag, epoch_number, quality, newMbtrFee, newFtFee, constant, epoch_cum_tree_hash, [pkh_node1], [cert_amount])
+            vk_tag, scid_swapped, epoch_number, quality, newMbtrFee, newFtFee, epoch_cum_tree_hash, constant, [pkh_node1], [cert_amount])
         cert_epoch_0 = self.nodes[1].send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_1, newFtFee, newMbtrFee)
 
@@ -361,8 +363,9 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         mark_logs("Node 0 creates two FTs", self.nodes, DEBUG_MODE)
         errorString = ""
-        forwardTransferOuts1 = [{'toaddress': address, 'amount': newFtFee, "scid":scid}]
-        forwardTransferOuts2 = [{'toaddress': address, 'amount': newFtFee + 1, "scid":scid}]
+        mc_return_address = self.nodes[0].getnewaddress("", True)
+        forwardTransferOuts1 = [{'toaddress': address, 'amount': newFtFee, "scid": scid, "mcReturnAddress": mc_return_address}]
+        forwardTransferOuts2 = [{'toaddress': address, 'amount': newFtFee + 1, "scid": scid, "mcReturnAddress": mc_return_address}]
 
         try:
             ft_tx_1 = self.nodes[0].send_to_sidechain(forwardTransferOuts1)
@@ -400,21 +403,25 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
         self.is_network_split = False
         sync_blocks(self.nodes[:])
 
-        mark_logs("Node 0 checks that two transactions have been removed from mempool", self.nodes, DEBUG_MODE)
+        mark_logs("Node 0 checks that no transactions have been removed from mempool", self.nodes, DEBUG_MODE)
         raw_mempool = self.nodes[0].getrawmempool()
-        assert_false(ft_tx_1 in raw_mempool)
+        assert_true(ft_tx_1 in raw_mempool)
         assert_true(ft_tx_2 in raw_mempool)
-        assert_false(mbtr_tx_1 in raw_mempool)
+        assert_true(mbtr_tx_1 in raw_mempool)
         assert_true(mbtr_tx_2 in raw_mempool)
 
         mark_logs("Node 0 generates one block", self.nodes, DEBUG_MODE)
         last_block_hash = self.nodes[0].generate(1)[-1]
         self.sync_all()
 
-        mark_logs("Check that the two transactions have been included in the last block", self.nodes, DEBUG_MODE)
+        mark_logs("Check that the all transactions have been included in the last block", self.nodes, DEBUG_MODE)
         last_transactions = self.nodes[1].getblock(last_block_hash)['tx']
-        assert_true(len(last_transactions) == 3)
+        raw_mempool = self.nodes[0].getrawmempool()
+        assert_true(len(raw_mempool) == 0)
+        assert_true(len(last_transactions) == 5)
+        assert_true(ft_tx_1 in last_transactions)
         assert_true(ft_tx_2 in last_transactions)
+        assert_true(mbtr_tx_1 in last_transactions)
         assert_true(mbtr_tx_2 in last_transactions)
 
 
@@ -475,7 +482,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
         mark_logs("\nNode 0 creates a new FT transaction with invalid amount", self.nodes, DEBUG_MODE)
 
         scid = decoded_tx['vsc_ccout'][0]['scid']
-        forwardTransferOuts = [{'toaddress': address, 'amount': ftFee, "scid":scid}]
+        forwardTransferOuts = [{'toaddress': address, 'amount': ftFee, "scid": scid, "mcReturnAddress": mc_return_address}]
 
         try:
             self.nodes[0].send_to_sidechain(forwardTransferOuts)
@@ -486,7 +493,7 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         mark_logs("\nNode 0 creates a new FT transaction with valid amount", self.nodes, DEBUG_MODE)
 
-        forwardTransferOuts = [{'toaddress': address, 'amount': newFtFee, "scid":scid}]
+        forwardTransferOuts = [{'toaddress': address, 'amount': newFtFee, "scid": scid, "mcReturnAddress": mc_return_address}]
 
         try:
             self.nodes[0].send_to_sidechain(forwardTransferOuts)

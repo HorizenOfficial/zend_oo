@@ -3,19 +3,21 @@
 # Copyright (c) 2018 The Zencash developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
+import time
+
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
     start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, mark_logs,\
-    get_epoch_data, \
-    assert_false, assert_true
+    get_epoch_data, assert_false, assert_true, swap_bytes
+
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
+
 from test_framework.mc_test.mc_test import *
 import os
 import json
 import pprint
 from decimal import Decimal
 import threading
-import time
 from websocket import create_connection
 from websocket._exceptions import WebSocketConnectionClosedException
 from test_framework.wsproxy import JSONWSException
@@ -81,7 +83,7 @@ class ws_messages(BitcoinTestFramework):
             '-websocket=1', '-debug=ws',
             '-txindex=1',
             '-debug=py', '-debug=sc', '-debug=mempool', '-debug=net',
-            '-debug=cert', '-debug=zendoo_mc_cryptolib', '-logtimemicros=1']
+            '-debug=cert', '-scproofqueuesize=0', '-logtimemicros=1']
 
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir, extra_args = [common_args]*NUMB_OF_NODES)
 
@@ -121,8 +123,8 @@ class ws_messages(BitcoinTestFramework):
         self.nodes[1].generate(1)
         self.sync_all()
 
-        mark_logs("Node 0 generates 220 block", self.nodes, DEBUG_MODE)
-        self.nodes[0].generate(220)
+        mark_logs("Node 0 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
 
         mark_logs("Sending an invalid ws message", self.nodes, DEBUG_MODE)
@@ -145,6 +147,7 @@ class ws_messages(BitcoinTestFramework):
         ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
+        scid_swapped = str(swap_bytes(scid))
         pprint.pprint(scid)
         mark_logs("Node 1 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx), self.nodes, DEBUG_MODE)
         mark_logs("created SC id: {}".format(scid), self.nodes, DEBUG_MODE)
@@ -156,7 +159,8 @@ class ws_messages(BitcoinTestFramework):
         self.sync_all()
 
         # Fwd Transfer to Sc
-        fwd_tx = self.nodes[0].sc_send("abcd", fwt_amount, scid)
+        mc_return_address = self.nodes[0].getnewaddress("", True)
+        fwd_tx = self.nodes[0].sc_send("abcd", fwt_amount, scid, mc_return_address)
         mark_logs("Node0 transfers {} coins to SC with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -176,14 +180,15 @@ class ws_messages(BitcoinTestFramework):
         #Create proof for WCert
         quality = 0
         proof = mcTest.create_test_proof(
-            "sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE,
-            constant, cum_tree_hash, [pkh_node1], [bwt_amount])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE,
+            cum_tree_hash, constant, [pkh_node1], [bwt_amount])
 
         amount_cert_1 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount}]
         mark_logs("Node 0 performs a bwd transfer to Node1 pkh {} of {} coins via Websocket".format(amount_cert_1[0]["pubkeyhash"], amount_cert_1[0]["amount"]), self.nodes, DEBUG_MODE)
         #----------------------------------------------------------------"
         cert_epoch_0 = self.nodes[1].ws_send_certificate(
             scid, epoch_number, quality, cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+
         self.sync_all()
 
         mark_logs("Check cert is in mempool", self.nodes, DEBUG_MODE)
@@ -234,6 +239,21 @@ class ws_messages(BitcoinTestFramework):
         assert_equal(height, height_)
         assert_equal(block_hash, hash_)
         assert_equal(exp_block, block_)
+
+        # ----------------------------------------------------------------"
+        # Test websocket requests processing performance
+        # Should be able to process 100 Requests with less than 1 second
+        mark_logs("Testing websocket request processing performance", self.nodes, DEBUG_MODE)
+        start = time.time()
+        num_requests = 100
+        max_time_spend_sec = 3
+        for _ in range(num_requests):
+            self.nodes[0].ws_get_single_block(height)
+        time_duration = time.time() - start
+        assert_true(time_duration < max_time_spend_sec, "Websocket performs too slow: " + str(time_duration) +
+                    " sec. Expect to take less than " + str(max_time_spend_sec) + " sec.")
+        mark_logs("Actual websocket processing time per " + str(num_requests) + " requests = " +
+                  str(time_duration) + " sec.", self.nodes, DEBUG_MODE)
 
         # ----------------------------------------------------------------"
         # Test get multiple block hashes
@@ -372,5 +392,117 @@ class ws_messages(BitcoinTestFramework):
         t.do_run = False
 
 
+        #---------------------------------------------------------------------------------------------
+        # Test Get Top Quality certificate
+        sc2_vk = mcTest.generate_params("sc2")
+        sc2_constant = generate_random_field_element_hex()
+        SC2_EPOCH_LENGTH = 20
+
+        ret = self.nodes[1].sc_create(SC2_EPOCH_LENGTH, "dada", creation_amount, sc2_vk, "", sc2_constant)
+        creating_tx_sc2 = ret['txid']
+        scid2 = ret['scid']
+        mark_logs("Node 1 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx_sc2), self.nodes, DEBUG_MODE)
+        mark_logs("created SC id: {}".format(scid2), self.nodes, DEBUG_MODE)
+        self.sync_all()
+
+        mark_logs("Node0 confirms Sc creation generating 1 block", self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(1)
+        sc2_creating_height = self.nodes[0].getblockcount()
+        self.sync_all()
+
+        # Fwd Transfer to Sc
+        mc_return_address = self.nodes[0].getnewaddress("", True)
+        fwd_tx = self.nodes[0].sc_send("abcd", fwt_amount, scid2, mc_return_address)
+        mark_logs("Node0 transfers {} coins to SC with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
+        self.sync_all()
+
+        mark_logs("Node0 confirms fwd transfer generating 1 block", self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(1)
+        self.sync_all()
+
+        mark_logs("Node0 generating {} more blocks to achieve end of withdrawal epoch".format(SC2_EPOCH_LENGTH - 2), self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(SC2_EPOCH_LENGTH - 2)
+        self.sync_all()
+
+        epoch_number, cum_tree_hash = get_epoch_data(scid2, self.nodes[0], SC2_EPOCH_LENGTH)
+        mark_logs("epoch_number = {}, cum_tree_hash = {}".format(epoch_number, cum_tree_hash), self.nodes, DEBUG_MODE)
+
+        pkh_node1 = self.nodes[1].getnewaddress("", True)
+
+        #Create proof for WCert
+        cert1_quality = 20
+        scid_swapped = str(swap_bytes(scid2))
+        proof = mcTest.create_test_proof(
+            "sc2", scid_swapped, epoch_number, cert1_quality, MBTR_SC_FEE, FT_SC_FEE,
+            cum_tree_hash, sc2_constant, [pkh_node1], [bwt_amount])
+
+        amount_cert_1 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount}]
+        mark_logs("Node 0 performs a bwd transfer to Node1 pkh {} of {} coins via Websocket".format(amount_cert_1[0]["pubkeyhash"], amount_cert_1[0]["amount"]), self.nodes, DEBUG_MODE)
+
+        cert_1_epoch_0 = self.nodes[1].ws_send_certificate(
+            scid2, epoch_number, cert1_quality, cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+        self.sync_all()
+
+        mark_logs("Check cert is in mempool", self.nodes, DEBUG_MODE)
+        assert_equal(True, cert_1_epoch_0 in self.nodes[0].getrawmempool())
+        decoded_cert_mempool_1 = self.nodes[1].getrawtransaction(cert_1_epoch_0, 1)
+
+        mempool_cert_, chain_cert_ = self.nodes[0].ws_get_top_quality_certificates(scid2)
+        assert_equal(cert1_quality, mempool_cert_['quality'])
+        assert_equal(epoch_number, mempool_cert_['epoch'])
+        assert_equal(cert_1_epoch_0, mempool_cert_['certHash'])
+        assert_equal(decoded_cert_mempool_1['hex'], mempool_cert_['rawCertificateHex'])
+        assert_equal(CERT_FEE, Decimal(mempool_cert_['fee']))
+        assert_equal({}, chain_cert_)
+
+        self.nodes[0].generate(1)
+        assert_equal(False, cert_1_epoch_0 in self.nodes[0].getrawmempool())
+
+        mempool_cert_, chain_cert_ = self.nodes[0].ws_get_top_quality_certificates(scid2)
+        assert_equal(cert1_quality, chain_cert_['quality'])
+        assert_equal(epoch_number, chain_cert_['epoch'])
+        assert_equal(cert_1_epoch_0, chain_cert_['certHash'])
+        assert_equal(decoded_cert_mempool_1['hex'], chain_cert_['rawCertificateHex'])
+        assert_equal({}, mempool_cert_)
+
+        #Create proof for WCert
+        cert_2_quality = 25
+        proof2 = mcTest.create_test_proof(
+            "sc2", scid_swapped, epoch_number, cert_2_quality, MBTR_SC_FEE, FT_SC_FEE,
+            cum_tree_hash, sc2_constant, [pkh_node1], [bwt_amount])
+
+        amount_cert_2 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount}]
+        mark_logs("Node 0 performs a bwd transfer to Node1 pkh {} of {} coins via Websocket".format(amount_cert_1[0]["pubkeyhash"], amount_cert_1[0]["amount"]), self.nodes, DEBUG_MODE)
+
+        cert_2_epoch_0 = self.nodes[1].ws_send_certificate(
+            scid2, epoch_number, cert_2_quality, cum_tree_hash, proof2, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+        self.sync_all()
+
+        decoded_cert_mempool_2 = self.nodes[1].getrawtransaction(cert_2_epoch_0, 1)
+        mempool_cert_, chain_cert_ = self.nodes[0].ws_get_top_quality_certificates(scid2)
+        assert_equal(cert_2_quality, mempool_cert_['quality'])
+        assert_equal(epoch_number, mempool_cert_['epoch'])
+        assert_equal(cert_2_epoch_0, mempool_cert_['certHash'])
+        assert_equal(decoded_cert_mempool_2['hex'], mempool_cert_['rawCertificateHex'])
+        assert_equal(CERT_FEE, Decimal(mempool_cert_['fee']))
+        assert_equal(cert1_quality, chain_cert_['quality'])
+        assert_equal(epoch_number, chain_cert_['epoch'])
+        assert_equal(cert_1_epoch_0, chain_cert_['certHash'])
+        assert_equal(decoded_cert_mempool_1['hex'], chain_cert_['rawCertificateHex'])
+
+        self.nodes[0].generate(SC2_EPOCH_LENGTH)
+        epoch_number, cum_tree_hash = get_epoch_data(scid2, self.nodes[0], SC2_EPOCH_LENGTH)
+        self.sync_all()
+        assert_equal(1, epoch_number)
+
+        mempool_cert_, chain_cert_ = self.nodes[0].ws_get_top_quality_certificates(scid2)
+        assert_equal(cert_2_quality, chain_cert_['quality'])
+        assert_equal(0, chain_cert_['epoch'])
+        assert_equal(cert_2_epoch_0, chain_cert_['certHash'])
+        assert_equal(decoded_cert_mempool_2['hex'], chain_cert_['rawCertificateHex'])
+        assert_equal({}, mempool_cert_)
+
+
 if __name__ == '__main__':
     ws_messages().main()
+

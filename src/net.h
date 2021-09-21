@@ -34,6 +34,9 @@
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 
+// for max block size
+#include <consensus/consensus.h>
+
 
 
 class CAddrMan;
@@ -52,8 +55,11 @@ static const int TIMEOUT_INTERVAL = 20 * 60;
 static const unsigned int MAX_INV_SZ = 50000;
 /** The maximum number of new addresses to accumulate before announcing. */
 static const unsigned int MAX_ADDR_TO_SEND = 1000;
-/** Maximum length of incoming protocol messages (no message over 2 MiB is currently acceptable). */
-static const unsigned int MAX_PROTOCOL_MESSAGE_LENGTH = 2 * 1024 * 1024;
+/** Maximum length of incoming protocol messages (no message over 4 MiB is currently acceptable). */
+static const unsigned int MAX_PROTOCOL_MESSAGE_LENGTH = 4 * 1024 * 1024;
+static_assert((MAX_PROTOCOL_MESSAGE_LENGTH >= MAX_BLOCK_SIZE),
+    "net.h MAX_PROTOCOL_MESSAGE_LENGTH must be greater or equal than max block size!");
+
 /** -listen default */
 static const bool DEFAULT_LISTEN = true;
 /** The maximum number of entries in mapAskFor */
@@ -84,8 +90,6 @@ EVP_PKEY *generate_key();
 X509 *generate_x509(EVP_PKEY *pkey);
 bool write_to_disk(EVP_PKEY *pkey, X509 *x509);
 void configure_context(SSL_CTX *ctx, bool server_side);
-static boost::filesystem::path tlsKeyPath;
-static boost::filesystem::path tlsCertPath;
 
 // OpenSSL related variables for metrics.cpp
 static std::string routingsecrecy;
@@ -324,6 +328,14 @@ protected:
     // Basic fuzz-testing
     void Fuzz(int nChance); // modifies ssSend
 
+    enum class eTlsOption {
+        FALLBACK_UNSET = 0,
+        FALLBACK_FALSE = 1,
+        FALLBACK_TRUE = 2
+    };
+    static eTlsOption tlsFallbackNonTls;
+    static eTlsOption tlsValidate;
+
 public:
     uint256 hashContinue;
     int nStartingHeight;
@@ -474,6 +486,12 @@ public:
             AbortMessage();
             throw;
         }
+    }
+
+    // virtual for UT
+    virtual void PushInvs(const char* pszCommand, const std::vector<CInv>& invVec)
+    {
+    	return PushMessage(pszCommand, invVec);
     }
 
     template<typename T1>
@@ -656,6 +674,13 @@ public:
 
     static uint64_t GetTotalBytesRecv();
     static uint64_t GetTotalBytesSent();
+
+    // resource deallocation on cleanup, called at node shutdown
+    static void NetCleanup();
+
+    // returns the value of the tlsfallbacknontls and tlsvalidate flags set at zend startup (see init.cpp)
+    static bool GetTlsFallbackNonTls();
+    static bool GetTlsValidate();
 };
 
 

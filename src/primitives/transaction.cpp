@@ -169,6 +169,12 @@ bool JSDescription::Verify(
     libzcash::ProofVerifier& verifier,
     const uint256& joinSplitPubKey
 ) const {
+
+    if (!verifier.isVerificationEnabled())
+    {
+        return true;
+    }
+
     auto pv = SproutProofVerifier(params, verifier, joinSplitPubKey, *this);
     return boost::apply_visitor(pv, proof);
 }
@@ -279,8 +285,8 @@ uint256 CTxForwardTransferOut::GetHash() const
 
 std::string CTxForwardTransferOut::ToString() const
 {
-    return strprintf("CTxForwardTransferOut(nValue=%d.%08d, address=%s, scId=%s)",
-        nValue / COIN, nValue % COIN, HexStr(address).substr(0, 30), scId.ToString() );
+    return strprintf("CTxForwardTransferOut(nValue=%d.%08d, address=%s, scId=%s, mcReturnAddress=%s)",
+        nValue / COIN, nValue % COIN, HexStr(address).substr(0, 30), scId.ToString(), mcReturnAddress.ToString());
 }
 
 //----------------------------------------------------------------------------
@@ -512,10 +518,10 @@ CAmount CTransactionBase::GetJoinSplitValueIn() const
 
 bool CTransaction::CheckSerializedSize(CValidationState &state) const
 {
-    BOOST_STATIC_ASSERT(MAX_BLOCK_SIZE > MAX_TX_SIZE); // sanity
     uint32_t size = GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
     if (size > MAX_TX_SIZE) {
-        LogPrintf("CheckSerializedSize: Tx id = %s, size = %d, limit = %d, tx = %s", GetHash().ToString(), size, MAX_TX_SIZE, ToString());
+        LogPrintf("%s():%d - Tx id = %s, size = %d, limit = %d, tx = %s\n",
+            __func__, __LINE__, GetHash().ToString(), size, MAX_TX_SIZE, ToString());
         return state.DoS(100, error("checkSerializedSizeLimits(): size limits failed"),
                          CValidationState::Code::INVALID, "bad-txns-oversize");
     }
@@ -1105,7 +1111,7 @@ bool CTransaction::ContextualCheck(CValidationState& state, int nHeight, int dos
 
 void CTransaction::AddJoinSplitToJSON(UniValue& entry) const
 {
-    entry.push_back(Pair("vjoinsplit", TxJoinSplitToJSON(*this)));
+    entry.pushKV("vjoinsplit", TxJoinSplitToJSON(*this));
 }
 
 void CTransaction::AddCeasedSidechainWithdrawalInputsToJSON(UniValue& entry) const

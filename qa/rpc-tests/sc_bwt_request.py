@@ -7,7 +7,9 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import initialize_chain_clean, assert_equal, assert_true, assert_false, \
     start_nodes, stop_nodes, get_epoch_data, \
-    sync_blocks, sync_mempools, connect_nodes_bi, wait_bitcoinds, mark_logs
+    sync_blocks, sync_mempools, connect_nodes_bi, wait_bitcoinds, mark_logs, \
+    swap_bytes
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.mc_test.mc_test import *
 import os
 from decimal import Decimal
@@ -37,7 +39,7 @@ class sc_bwt_request(BitcoinTestFramework):
     def setup_network(self, split=False):
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir, extra_args= [['-blockprioritysize=0',
             '-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-debug=zendoo_mc_cryptolib',
-            '-logtimemicros=1', '-sccoinsmaturity=%d' % SC_COINS_MAT]] * NUMB_OF_NODES )
+            '-scproofqueuesize=0', '-logtimemicros=1', '-sccoinsmaturity=%d' % SC_COINS_MAT]] * NUMB_OF_NODES )
 
         for idx, _ in enumerate(self.nodes):
             if idx < (NUMB_OF_NODES-1):
@@ -77,8 +79,8 @@ class sc_bwt_request(BitcoinTestFramework):
         blocks.extend(self.nodes[1].generate(1))
         self.sync_all()
 
-        mark_logs("Node 0 generates 220 block to reach sidechain height", self.nodes, DEBUG_MODE)
-        blocks.extend(self.nodes[0].generate(220))
+        mark_logs("Node 0 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        blocks.extend(self.nodes[0].generate(MINIMAL_SC_HEIGHT))
         self.sync_all()
 
         #generate wCertVk and constant
@@ -337,7 +339,11 @@ class sc_bwt_request(BitcoinTestFramework):
         mark_logs("Node0 creates a tx with a few bwt request and mixed outputs using raw version of cmd", self.nodes, DEBUG_MODE)
         outputs = { self.nodes[0].getnewaddress() :4.998 }
         sc_cr = [ {"epoch_length":10, "amount":1.0, "address":"effe", "wCertVk":vk3, "constant":c3} ]
-        sc_ft = [ {"address":"abc", "amount":1.0, "scid":scid2}, {"address":"cde", "amount":2.0, "scid":scid2} ]
+        mc_return_address = self.nodes[0].getnewaddress("", True)
+        sc_ft = [
+            {"address": "abc", "amount": 1.0, "scid": scid2, "mcReturnAddress": mc_return_address},
+            {"address": "cde", "amount": 2.0, "scid": scid2, "mcReturnAddress": mc_return_address}
+        ]
         sc_bwt3 = [
             {'vScRequestData':fe2, 'scFee':Decimal("0.13"), 'scid':scid1, 'pubkeyhash':pkh2 },
             {'vScRequestData':fe3, 'scFee':Decimal("0.23"), 'scid':scid2, 'pubkeyhash':pkh3 },
@@ -410,8 +416,10 @@ class sc_bwt_request(BitcoinTestFramework):
         #empty sc1 balance
         bwt_amount = creation_amount1
         amounts = [{"pubkeyhash":pkh2, "amount":bwt_amount}]
+        scid1_swapped = str(swap_bytes(scid1))
+
         proof = mcTest.create_test_proof(
-            "sc1", epoch_number, 0, mbtrScFee, ftScFee, c1, epoch_cum_tree_hash, [pkh2], [bwt_amount])
+            "sc1", scid1_swapped, epoch_number, 0, mbtrScFee, ftScFee, epoch_cum_tree_hash, c1, [pkh2], [bwt_amount])
 
         mark_logs("Node1 sends a cert withdrawing the contribution of the creation amount to the sc balance", self.nodes, DEBUG_MODE)
         try:
@@ -532,9 +540,10 @@ class sc_bwt_request(BitcoinTestFramework):
         bt_amount = Decimal("1.0")
         pkh_node1 = self.nodes[1].getnewaddress("", True)
         quality = 10
- 
+        scid2_swapped = str(swap_bytes(scid2))
+
         proof = mcTest.create_test_proof(
-            "sc2", epoch_number, quality, mbtrScFee, ftScFee, c2, epoch_cum_tree_hash, [pkh_node1], [bt_amount])
+            "sc2", scid2_swapped, epoch_number, quality, mbtrScFee, ftScFee, epoch_cum_tree_hash, c2, [pkh_node1], [bt_amount])
  
         amount_cert = [{"pubkeyhash": pkh_node1, "amount": bt_amount}]
         try:

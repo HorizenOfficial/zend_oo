@@ -53,13 +53,16 @@ UniValue z_getpaymentdisclosure(const UniValue& params, bool fHelp)
             "\nGenerate a payment disclosure for a given joinsplit output.\n"
             "\nEXPERIMENTAL FEATURE\n"
             + strPaymentDisclosureDisabledMsg +
+            
             "\nArguments:\n"
-            "1. \"txid\"            (string, required) \n"
-            "2. \"js_index\"        (numeric, required) \n"
-            "3. \"output_index\"    (numeric, required) \n"
-            "4. \"message\"         (string, optional) \n"
+
+            "1. \"txid\"            (string, required) the transaction id\n"
+            "2. \"js_index\"        (numeric, required) the js index\n"
+            "3. \"output_index\"    (numeric, required) the output index\n"
+            "4. \"message\"         (string, optional) the message\n"
+
             "\nResult:\n"
-            "\"paymentdisclosure\"  (string) Hex data string, with \"zpd:\" prefix.\n"
+            "\"paymentdisclosure\"  (string) hex data string, with \"zpd:\" prefix.\n"
             "\nExamples:\n"
             + HelpExampleCli("z_getpaymentdisclosure", "96f12882450429324d5f3b48630e3168220e49ab7b0f066e5c2935a6b88bb0f2 0 0 \"refund\"")
             + HelpExampleRpc("z_getpaymentdisclosure", "\"96f12882450429324d5f3b48630e3168220e49ab7b0f066e5c2935a6b88bb0f2\", 0, 0, \"refund\"")
@@ -164,8 +167,27 @@ UniValue z_validatepaymentdisclosure(const UniValue& params, bool fHelp)
             "\nValidates a payment disclosure.\n"
             "\nEXPERIMENTAL FEATURE\n"
             + strPaymentDisclosureDisabledMsg +
+            
             "\nArguments:\n"
-            "1. \"paymentdisclosure\"     (string, required) Hex data string, with \"zpd:\" prefix.\n"
+            "1. \"paymentdisclosure\"                (string, required) hex data string, with \"zpd:\" prefix\n"
+            
+            "\nResult:\n"
+            "{\n                                     (array) information about the payment disclosure\n"
+                "\"txid\": \"hash\",                 (string) the transaction id\n"
+                "\"jsIndex\": n,                     (numeric) the js index\n"
+                "\"outputIndex\": n,                 (numeric) the output index\n"
+                "\"version\": nn,                    (numeric) version 0 = experimental, 1 = first production version\n"
+                "\"onetimePrivKey\": \"hex\",        (string) one time private key for validate the payment disclosure\n"
+                "\"message\": \"xxxxx\",             (string) message of the payment disclosure\n"
+                "\"joinSplitPubKey\": \"hex\",       (string) the hex-coded public key\n"
+                "\"signatureVerified\": true|false,  (boolean) if the signature is verified or not\n"
+                "\"paymentAddress\": \"zenaddress\", (string) the ZEN address for the payment\n"
+                "\"memo\": \"hex\",                  (string) hexademical string representation of memo field\n"
+                "\"value\": nnn,                     (numeric) the total value\n"
+                "\"commitmentMatch\": true|false,    (boolean) if the commitment derived from payment disclosure match blockchain commitment or not\n"
+                "\"valid\": true|false               (boolean) if the payment disclosure is valid or not\n"
+            "}\n"
+            
             "\nExamples:\n"
             + HelpExampleCli("z_validatepaymentdisclosure", "\"zpd:706462ff004c561a0447ba2ec51184e6c204...\"")
             + HelpExampleRpc("z_validatepaymentdisclosure", "\"zpd:706462ff004c561a0447ba2ec51184e6c204...\"")
@@ -230,29 +252,29 @@ UniValue z_validatepaymentdisclosure(const UniValue& params, bool fHelp)
 
     UniValue errs(UniValue::VARR);
     UniValue o(UniValue::VOBJ);
-    o.push_back(Pair("txid", pd.payload.txid.ToString()));
+    o.pushKV("txid", pd.payload.txid.ToString());
 
     // Check js_index
     if (pd.payload.js >= tx.GetVjoinsplit().size()) {
         errs.push_back("Payment disclosure refers to an invalid joinsplit index");
     }
-    o.push_back(Pair("jsIndex", pd.payload.js));
+    o.pushKV("jsIndex", pd.payload.js);
 
     if (pd.payload.n < 0 || pd.payload.n >= ZC_NUM_JS_OUTPUTS) {
         errs.push_back("Payment disclosure refers to an invalid output index");
     }
-    o.push_back(Pair("outputIndex", pd.payload.n));
-    o.push_back(Pair("version", pd.payload.version));
-    o.push_back(Pair("onetimePrivKey", pd.payload.esk.ToString()));
-    o.push_back(Pair("message", pd.payload.message));
-    o.push_back(Pair("joinSplitPubKey", tx.joinSplitPubKey.ToString()));
+    o.pushKV("outputIndex", pd.payload.n);
+    o.pushKV("version", pd.payload.version);
+    o.pushKV("onetimePrivKey", pd.payload.esk.ToString());
+    o.pushKV("message", pd.payload.message);
+    o.pushKV("joinSplitPubKey", tx.joinSplitPubKey.ToString());
 
     // Verify the payment disclosure was signed using the same key as the transaction i.e. the joinSplitPrivKey.
     uint256 dataToBeSigned = SerializeHash(pd.payload, SER_GETHASH, 0);
     bool sigVerified = (crypto_sign_verify_detached(pd.payloadSig.data(),
         dataToBeSigned.begin(), 32,
         tx.joinSplitPubKey.begin()) == 0);
-    o.push_back(Pair("signatureVerified", sigVerified));
+    o.pushKV("signatureVerified", sigVerified);
     if (!sigVerified) {
         errs.push_back("Payment disclosure signature does not match transaction signature");
     }
@@ -263,7 +285,7 @@ UniValue z_validatepaymentdisclosure(const UniValue& params, bool fHelp)
     if (!address.Set(zaddr)) {
         errs.push_back("Payment disclosure refers to an invalid payment address");
     } else {
-        o.push_back(Pair("paymentAddress", address.ToString()));
+        o.pushKV("paymentAddress", address.ToString());
 
         try {
             // Decrypt the note to get value and memo field
@@ -283,15 +305,15 @@ UniValue z_validatepaymentdisclosure(const UniValue& params, bool fHelp)
             ssPlain >> npt;
 
             string memoHexString = HexStr(npt.memo().data(), npt.memo().data() + npt.memo().size());
-            o.push_back(Pair("memo", memoHexString));
-            o.push_back(Pair("value", ValueFromAmount(npt.value())));
+            o.pushKV("memo", memoHexString);
+            o.pushKV("value", ValueFromAmount(npt.value()));
 
             // Check the blockchain commitment matches decrypted note commitment
             uint256 cm_blockchain =  jsdesc.commitments[pd.payload.n];
             Note note = npt.note(zaddr);
             uint256 cm_decrypted = note.cm();
             bool cm_match = (cm_decrypted == cm_blockchain);
-            o.push_back(Pair("commitmentMatch", cm_match));
+            o.pushKV("commitmentMatch", cm_match);
             if (!cm_match) {
                 errs.push_back("Commitment derived from payment disclosure does not match blockchain commitment");
             }
@@ -301,9 +323,9 @@ UniValue z_validatepaymentdisclosure(const UniValue& params, bool fHelp)
     }
 
     bool isValid = errs.empty();
-    o.push_back(Pair("valid", isValid));
+    o.pushKV("valid", isValid);
     if (!isValid) {
-        o.push_back(Pair("errors", errs));
+        o.pushKV("errors", errs);
     }
 
     return o;

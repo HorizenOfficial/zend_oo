@@ -4,6 +4,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_true, assert_false, assert_equal, mark_logs, swap_bytes
 from test_framework.mininode import COIN, hash256, ser_string
@@ -95,7 +96,7 @@ def template_to_bytes(tmpl, txlist, certlist, input_sc_commitment = None):
     sc_commitment = b'\0'*32
     if input_sc_commitment != None:
         sc_commitment = input_sc_commitment
-        mark_logs(("computed sc_commitment: %s" % swap_bytes(binascii.hexlify(sc_commitment))), NODE_LIST, DEBUG_MODE)
+        mark_logs(("sc_commitment set in block template: %s" % swap_bytes(binascii.hexlify(sc_commitment))), NODE_LIST, DEBUG_MODE)
     timestamp = pack('<L', tmpl['curtime'])
     nonce = b'\0'*32
     soln = b'\0'
@@ -136,14 +137,23 @@ class GetBlockTemplateProposalTest(BitcoinTestFramework):
         self.sync_all()
 
         sc_fork_reached = False
-        mark_logs(("active chain height = %d: testing before sidechain fork" %  self.nodes[0].getblockcount()), self.nodes, DEBUG_MODE)
+        currentHeight = self.nodes[0].getblockcount()
+        mark_logs(("active chain height = %d: testing before sidechain fork" % currentHeight), self.nodes, DEBUG_MODE)
         self.doTest(sc_fork_reached)
 
-        # reach the fork where certificates are supported
-        self.nodes[0].generate(20) 
+        # reach the height where the next block is the last before the fork point where certificates are supported
+        delta = MINIMAL_SC_HEIGHT - currentHeight - 2;
+        self.nodes[0].generate(delta) 
         self.sync_all()
 
-        mark_logs(("active chain height = %d: testing after sidechain fork" %  self.nodes[0].getblockcount()), self.nodes, DEBUG_MODE)
+        mark_logs(("active chain height = %d: testing last block before sidechain fork" %  self.nodes[0].getblockcount()), self.nodes, DEBUG_MODE)
+        self.doTestJustBeforeScFork()
+
+        # reach the fork where certificates are supported
+        self.nodes[0].generate(1) 
+        self.sync_all()
+
+        mark_logs(("active chain height = %d: testing block which will be at sidechain fork" %  self.nodes[0].getblockcount()), self.nodes, DEBUG_MODE)
         sc_fork_reached = True
 
         # create a sidechain and a certificate for it in the mempool
@@ -173,21 +183,60 @@ class GetBlockTemplateProposalTest(BitcoinTestFramework):
         mbtrScFee = 0.1
         fee = 0.000023
 
-        proof = mcTest.create_test_proof("sc1", 0, 0, mbtrScFee, ftScFee, constant, epoch_cum_tree_hash, [pkh], [SC_CERT_AMOUNT])
-        cert = self.nodes[0].send_certificate(scid, 0, 0, epoch_cum_tree_hash,
-            proof, amounts, ftScFee, mbtrScFee, fee)
+        scid_swapped = str(swap_bytes(scid))
+        proof = mcTest.create_test_proof("sc1", scid_swapped, 0, 0, mbtrScFee, ftScFee, epoch_cum_tree_hash, constant, [pkh], [SC_CERT_AMOUNT])
+        cert = self.nodes[0].send_certificate(scid, 0, 0, epoch_cum_tree_hash, proof, amounts, ftScFee, mbtrScFee, fee)
         self.sync_all()
         assert_true(cert in self.nodes[0].getrawmempool() ) 
+        mark_logs("cert issued : {}".format(cert), self.nodes, DEBUG_MODE)
 
         # just one more tx, for having 3 generic txobjs and testing malleability of cert (Test 4)
         tx = self.nodes[0].sendtoaddress(self.nodes[0].getnewaddress(), 0.01)
         self.sync_all()
         assert_true(tx in self.nodes[0].getrawmempool() ) 
 
+        mark_logs("starting test: fork{}".format(sc_fork_reached), self.nodes, DEBUG_MODE)
         self.doTest(sc_fork_reached)
 
         self.nodes[0].generate(1) 
         self.sync_all()
+
+
+    def doTestJustBeforeScFork(self):
+
+        node = self.nodes[0]
+
+        tmpl = node.getblocktemplate()
+        if 'coinbasetxn' not in tmpl:
+            rawcoinbase = encodeUNum(tmpl['height'])
+            rawcoinbase += b'\x01-'
+            hexcoinbase = b2x(rawcoinbase)
+            hexoutval = b2x(pack('<Q', tmpl['coinbasevalue']))
+            tmpl['coinbasetxn'] = {'data': '01000000' + '01' + '0000000000000000000000000000000000000000000000000000000000000000ffffffff' + ('%02x' % (len(rawcoinbase),)) + hexcoinbase + 'fffffffe' + '01' + hexoutval + '00' + '00000000'}
+        txlist = list(bytearray(a2b_hex(a['data'])) for a in (tmpl['coinbasetxn'],) + tuple(tmpl['transactions']))
+        certlist = []
+
+        # Test: set a non-zero 'hashReserved' field (32 bytes after mkl tree field); this is used from the sc fork on, renamed as 'scTxsCommitment'
+        rawtmpl = template_to_bytes(tmpl, txlist, certlist)
+
+        # a 32 null byte array string
+        nb1 = b2x(bytearray(32))
+
+        nb2 = b2x(rawtmpl[4+32+32:4+32+32+32])
+        # check hashReserved field is currently null 
+        assert_true(nb1 == nb2)
+
+        for j in range(0,32):
+            rawtmpl[4+32+32+j] = j
+
+        # hashReserved is not null now
+        nb3 = b2x(rawtmpl[4+32+32:4+32+32+32])
+        assert_false(nb3 == nb2)
+
+        rsp = node.getblocktemplate({'data':b2x(rawtmpl),'mode':'proposal'})
+        # assert block validity
+        assert_equal(rsp, None)
+
 
 
     def doTest(self, sc_fork_reached):
@@ -321,6 +370,7 @@ class GetBlockTemplateProposalTest(BitcoinTestFramework):
             # cert only specific tests
 
             # Test 13: Bad cert count
+            mark_logs("Bad cert count (expecting failure...)", NODE_LIST, DEBUG_MODE)
             certlist.append(b'')
             try:
                 assert_template(node, tmpl, txlist, certlist, 'n/a')
@@ -329,6 +379,7 @@ class GetBlockTemplateProposalTest(BitcoinTestFramework):
                 certlist.pop()
 
             # Test 14: Truncated final cert
+            mark_logs("Truncated final cert (expecting failure...)", NODE_LIST, DEBUG_MODE)
             lastbyte = certlist[-1].pop()
             try:
                 assert_template(node, tmpl, txlist, certlist, 'n/a')
@@ -336,10 +387,15 @@ class GetBlockTemplateProposalTest(BitcoinTestFramework):
                 pass  # Expected
             certlist[-1].append(lastbyte)
 
-            # Test 15: wrong commitment
-            # compute commitment for the only contribution of certificate (no tx/btr)
-            fake_commitment = dblsha(b'\w'*32)
-            assert_template(node, tmpl, txlist, certlist, 'bad-hashScTxsCommitment', fake_commitment)
+            # Test 15: invalid field element as a commitment tree
+            fake_commitment = (b'\xff'*32)
+            fake_commitment_str = binascii.hexlify(fake_commitment)
+            assert_template(node, tmpl, txlist, certlist, 'invalid-sc-txs-commitment', fake_commitment)
+
+            # Test 16: wrong commitment, the block will be rejected because it is different from the one computed using tx/certs
+            rnd_fe = generate_random_field_element_hex()
+            fake_commitment = a2b_hex(rnd_fe)
+            assert_template(node, tmpl, txlist, certlist, 'bad-sc-txs-commitment', fake_commitment)
 
 
 if __name__ == '__main__':

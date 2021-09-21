@@ -10,6 +10,7 @@ from test_framework.util import assert_equal, initialize_chain_clean, \
     wait_bitcoinds, stop_nodes, sync_mempools, sync_blocks, \
     disconnect_nodes, advance_epoch, swap_bytes
 
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.mc_test.mc_test import *
 
 from decimal import Decimal
@@ -32,7 +33,7 @@ class CswActCertDataTest(BitcoinTestFramework):
 
     def setup_network(self, split=False):
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir,
-                                 extra_args=[["-sccoinsmaturity=0", '-logtimemicros=1', '-debug=sc', '-debug=py',
+                                 extra_args=[["-sccoinsmaturity=0", '-scproofqueuesize=0', '-logtimemicros=1', '-debug=sc', '-debug=py',
                                               '-debug=mempool', '-debug=net', '-debug=bench']] * NUMB_OF_NODES)
 
         if not split:
@@ -64,11 +65,13 @@ class CswActCertDataTest(BitcoinTestFramework):
         '''
         Create two SCs, advance two epochs and then let them cease.
         Test some CSW txes, verifying that active cert data is correctly handled
+        Also, the SC creation constant has not been instantiated, therefore cert and csw proof verification
+        is tested without using such constant as (optional) parameter.
         Restart the network and check DB integrity.
         '''
 
         # prepare some coins 
-        self.nodes[0].generate(220)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
         prev_epoch_hash = self.nodes[0].getbestblockhash()
 
@@ -80,11 +83,11 @@ class CswActCertDataTest(BitcoinTestFramework):
         cswMcTest = CSWTestUtils(self.options.tmpdir, self.options.srcdir)
 
         # generate wCertVk and constant
-        vk1 = certMcTest.generate_params("sc1")
+        vk1 = certMcTest.generate_params("sc1", "cert_no_const")
         vk2 = certMcTest.generate_params("sc2")
-        cswVk1 = cswMcTest.generate_params("sc1")
+        cswVk1 = cswMcTest.generate_params("sc1", "csw_no_const")
         cswVk2 = cswMcTest.generate_params("sc2")
-        constant1 = generate_random_field_element_hex()
+        constant1 = None
         constant2 = generate_random_field_element_hex()
 
         sc_cr = []
@@ -130,7 +133,7 @@ class CswActCertDataTest(BitcoinTestFramework):
 
         cert, epoch_number = advance_epoch(
             certMcTest, self.nodes[0], self.sync_all,
-            scid2, "sc2", constant2, sc_epoch_len, generate=False) # do not generate
+            scid2, "sc2", constant2, sc_epoch_len, generateNumBlocks=0) # do not generate
 
         mark_logs("\n==> certificate for SC2 epoch {} {}".format(epoch_number, cert), self.nodes, DEBUG_MODE)
 
@@ -142,7 +145,7 @@ class CswActCertDataTest(BitcoinTestFramework):
 
         cert, epoch_number = advance_epoch(
             certMcTest, self.nodes[0], self.sync_all,
-             scid2, "sc2", constant2, sc_epoch_len, generate=False) # do not generate
+             scid2, "sc2", constant2, sc_epoch_len, generateNumBlocks=0) # do not generate
 
         mark_logs("\n==> certificate for SC2 epoch {} {}".format(epoch_number, cert), self.nodes, DEBUG_MODE)
 
@@ -192,17 +195,21 @@ class CswActCertDataTest(BitcoinTestFramework):
 
         scid1_swapped = swap_bytes(scid1)
         sc_proof1_1 = cswMcTest.create_test_proof(
-                "sc1", sc_csw_amount, str(scid1_swapped), null_1_1, pkh_mc_address, ceasingCumScTxCommTree1, actCertData1)
+            "sc1", sc_csw_amount, str(scid1_swapped), null_1_1, pkh_mc_address, ceasingCumScTxCommTree1,
+            actCertData1, constant1)
         
         sc_proof1_2 = cswMcTest.create_test_proof(
-        "sc1", sc_csw_amount, str(scid1_swapped), null_1_2, pkh_mc_address, ceasingCumScTxCommTree1, actCertData1) 
+            "sc1", sc_csw_amount, str(scid1_swapped), null_1_2, pkh_mc_address, ceasingCumScTxCommTree1,
+            actCertData1, constant1)
 
         sc_proof1_3 = cswMcTest.create_test_proof(
-        "sc1", sc_csw_amount, str(scid1_swapped), null_1_3, pkh_mc_address, ceasingCumScTxCommTree1, actCertData1) 
+            "sc1", sc_csw_amount, str(scid1_swapped), null_1_3, pkh_mc_address, ceasingCumScTxCommTree1, 
+            actCertData1, constant1)
 
         scid2_swapped = swap_bytes(scid2)
         sc_proof2 = cswMcTest.create_test_proof(
-                "sc2", sc_csw_amount, str(scid2_swapped), null_2_1, pkh_mc_address, ceasingCumScTxCommTree2, actCertData2) 
+            "sc2", sc_csw_amount, str(scid2_swapped), null_2_1, pkh_mc_address, ceasingCumScTxCommTree2,
+            actCertData2, constant2) 
         #print "sc_proof1 =", sc_proof1
         #print "sc_proof2 =", sc_proof2
 
@@ -290,7 +297,8 @@ class CswActCertDataTest(BitcoinTestFramework):
         null_1_4 = generate_random_field_element_hex()
         wrong_act_cert_data = generate_random_field_element_hex()
         sc_proof1_4 = cswMcTest.create_test_proof(
-        "sc1", sc_csw_amount, str(scid1_swapped), null_1_4, pkh_mc_address, ceasingCumScTxCommTree1, wrong_act_cert_data) 
+            "sc1", sc_csw_amount, str(scid1_swapped), null_1_4, pkh_mc_address, ceasingCumScTxCommTree1,
+            wrong_act_cert_data, constant1) 
 
         sc_csws = [ {
             "amount": sc_csw_amount,

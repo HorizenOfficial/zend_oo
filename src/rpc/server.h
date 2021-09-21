@@ -166,6 +166,7 @@ extern CAmount AmountFromValue(const UniValue& value);
 extern UniValue ValueFromAmount(const CAmount& amount);
 extern double GetDifficulty(const CBlockIndex* blockindex = NULL);
 extern double GetNetworkDifficulty(const CBlockIndex* blockindex = NULL);
+extern int64_t blocksToOvertakeTarget(const CBlockIndex* forkTip, const CBlockIndex* targetBlock);
 extern std::string HelpRequiringPassphrase();
 extern std::string HelpExampleCli(const std::string& methodname, const std::string& args);
 extern std::string HelpExampleRpc(const std::string& methodname, const std::string& args);
@@ -284,6 +285,7 @@ extern UniValue invalidateblock(const UniValue& params, bool fHelp);
 extern UniValue reconsiderblock(const UniValue& params, bool fHelp);
 
 extern UniValue getblocksubsidy(const UniValue& params, bool fHelp);
+extern UniValue getblockmerkleroots(const UniValue& params, bool fHelp);
 
 extern UniValue z_exportkey(const UniValue& params, bool fHelp); // in rpcdump.cpp
 extern UniValue z_importkey(const UniValue& params, bool fHelp); // in rpcdump.cpp
@@ -323,6 +325,7 @@ extern UniValue dbg_log(const UniValue &params, bool fHelp); // print a line in 
 extern UniValue dbg_do(const UniValue &params, bool fHelp); // does a dbg hard coded task
 
 extern UniValue getproofverifierstats(const UniValue& params, bool fHelp); // in blockchain.cpp
+extern UniValue setproofverifierlowpriorityguard(const UniValue& params, bool fHelp); // in blockchain.cpp
 
 bool StartRPC();
 void InterruptRPC();

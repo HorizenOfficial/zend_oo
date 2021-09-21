@@ -21,7 +21,7 @@ import shutil
 import subprocess
 import time
 import re
-
+import codecs
 from authproxy import AuthServiceProxy, JSONRPCException
 
 
@@ -572,19 +572,31 @@ def get_spendable(node, min_amount):
 
 def advance_epoch(mcTest, node, sync_call,
     scid, sc_tag, constant, epoch_length, cert_quality=1, cert_fee=Decimal("0.00001"),
-    ftScFee=Decimal("0"), mbtrScFee=Decimal("0"), generate=True):
+    ftScFee=Decimal("0"), mbtrScFee=Decimal("0"), vCfe=[], vCmt=[], proofCfeArray=[], generateNumBlocks=-1):
 
-    if (generate == True):
-        node.generate(epoch_length)
+    if (generateNumBlocks != 0):
+        # if a nagative number is set, use epoch_length as a default, otherwise mine the number passed as a parameter
+        if (generateNumBlocks > 0):
+            node.generate(generateNumBlocks)
+        else:
+            node.generate(epoch_length)
+
     sync_call()
 
     epoch_number, epoch_cum_tree_hash = get_epoch_data(scid, node, epoch_length)
 
-    proof = mcTest.create_test_proof(sc_tag, epoch_number, cert_quality, mbtrScFee, ftScFee, constant, epoch_cum_tree_hash, [], [])
+    scid_swapped = str(swap_bytes(scid))
+
+    proof = mcTest.create_test_proof(
+        sc_tag, scid_swapped, epoch_number, cert_quality, mbtrScFee, ftScFee, epoch_cum_tree_hash, constant, [], [], proofCfeArray)
+
+    if proof == None:
+        print "could not create proof"
+        assert(False)
 
     try:
         cert = node.send_certificate(scid, epoch_number, cert_quality,
-            epoch_cum_tree_hash, proof, [], ftScFee, mbtrScFee, cert_fee)
+            epoch_cum_tree_hash, proof, [], ftScFee, mbtrScFee, cert_fee, vCfe, vCmt)
     except JSONRPCException, e:
         errorString = e.error['message']
         print "Send certificate failed with reason {}".format(errorString)
@@ -594,4 +606,7 @@ def advance_epoch(mcTest, node, sync_call,
     assert_true(cert in node.getrawmempool())
 
     return cert, epoch_number
+
+def swap_bytes(input_buf):
+    return codecs.encode(codecs.decode(input_buf, 'hex')[::-1], 'hex').decode()
 

@@ -2,6 +2,46 @@
 #include "util.h"
 #include <consensus/consensus.h>
 
+CZendooLowPrioThreadGuard::CZendooLowPrioThreadGuard(bool pauseThreads): _pause(pauseThreads)
+{
+    if (_pause)
+    {
+        LogPrint("sc", "%s():%d - calling zendoo_pause_low_priority_threads()\n", __func__, __LINE__);
+        zendoo_pause_low_priority_threads();
+    }
+}
+
+CZendooLowPrioThreadGuard::~CZendooLowPrioThreadGuard()
+{
+    if (_pause)
+    {
+        LogPrint("sc", "%s():%d - calling zendoo_unpause_low_priority_threads()\n", __func__, __LINE__);
+        zendoo_unpause_low_priority_threads();
+    }
+}
+
+CZendooBatchProofVerifierResult::CZendooBatchProofVerifierResult(ZendooBatchProofVerifierResult* result) :
+    resultPtr(result)
+{
+    assert(result != nullptr);
+}
+
+bool CZendooBatchProofVerifierResult::Result() const
+{
+    return resultPtr->result;
+}
+
+std::vector<uint32_t> CZendooBatchProofVerifierResult::FailedProofs() const
+{
+    return std::vector<uint32_t>(resultPtr->failing_proofs, resultPtr->failing_proofs + resultPtr->failing_proofs_len);
+}
+
+void CZendooBatchProofVerifierResultPtrDeleter::operator()(ZendooBatchProofVerifierResult* p) const
+{
+    zendoo_free_batch_proof_verifier_result(p);
+    p = nullptr;
+}
+
 void CZendooCctpLibraryChecker::CheckTypeSizes()
 {
     if (Sidechain::SC_FE_SIZE_IN_BYTES != zendoo_get_field_size_in_bytes())
@@ -23,6 +63,34 @@ const std::vector<unsigned char>&  CZendooCctpObject::GetByteArray() const
     return byteVector;
 }
 
+CZendooCctpObject::CZendooCctpObject(const CZendooCctpObject& obj)
+{
+    // lock both mutexes without deadlock
+    std::lock(_mutex, obj._mutex);
+
+    // make sure both already-locked mutexes are unlocked at the end of scope
+    std::lock_guard<std::mutex> lhs_lk(_mutex, std::adopt_lock);
+    std::lock_guard<std::mutex> rhs_lk(obj._mutex, std::adopt_lock);
+
+    byteVector = obj.byteVector;
+}
+
+CZendooCctpObject& CZendooCctpObject::operator=(const CZendooCctpObject& obj)
+{
+    if (this != &obj)
+    {
+        // lock both mutexes without deadlock
+        std::lock(_mutex, obj._mutex);
+
+        // make sure both already-locked mutexes are unlocked at the end of scope
+        std::lock_guard<std::mutex> lhs_lk(_mutex, std::adopt_lock);
+        std::lock_guard<std::mutex> rhs_lk(obj._mutex, std::adopt_lock);
+
+        byteVector = obj.byteVector;
+    }
+    return *this;
+}
+
 const unsigned char* const CZendooCctpObject::GetDataBuffer() const
 {
     if (GetByteArray().empty())
@@ -36,8 +104,14 @@ int CZendooCctpObject::GetDataSize() const
     return GetByteArray().size();
 }
 
-void CZendooCctpObject::SetNull() { byteVector.resize(0); }
-bool CZendooCctpObject::IsNull() const { return byteVector.empty();}
+void CZendooCctpObject::SetNull()
+{
+    byteVector.resize(0);
+}
+
+bool CZendooCctpObject::IsNull() const {
+    return byteVector.empty();
+}
 
 std::string CZendooCctpObject::GetHexRepr() const
 {
@@ -56,6 +130,7 @@ std::string CZendooCctpObject::GetHexRepr() const
 
 ///////////////////////////////// Field types //////////////////////////////////
 #ifdef BITCOIN_TX
+void CFieldPtrDeleter::operator()(field_t* p) const {};
 CFieldElement::CFieldElement(const std::vector<unsigned char>& byteArrayIn) {};
 void CFieldElement::SetByteArray(const std::vector<unsigned char>& byteArrayIn) {};
 CFieldElement::CFieldElement(const uint256& value) {};
@@ -65,30 +140,42 @@ wrappedFieldPtr CFieldElement::GetFieldElement() const {return nullptr;};
 bool CFieldElement::IsValid() const {return false;};
 CFieldElement CFieldElement::ComputeHash(const CFieldElement& lhs, const CFieldElement& rhs) { return CFieldElement{}; }
 #else
+void CFieldPtrDeleter::operator()(field_t* p) const
+{
+    //std::cout << "Calling zendoo_field_free..." << std::endl;
+    zendoo_field_free(p);
+    p = nullptr;
+}
+
 CFieldElement::CFieldElement(const std::vector<unsigned char>& byteArrayIn): CZendooCctpObject(byteArrayIn)
 {
     assert(byteArrayIn.size() == this->ByteSize());
+    fieldData.reset();
 }
+
 void CFieldElement::SetByteArray(const std::vector<unsigned char>& byteArrayIn)
 {
     assert(byteArrayIn.size() == this->ByteSize());
     this->byteVector = byteArrayIn;
+    fieldData.reset();
 }
 
 CFieldElement::CFieldElement(const uint256& value)
 {
     this->byteVector.resize(CFieldElement::ByteSize(),0x0);
     std::copy(value.begin(), value.end(), this->byteVector.begin());
+    fieldData.reset();
 }
 
 CFieldElement::CFieldElement(const wrappedFieldPtr& wrappedField)
 {
     this->byteVector.resize(CFieldElement::ByteSize(),0x0);
-    if (wrappedField.get() != 0)
+    if (wrappedField != nullptr)
     {
         CctpErrorCode code;
         zendoo_serialize_field(wrappedField.get(), &byteVector[0], &code);
         assert(code == CctpErrorCode::OK);
+        fieldData = wrappedField;
     }
 }
 
@@ -97,25 +184,34 @@ wrappedFieldPtr CFieldElement::GetFieldElement() const
     if (byteVector.empty())
     {
         LogPrint("sc", "%s():%d - empty byteVector\n", __func__, __LINE__);
-        return wrappedFieldPtr{nullptr};
+        assert(fieldData == nullptr);
+        return fieldData;
     }
 
     if (byteVector.size() != ByteSize())
     {
         LogPrint("sc", "%s():%d - wrong fe size: byteVector[%d] != %d\n",
             __func__, __LINE__, byteVector.size(), ByteSize());
-        return wrappedFieldPtr{nullptr};
+        assert(fieldData == nullptr);
+        return fieldData;
     }
 
-    CctpErrorCode code;
-    wrappedFieldPtr res = {zendoo_deserialize_field(&this->byteVector[0], &code), theFieldPtrDeleter};
-    if (code != CctpErrorCode::OK)
+    std::lock_guard<std::mutex> lk(_mutex);
+
+    if (fieldData == nullptr)
     {
-        LogPrintf("%s():%d - could not deserialize: error code[0x%x]\n", __func__, __LINE__, code);
-        return wrappedFieldPtr{nullptr};
+        CctpErrorCode code;
+        wrappedFieldPtr ret{zendoo_deserialize_field(&this->byteVector[0], &code), theFieldPtrDeleter};
+        if (code != CctpErrorCode::OK)
+        {
+            LogPrintf("%s():%d - could not deserialize: error code[0x%x]\n", __func__, __LINE__, code);
+            assert(fieldData == nullptr);
+            return fieldData;
+        }
+        fieldData.swap(ret);
     }
 
-    return res;
+    return fieldData;
 }
 
 uint256 CFieldElement::GetLegacyHash() const
@@ -186,28 +282,50 @@ const CFieldElement& CFieldElement::GetPhantomHash()
 CScProof::CScProof(const std::vector<unsigned char>& byteArrayIn): CZendooCctpObject(byteArrayIn)
 {
     assert(byteArrayIn.size() <= this->MaxByteSize());
+    proofData.reset();
 }
 
 void CScProof::SetByteArray(const std::vector<unsigned char>& byteArrayIn)
 {
     assert(byteArrayIn.size() <= this->MaxByteSize());
     this->byteVector = byteArrayIn;
+    proofData.reset();
 }
 
 wrappedScProofPtr CScProof::GetProofPtr() const
 {
     if (this->byteVector.empty())
-        return wrappedScProofPtr{nullptr};
-
-    CctpErrorCode code;
-    BufferWithSize result{(unsigned char*)&byteVector[0], byteVector.size()}; 
-    wrappedScProofPtr res = {zendoo_deserialize_sc_proof(&result, true, &code), theProofPtrDeleter};
-    if (code != CctpErrorCode::OK)
     {
-        LogPrintf("%s():%d - ERROR: code[0x%x]\n", __func__, __LINE__, code);
-        return wrappedScProofPtr{nullptr};
+        LogPrint("sc", "%s():%d - empty byteVector\n", __func__, __LINE__);
+        assert(proofData == nullptr);
+        return proofData;
     }
-    return res;
+
+    std::lock_guard<std::mutex> lk(_mutex);
+    if (proofData == nullptr)
+    {
+        if (byteVector.size() > MaxByteSize())
+        {
+            LogPrint("sc", "%s():%d - exceeded max size: byteVector[%d] != %d\n",
+                __func__, __LINE__, byteVector.size(), MaxByteSize());
+            assert(proofData == nullptr);
+            return proofData;
+        }
+
+        BufferWithSize result{(unsigned char*)&byteVector[0], byteVector.size()}; 
+        CctpErrorCode code;
+
+        wrappedScProofPtr ret{zendoo_deserialize_sc_proof(&result, true, &code), theProofPtrDeleter};
+ 
+        if (code != CctpErrorCode::OK)
+        {
+            LogPrintf("%s():%d - ERROR: code[0x%x]\n", __func__, __LINE__, code);
+            assert(proofData == nullptr);
+            return proofData;
+        }
+        proofData.swap(ret);
+    }
+    return proofData;
 }
 
 bool CScProof::IsValid() const
@@ -220,15 +338,27 @@ bool CScProof::IsValid() const
 
 Sidechain::ProvingSystemType CScProof::getProvingSystemType() const
 {
+    // this initializes wrapped ptr if necessary
+    if (!IsValid())
+    {
+        LogPrintf("%s():%d - ERROR: invalid proof\n", __func__, __LINE__);
+        return Sidechain::ProvingSystemType::Undefined;
+    }
+
     CctpErrorCode code;
-    auto sptr = GetProofPtr();
-    ProvingSystem psType = zendoo_get_sc_proof_proving_system_type(sptr.get(), &code);
+    ProvingSystem psType = zendoo_get_sc_proof_proving_system_type(proofData.get(), &code);
     if (code != CctpErrorCode::OK)
     {
         LogPrintf("%s():%d - ERROR: code[0x%x]\n", __func__, __LINE__, code);
         return Sidechain::ProvingSystemType::Undefined;
     }
     return static_cast<Sidechain::ProvingSystemType>(psType);
+}
+
+void CProofPtrDeleter::operator()(sc_proof_t* p) const
+{
+    zendoo_sc_proof_free(p);
+    p = nullptr;
 }
 
 //////////////////////////////// End of CScProof ///////////////////////////////
@@ -238,32 +368,50 @@ CScVKey::CScVKey(const std::vector<unsigned char>& byteArrayIn)
     :CZendooCctpObject(byteArrayIn)
 {
     assert(byteArrayIn.size() <= this->MaxByteSize());
-}
-
-CScVKey::CScVKey(): CZendooCctpObject()
-{
+    vkData.reset();
 }
 
 void CScVKey::SetByteArray(const std::vector<unsigned char>& byteArrayIn)
 {
     assert(byteArrayIn.size() <= this->MaxByteSize());
     this->byteVector = byteArrayIn;
+    vkData.reset();
 }
 
 wrappedScVkeyPtr CScVKey::GetVKeyPtr() const
 {
     if (this->byteVector.empty())
-        return wrappedScVkeyPtr{nullptr};
-
-    CctpErrorCode code;
-    BufferWithSize result{(unsigned char*)&byteVector[0], byteVector.size()}; 
-    wrappedScVkeyPtr res = {zendoo_deserialize_sc_vk(&result, true, &code), theVkPtrDeleter};
-    if (code != CctpErrorCode::OK)
     {
-        LogPrintf("%s():%d - ERROR: code[0x%x]\n", __func__, __LINE__, code);
-        return wrappedScVkeyPtr{nullptr};
+        LogPrint("sc", "%s():%d - empty byteVector\n", __func__, __LINE__);
+        assert(vkData == nullptr);
+        return vkData;
     }
-    return res;
+
+    std::lock_guard<std::mutex> lk(_mutex);
+    if (vkData == nullptr)
+    {
+
+        if (byteVector.size() > MaxByteSize())
+        {
+            LogPrint("sc", "%s():%d - exceeded max size: byteVector[%d] != %d\n",
+                __func__, __LINE__, byteVector.size(), MaxByteSize());
+            assert(vkData == nullptr);
+            return vkData;
+        }
+
+        BufferWithSize result{(unsigned char*)&byteVector[0], byteVector.size()}; 
+        CctpErrorCode code;
+
+        wrappedScVkeyPtr ret{zendoo_deserialize_sc_vk(&result, true, &code), theVkPtrDeleter};
+        if (code != CctpErrorCode::OK)
+        {
+            LogPrintf("%s():%d - ERROR: code[0x%x]\n", __func__, __LINE__, code);
+            assert(vkData == nullptr);
+            return vkData;
+        }
+        vkData.swap(ret);
+    }
+    return vkData;
 }
 
 bool CScVKey::IsValid() const
@@ -276,9 +424,15 @@ bool CScVKey::IsValid() const
 
 Sidechain::ProvingSystemType CScVKey::getProvingSystemType() const
 {
+    // this initializes wrapped ptr if necessary
+    if (!IsValid())
+    {
+        LogPrintf("%s():%d - ERROR: invalid vk\n", __func__, __LINE__);
+        return Sidechain::ProvingSystemType::Undefined;
+    }
+
     CctpErrorCode code;
-    wrappedScVkeyPtr sptr = GetVKeyPtr();
-    ProvingSystem psType = zendoo_get_sc_vk_proving_system_type(sptr.get(), &code);
+    ProvingSystem psType = zendoo_get_sc_vk_proving_system_type(vkData.get(), &code);
     if (code != CctpErrorCode::OK)
     {
         LogPrintf("%s():%d - ERROR: code[0x%x]\n", __func__, __LINE__, code);
@@ -287,6 +441,11 @@ Sidechain::ProvingSystemType CScVKey::getProvingSystemType() const
     return static_cast<Sidechain::ProvingSystemType>(psType);
 }
 
+void CVKeyPtrDeleter::operator()(sc_vk_t* p) const
+{
+    zendoo_sc_vk_free(p);
+    p = nullptr;
+}
 //////////////////////////////// End of CScVKey ////////////////////////////////
 
 ////////////////////////////// Custom Config types //////////////////////////////
@@ -307,18 +466,45 @@ uint8_t FieldElementCertificateFieldConfig::getBitSize() const
 }
 
 //----------------------------------------------------------------------------------
+// 2^12 * 254
+const int32_t BitVectorCertificateFieldConfig::MAX_BIT_VECTOR_SIZE_BITS = 1040384;
+const int32_t BitVectorCertificateFieldConfig::SPARSE_VECTOR_COMPRESSION_OVERHEAD = 2*1024;
+
+// No rounding here, since 2^12 is divisible by 8.
+// An overhead is added for taking into account the case when compressed data are larger than original data. 
+const int32_t BitVectorCertificateFieldConfig::MAX_COMPRESSED_SIZE_BYTES =
+    MAX_BIT_VECTOR_SIZE_BITS/8 + SPARSE_VECTOR_COMPRESSION_OVERHEAD;
+
 bool BitVectorCertificateFieldConfig::IsValid() const
 {
     bool isBitVectorSizeValid = (bitVectorSizeBits > 0) && (bitVectorSizeBits <= MAX_BIT_VECTOR_SIZE_BITS);
     if(!isBitVectorSizeValid)
+    {
+        LogPrintf("%s():%d - Invalid or null bitVectorSizeBits=%d (MAX_BIT_VECTOR_SIZE_BITS=%d)\n",
+            __func__, __LINE__, bitVectorSizeBits, MAX_BIT_VECTOR_SIZE_BITS);
         return false;
+    }
 
     if ((bitVectorSizeBits % 254 != 0) || (bitVectorSizeBits % 8 != 0))
+    {
+        LogPrintf("%s():%d - Invalid bitVectorSizeBits=%d (not divisible by 254 and 8)\n",
+            __func__, __LINE__, bitVectorSizeBits);
+        return false;
+    }
+
+    int32_t merkleTreeLeaves = bitVectorSizeBits / 254;
+
+    // Check that the number of leaves of the Merkle tree built on top of the BitVector is a power of two
+    if (merkleTreeLeaves & (merkleTreeLeaves - 1))
         return false;
 
     bool isMaxCompressedSizeValid = (maxCompressedSizeBytes > 0) && (maxCompressedSizeBytes <= MAX_COMPRESSED_SIZE_BYTES);
     if(!isMaxCompressedSizeValid)
+    {
+        LogPrintf("%s():%d - Invalid or null maxCompressedSizeBytes=%d (MAX_COMPRESSED_SIZE_BYTES=%d)\n",
+            __func__, __LINE__, maxCompressedSizeBytes, MAX_COMPRESSED_SIZE_BYTES);
         return false;
+    }
 
     return true;
 }
@@ -484,11 +670,12 @@ const CFieldElement& BitVectorCertificateField::GetFieldElement(const BitVectorC
     field_t* fe = zendoo_merkle_root_from_compressed_bytes(&compressedData, nBitVectorSizeBytes, &ret_code);
     if (fe == nullptr)
     {
-        LogPrint("sc", "%s():%d - ERROR(%d): could not get merkle root field el from compr bit vector of size %d, exp uncompr size %d\n",
-            __func__, __LINE__, (int)ret_code, vRawData.size(), nBitVectorSizeBytes);
+        LogPrint("sc", "%s():%d - ERROR(%d): could not get merkle root field el from compr bit vector of size %d, exp uncompr size %d (rem=%d)\n",
+            __func__, __LINE__, (int)ret_code, vRawData.size(), nBitVectorSizeBytes, rem);
         this->fieldElement = CFieldElement{};
         return fieldElement;
     }
+    //dumpFe(fe, "bv fe");
     this->fieldElement = CFieldElement{wrappedFieldPtr{fe, CFieldPtrDeleter{}}};
     state = VALIDATION_STATE::VALID;
 
@@ -669,10 +856,14 @@ void dumpFeArr(field_t** feArr, size_t len, const std::string& name)
     printf("--------------------------------------------------------------------------------\n");
     if (feArr == nullptr)
     {
-        printf("----> Null Fe\n");
+        printf("----> Null FeArray\n");
         printf("==================================================================================\n");
         return;
     }
+
+    printf("feArray address: %p\n", feArr);
+    printf("           len : %lu\n", len);
+    printf("--------------------------------------------------------------------------------\n");
 
     static const size_t BUF_SIZE = 32;
     for (size_t i = 0; i < len; i++)
@@ -687,3 +878,46 @@ void dumpFeArr(field_t** feArr, size_t len, const std::string& name)
 #else
 {}
 #endif
+
+void dumpBtArr(backward_transfer_t* bt_list, size_t len, const std::string& name)
+{
+    printf("==================================================================================\n");
+    printf("### %s() - %s\n", __func__, name.c_str());
+    printf("--------------------------------------------------------------------------------\n");
+    if (bt_list == nullptr)
+    {
+        printf("----> Null btl\n");
+        printf("==================================================================================\n");
+        return;
+    }
+
+    printf("bt_list address: %p\n", bt_list);
+    printf("           len : %lu\n", len);
+    printf("--------------------------------------------------------------------------------\n");
+
+    static const size_t BUF_SIZE = 32;
+    for (size_t i = 0; i < len; i++)
+    {
+        char buf[BUF_SIZE] = {};
+        snprintf(buf, BUF_SIZE, "bt %2lu)", i);
+        const backward_transfer_t& bt = bt_list[i];
+        dumpBt(bt, std::string(buf));
+    }
+}
+
+void dumpBt(const backward_transfer_t& bt, const std::string& name)
+{
+    printf("==================================================================================\n");
+    printf("### %s() - %s\n", __func__, name.c_str());
+    printf("--------------------------------------------------------------------------------\n");
+
+    const unsigned char* ptr = &bt.pk_dest[0];
+    printf("     pk_dest: [");
+    for (int i = 0; i < sizeof(bt.pk_dest); i++)
+    {
+        printf("%02x", *ptr);
+        ptr++;
+    }
+    printf("] -- ");
+    printf("amount:  %lu\n", bt.amount);
+}

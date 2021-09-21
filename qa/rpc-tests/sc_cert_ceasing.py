@@ -8,7 +8,8 @@ from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
     start_nodes, stop_nodes, get_epoch_data, \
     sync_blocks, sync_mempools, connect_nodes_bi, wait_bitcoinds, mark_logs, \
-    assert_false, assert_true
+    assert_false, assert_true, swap_bytes
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.mc_test.mc_test import *
 import os
 import pprint
@@ -39,7 +40,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
         self.nodes = []
 
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir, extra_args=
-            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-logtimemicros=1', '-rescan']] * NUMB_OF_NODES)
+            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert','-scproofqueuesize=0', '-logtimemicros=1', '-rescan']] * NUMB_OF_NODES)
 
         for k in range(0, NUMB_OF_NODES-1):
             connect_nodes_bi(self.nodes, k, k+1)
@@ -75,8 +76,8 @@ class sc_cert_ceasing(BitcoinTestFramework):
         bwt_amount.append(Decimal("0.0"))
         bwt_amount.append(Decimal("0.0"))
 
-        mark_logs("Node 0 generates 220 block", self.nodes, DEBUG_MODE)
-        self.nodes[0].generate(220)
+        mark_logs("Node 0 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
         prev_epoch_hash = self.nodes[0].getbestblockhash()
 
@@ -86,6 +87,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
         constant = generate_random_field_element_hex()
 
         scids = []
+        scids_swapped = []
         # SCs creation
         for i in range(0, 3):
             tag = "sc"+str(i+1)
@@ -95,6 +97,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
             mark_logs("Node 0 created SC spending {} coins via tx1 {}.".format(creation_amount[i], creating_tx), self.nodes, DEBUG_MODE)
             self.sync_all()
             scids.append(self.nodes[0].getrawtransaction(creating_tx, 1)['vsc_ccout'][0]['scid'])
+            scids_swapped.append(str(swap_bytes(scids[i])))
             mark_logs("==> created SC ids {}".format(scids[-1]), self.nodes, DEBUG_MODE)
             
 
@@ -121,7 +124,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
         try:
             #Create proof for WCert
             quality = 1
-            proof = mcTest.create_test_proof("sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node1], [bwt_amount[0]])
+            proof = mcTest.create_test_proof("sc1", scids_swapped[0], epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount[0]])
 
             cert_1 = self.nodes[0].send_certificate(scids[0], epoch_number, quality,
                 epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
@@ -138,7 +141,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
         try:
             #Create proof for WCert
             quality = 1
-            proof = mcTest.create_test_proof("sc2", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [], [])
+            proof = mcTest.create_test_proof("sc2", scids_swapped[1], epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [], [])
 
             cert_2 = self.nodes[0].send_certificate(scids[1], epoch_number, quality,
                 epoch_cum_tree_hash, proof, [], FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
@@ -206,8 +209,9 @@ class sc_cert_ceasing(BitcoinTestFramework):
 
         mark_logs("Node 0 tries to fwd coins to ceased sc {}...".format(scids[-1]), self.nodes, DEBUG_MODE)
         fwt_amount = Decimal("0.5")
+        mc_return_address = self.nodes[0].getnewaddress("", True)
         try:
-            fwd_tx = self.nodes[0].sc_send("abcd", fwt_amount, scids[-1])
+            fwd_tx = self.nodes[0].sc_send("abcd", fwt_amount, scids[-1], mc_return_address)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']

@@ -4,6 +4,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_true, assert_false, assert_equal, initialize_chain_clean, \
     start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, \
@@ -31,7 +32,7 @@ class ScSplitTest(BitcoinTestFramework):
         self.nodes = []
 
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir,
-                                 extra_args=[['-sccoinsmaturity=0', '-logtimemicros=1', '-debug=sc', '-debug=py',
+                                 extra_args=[['-sccoinsmaturity=0', '-scproofqueuesize=0', '-logtimemicros=1', '-debug=sc', '-debug=py',
                                               '-debug=mempool', '-debug=net', '-debug=bench']] * NUMB_OF_NODES)
 
         if not split:
@@ -79,9 +80,9 @@ class ScSplitTest(BitcoinTestFramework):
         blocks.extend(self.nodes[1].generate(1))
         self.sync_all()
 
-        mark_logs("Node 0 generates 220 block", self.nodes, DEBUG_MODE)
+        mark_logs("Node 0 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
 
-        blocks.extend(self.nodes[0].generate(220))
+        blocks.extend(self.nodes[0].generate(MINIMAL_SC_HEIGHT))
         self.sync_all()
 
         # Split the network: (0)--(1) / (2)
@@ -131,7 +132,8 @@ class ScSplitTest(BitcoinTestFramework):
 
         # Node 1 creates a FT of 4.0 coins and Node 0 generates 1 block
         mark_logs("\nNode 1 performs a fwd transfer of " + str(fwt_amount_1) + " coins ...", self.nodes, DEBUG_MODE)
-        txes.append(self.nodes[1].sc_send("abcd", fwt_amount_1, scid))
+        mc_return_address = self.nodes[1].getnewaddress("", True)
+        txes.append(self.nodes[1].sc_send("abcd", fwt_amount_1, scid, mc_return_address))
         mark_logs("tx: {}".format(txes[-1]), self.nodes, DEBUG_MODE)
 
         mark_logs("\nNode0 generating 1 honest block", self.nodes, DEBUG_MODE)
@@ -140,7 +142,8 @@ class ScSplitTest(BitcoinTestFramework):
 
         # Node 1 creates a FT of 1.0 coin and Node 0 generates 1 block
         mark_logs("\nNode 1 performs a fwd transfer of " + str(fwt_amount_2) + " coins ...", self.nodes, DEBUG_MODE)
-        txes.append(self.nodes[1].sc_send("abcd", fwt_amount_2, scid))
+        mc_return_address = self.nodes[1].getnewaddress("", True)
+        txes.append(self.nodes[1].sc_send("abcd", fwt_amount_2, scid, mc_return_address))
         mark_logs("tx: {}".format(txes[-1]), self.nodes, DEBUG_MODE)
         self.sync_all()
 

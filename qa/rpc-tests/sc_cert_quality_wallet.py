@@ -4,11 +4,12 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
     start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, mark_logs,\
     get_epoch_data, wait_bitcoinds, stop_nodes, \
-    assert_false, assert_true
+    assert_false, assert_true, swap_bytes
 from test_framework.mc_test.mc_test import *
 import os
 import pprint
@@ -38,7 +39,7 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
         self.nodes = []
 
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir, extra_args=
-            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-debug=zendoo_mc_cryptolib', '-logtimemicros=1' '-rescan']] * NUMB_OF_NODES)
+            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-debug=zendoo_mc_cryptolib', '-scproofqueuesize=0', '-logtimemicros=1' '-rescan']] * NUMB_OF_NODES)
 
         connect_nodes_bi(self.nodes, 0, 1)
         connect_nodes_bi(self.nodes, 1, 2)
@@ -71,8 +72,8 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
         self.nodes[1].generate(1)
         self.sync_all()
 
-        mark_logs("Node 0 generates 220 block", self.nodes, DEBUG_MODE)
-        self.nodes[0].generate(220)
+        mark_logs("Node 0 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
 
         node1_bal = self.nodes[1].getbalance();
@@ -87,6 +88,7 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
         ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
+        scid_swapped = str(swap_bytes(scid))
         mark_logs("Node 0 created the SC {} spending {} coins via tx {}.".format(scid, creation_amount, creating_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -104,7 +106,7 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         #------------------------------------------------
         quality = 10
-        proof = mcTest.create_test_proof("sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node2], [bwt_amount_1])
+        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node2], [bwt_amount_1])
 
         mark_logs("Node 1 sends cert of quality {} with bwt of {} coins for Node2 pubkeyhash".format(quality, amount_cert_1[0]["amount"]), self.nodes, DEBUG_MODE)
         try:
@@ -136,7 +138,7 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         #------------------------------------------------
         quality = 20
-        proof = mcTest.create_test_proof("sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node2], [bwt_amount_2])
+        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node2], [bwt_amount_2])
 
         amount_cert_2 = [{"pubkeyhash": pkh_node2, "amount": bwt_amount_2}]
 
@@ -172,7 +174,7 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
         #------------------------------------------------
 
         quality = 5
-        proof = mcTest.create_test_proof("sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node2], [bwt_amount_3])
+        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node2], [bwt_amount_3])
 
         amount_cert_3 = [{"pubkeyhash": pkh_node2, "amount": bwt_amount_3}]
         mark_logs("Node 1 sends cert of quality {} with bwt of {} coins for Node2 pubkeyhash".format(quality, amount_cert_3[0]["amount"]), self.nodes, DEBUG_MODE)
@@ -189,7 +191,7 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         #------------------------------------------------
         quality = 12
-        proof = mcTest.create_test_proof("sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node2], [bwt_amount_3/10])
+        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node2], [bwt_amount_3/10])
 
         amount_cert_3 = [{"pubkeyhash": pkh_node2, "amount": bwt_amount_3/10}]
         mark_logs("Node 1 sends cert of quality {} with bwt of {} coins for Node2 pubkeyhash".format(quality, amount_cert_3[0]["amount"]), self.nodes, DEBUG_MODE)
@@ -206,7 +208,7 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         #------------------------------------------------
         quality_h = 35
-        proof = mcTest.create_test_proof("sc1", epoch_number, quality_h, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node2], [bwt_amount_4])
+        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality_h, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node2], [bwt_amount_4])
 
         amount_cert_4 = [{"pubkeyhash": pkh_node2, "amount": bwt_amount_4}]
         mark_logs("Node 0 sends cert of quality {} with bwt of {} coins for Node2 pubkeyhash".format(quality_h, amount_cert_4[0]["amount"]), self.nodes, DEBUG_MODE)
@@ -222,7 +224,7 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         #------------------------------------------------
         quality = 13
-        proof = mcTest.create_test_proof("sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node2], [bwt_amount_3/10])
+        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node2], [bwt_amount_3/10])
 
         amount_cert_3 = [{"pubkeyhash": pkh_node2, "amount": bwt_amount_3/10}]
         mark_logs("Node 1 sends cert of quality {} with bwt of {} coins for Node2 pubkeyhash".format(quality, amount_cert_3[0]["amount"]), self.nodes, DEBUG_MODE)
@@ -257,7 +259,7 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
         epoch_number, epoch_cum_tree_hash = get_epoch_data(scid, self.nodes[0], EPOCH_LENGTH)
         #------------------------------------------------
         quality = 25
-        proof = mcTest.create_test_proof("sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node2], [bwt_amount_5])
+        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node2], [bwt_amount_5])
 
         amount_cert_5 = [{"pubkeyhash": pkh_node2, "amount": bwt_amount_5}]
         mark_logs("Node 1 sends cert of quality {} with bwt of {} coins for Node2 pubkeyhash".format(quality, amount_cert_5[0]["amount"]), self.nodes, DEBUG_MODE)

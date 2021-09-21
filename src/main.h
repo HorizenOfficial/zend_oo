@@ -46,9 +46,16 @@ class CTxInUndo;
 
 /** Default for -blockmaxsize and -blockminsize, which control the range of sizes the mining code will create **/
 static const unsigned int DEFAULT_BLOCK_MAX_SIZE = MAX_BLOCK_SIZE;
+static const unsigned int DEFAULT_BLOCK_MAX_SIZE_BEFORE_SC = MAX_BLOCK_SIZE_BEFORE_SC;
 static const unsigned int DEFAULT_BLOCK_MIN_SIZE = 0;
+
+/** Default for -blocktxpartitionmaxsize which control the partition in block reserved for tx*/
+static const unsigned int DEFAULT_BLOCK_TX_PART_MAX_SIZE = BLOCK_TX_PARTITION_SIZE;
+
 /** Default for -blockprioritysize, maximum space for zero/low-fee transactions **/
-static const unsigned int DEFAULT_BLOCK_PRIORITY_SIZE = DEFAULT_BLOCK_MAX_SIZE / 2;
+static const unsigned int DEFAULT_BLOCK_PRIORITY_SIZE = BLOCK_TX_PARTITION_SIZE / 2;
+static const unsigned int DEFAULT_BLOCK_PRIORITY_SIZE_BEFORE_SC = MAX_BLOCK_SIZE_BEFORE_SC / 2;
+
 /** Default for -blockmaxcomplexity, which control the maximum comlexity of the block during template creation **/
 static const unsigned int DEFAULT_BLOCK_MAX_COMPLEXITY_SIZE = 0;
 /** Default for accepting alerts from the P2P network. */
@@ -96,7 +103,11 @@ static const int MAX_BLOCK_AGE_FOR_FINALITY = 2000;
 
 // Sanity check the magic numbers when we change them
 BOOST_STATIC_ASSERT(DEFAULT_BLOCK_MAX_SIZE <= MAX_BLOCK_SIZE);
+BOOST_STATIC_ASSERT(MAX_BLOCK_SIZE > MAX_CERT_SIZE);
+BOOST_STATIC_ASSERT(MAX_BLOCK_SIZE > BLOCK_TX_PARTITION_SIZE);
+BOOST_STATIC_ASSERT(BLOCK_TX_PARTITION_SIZE > MAX_TX_SIZE);
 BOOST_STATIC_ASSERT(DEFAULT_BLOCK_PRIORITY_SIZE <= DEFAULT_BLOCK_MAX_SIZE);
+BOOST_STATIC_ASSERT(DEFAULT_BLOCK_PRIORITY_SIZE_BEFORE_SC <= DEFAULT_BLOCK_MAX_SIZE_BEFORE_SC);
 
 #define equihash_parameters_acceptable(N, K) \
     ((CBlockHeader::HEADER_SIZE + equihash_solution_size(N, K))*MAX_HEADERS_RESULTS < \
@@ -108,13 +119,16 @@ extern CTxMemPool mempool;
 typedef boost::unordered_map<uint256, CBlockIndex*, ObjectHasher> BlockMap;
 extern BlockMap mapBlockIndex;
 extern uint64_t nLastBlockTx;
+extern uint64_t nLastBlockCert;
 extern uint64_t nLastBlockSize;
+extern uint64_t nLastBlockTxPartitionSize;
 extern const std::string strMessageMagic;
 extern CWaitableCriticalSection csBestBlock;
 extern CConditionVariable cvBlockChange;
 extern bool fExperimentalMode;
 extern bool fImporting;
 extern bool fReindex;
+extern bool fReindexFast;
 extern int nScriptCheckThreads;
 extern bool fTxIndex;
 extern bool fIsBareMultisigStd;
@@ -201,14 +215,16 @@ FILE* OpenBlockFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 FILE* OpenUndoFile(const CDiskBlockPos &pos, bool fReadOnly = false);
 /** Translation to a filesystem path */
 boost::filesystem::path GetBlockPosFilename(const CDiskBlockPos &pos, const char *prefix);
-/** Import blocks from an external file */
-bool LoadExternalBlockFile(FILE* fileIn, CDiskBlockPos *dbp = NULL);
+/** Import blocks from an external file, possibly headers only */
+bool LoadBlocksFromExternalFile(FILE* fileIn, CDiskBlockPos *dbp, bool loadHeadersOnly);
 /** Initialize a new block tree database + block data on disk */
 bool InitBlockIndex();
 /** Load the block tree and coins database from disk */
 bool LoadBlockIndex();
 /** Unload database information */
 void UnloadBlockIndex();
+// Utilities refactored out of ProcessMessages
+void ProcessMempoolMsg(const CTxMemPool& pool, CNode* pfrom);
 
 /**
  * @brief The enumeration of states of the sidechain batch proof verification.
@@ -323,6 +339,18 @@ enum class MempoolProofVerificationFlag
     ASYNC       /**< The proof verification is enabled and will pe performed asynchronously on a separate thread. */
 };
 
+/**
+ * @brief Rejects a certificate or transaction submitted to memory pool.
+ * 
+ * It sends an error message to the node that has sent the invalid entry
+ * and eventually bans it.
+ * 
+ * @param state The state of the validation process (containing the error information)
+ * @param txBase The transaction or certificate that failed the verification
+ * @param pfrom The node that sent the offending transaction or certificate
+ */
+void RejectMemoryPoolTxBase(const CValidationState& state, const CTransactionBase& txBase, CNode* pfrom);
+
 /** (try to) add transaction to memory pool **/
 MempoolReturnValue AcceptTxBaseToMemoryPool(CTxMemPool& pool, CValidationState &state, const CTransactionBase &txBase,
     LimitFreeFlag fLimitFree, RejectAbsurdFeeFlag fRejectAbsurdFee, MempoolProofVerificationFlag fProofVerification, CNode* pfrom = nullptr);
@@ -370,7 +398,7 @@ struct COrphanTx {
     NodeId fromPeer;
 };
 
-CAmount GetMinRelayFee(const CTransactionBase& tx, unsigned int nBytes, bool fAllowFree);
+CAmount GetMinRelayFee(const CTransactionBase& tx, unsigned int nBytes, bool fAllowFree, unsigned int block_priority_size);
 
 /**
  * Check transaction inputs, and make sure any
@@ -495,7 +523,7 @@ public:
 bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos, const CMessageHeader::MessageStartChars& messageStart);
 bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos);
 bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex);
-
+CBlock LoadBlockFrom(CBufferedFile& blkdat, CDiskBlockPos* pLastLoadedBlkPos);
 
 /** Functions for validating blocks and updating the block tree */
 
@@ -527,6 +555,9 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     CCoinsViewCache& coins, const CChain& chain, flagBlockProcessingType processingType,
     flagScRelatedChecks fScRelatedChecks, flagScProofVerification fScProofVerification,
     std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo = nullptr);
+
+/** Find the position in block files (blk??????.dat) in which a block must be written. */
+bool FindBlockPos(CValidationState &state, CDiskBlockPos &pos, unsigned int nAddSize, unsigned int nHeight, uint64_t nTime, bool fKnown = false);
 
 /** Context-independent validity checks */
 bool CheckBlockHeader(const CBlockHeader& block, CValidationState& state, flagCheckPow fCheckPOW = flagCheckPow::ON);

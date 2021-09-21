@@ -4,6 +4,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_true, assert_false, assert_equal, initialize_chain_clean, \
     mark_logs, start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, \
@@ -71,8 +72,8 @@ class sc_fwd_maturity(BitcoinTestFramework):
           step by step
         '''
         # network topology: (0)--(1)--(2)
-        mark_logs("Node 1 generates 220 block", self.nodes, DEBUG_MODE)
-        self.nodes[1].generate(220)
+        mark_logs("Node 1 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[1].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
 
         errorString = ""
@@ -119,14 +120,16 @@ class sc_fwd_maturity(BitcoinTestFramework):
 
         # raw_input("Press enter to send...")
         mark_logs("\nNode 1 sends " + str(fwt_amount_1) + " coins to SC", self.nodes, DEBUG_MODE)
-        self.nodes[1].sc_send("abcd", fwt_amount_1, scid_1)
+        mc_return_address = self.nodes[1].getnewaddress("", True)
+        self.nodes[1].sc_send("abcd", fwt_amount_1, scid_1, mc_return_address)
         self.sync_all()
 
         mark_logs("\nNode 1 sends 3 amounts to SC 1 (tot: " + str(fwt_amount_many) + ")", self.nodes, DEBUG_MODE)
+        mc_return_address = self.nodes[1].getnewaddress("", True)
         amounts = []
-        amounts.append({"address": "add1", "amount": fwt_amount_1, "scid": scid_1})
-        amounts.append({"address": "add2", "amount": fwt_amount_2, "scid": scid_1})
-        amounts.append({"address": "add3", "amount": fwt_amount_3, "scid": scid_1})
+        amounts.append({"address": "add1", "amount": fwt_amount_1, "scid": scid_1, "mcReturnAddress": mc_return_address})
+        amounts.append({"address": "add2", "amount": fwt_amount_2, "scid": scid_1, "mcReturnAddress": mc_return_address})
+        amounts.append({"address": "add3", "amount": fwt_amount_3, "scid": scid_1, "mcReturnAddress": mc_return_address})
         self.nodes[1].sc_sendmany(amounts)
         # print "tx=" + tx
         self.sync_all()
@@ -175,8 +178,8 @@ class sc_fwd_maturity(BitcoinTestFramework):
 
         mark_logs("\nNode 1 sends 2 amounts to SC 2 (tot: " + str(fwt_amount_2 + fwt_amount_3) + ")", self.nodes, DEBUG_MODE)
         amounts = []
-        amounts.append({"address": "add2", "amount": fwt_amount_2, "scid": scid_2})
-        amounts.append({"address": "add3", "amount": fwt_amount_3, "scid": scid_2})
+        amounts.append({"address": "add2", "amount": fwt_amount_2, "scid": scid_2, "mcReturnAddress": mc_return_address})
+        amounts.append({"address": "add3", "amount": fwt_amount_3, "scid": scid_2, "mcReturnAddress": mc_return_address})
         self.nodes[1].sc_sendmany(amounts)
         self.sync_all()
 

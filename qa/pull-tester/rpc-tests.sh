@@ -104,11 +104,26 @@ testScripts=(
   'sc_quality_blockchain.py'
   'sc_quality_voiding.py'
   'sc_csw_actcertdata.py'
+  'sc_csw_actcertdata_null.py'
   'sc_cert_ceasing_sg.py'
   'sc_csw_nullifier.py'
   'sc_getscinfo.py'
   'sc_quality_nodes.py'
   'sc_cert_memcleanup_split.py'
+  'sc_csw_fundrawtransaction.py'
+  'sc_proof_verifier_low_priority_threads.py'
+  'subsidyhalving.py'
+  'cbh_rpfix.py'
+  'cbh_rpcheck.py'
+  'tlsprotocols.py'
+  'getblockmerkleroots.py'
+  'sc_block_partitions.py'
+  'sc_cert_bwt_amount_rounding.py'
+  'sc_csw_eviction_from_mempool.py'
+  'sc_csw_memcleanup_split.py'
+  'sc_csw_balance_exceeding.py'
+  'sc_stale_ft_and_mbtr.py'
+  'sc_cert_getblocktemplate.py'
 );
 testScriptsExt=(
   'getblocktemplate_longpoll.py'
@@ -122,11 +137,12 @@ testScriptsExt=(
   'keypool.py'
   'receivedby.py'
   'rpcbind_test.py'
-# 'script_test.py'            # requires create_block functionality that is not implemented for zcash blocks yet
+#  'script_test.py'
   'smartfees.py'
   'maxblocksinflight.py'
-# 'invalidblockrequest.py'    # requires create_block functionality that is not implemented for zcash blocks yet
-# 'p2p-acceptblock.py'        # requires create_block functionality that is not implemented for zcash blocks yet
+  'invalidblockrequest.py'
+  'invalidblockposthalving.py'
+  'p2p-acceptblock.py'
   'replay_protection.py'
   'headers_01.py'
   'headers_02.py'
@@ -139,6 +155,7 @@ testScriptsExt=(
   'headers_09.py'
   'headers_10.py'
   'checkblockatheight.py'
+  'sc_big_block.py'
 );
 
 if [ "x$ENABLE_ZMQ" = "x1" ]; then

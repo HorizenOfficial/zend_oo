@@ -4,10 +4,12 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, assert_true, initialize_chain_clean, \
     mark_logs, start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, \
-    get_epoch_data, disconnect_nodes, wait_and_assert_operationid_status
+    get_epoch_data, disconnect_nodes, wait_and_assert_operationid_status, \
+    swap_bytes
 from test_framework.mc_test.mc_test import *
 import os
 import pprint
@@ -37,7 +39,7 @@ class sbh_rpc_cmds(BitcoinTestFramework):
 
         self.nodes = start_nodes(
             NUMB_OF_NODES, self.options.tmpdir,
-            extra_args=[['-sccoinsmaturity=2', '-logtimemicros=1', '-debug=sc',
+            extra_args=[['-sccoinsmaturity=2', '-scproofqueuesize=0', '-logtimemicros=1', '-debug=sc',
                          '-debug=py', '-debug=mempool', '-debug=net',
                          '-debug=bench']] * NUMB_OF_NODES)
 
@@ -80,8 +82,8 @@ class sbh_rpc_cmds(BitcoinTestFramework):
         txs_node1 = []
 
         # network topology: (0)--(1)--(2)
-        mark_logs("\nNode 0 generates 220 blocks", self.nodes, DEBUG_MODE)
-        self.nodes[0].generate(220)
+        mark_logs("\nNode 0 generates {} blocks".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
 
         taddr_1 = self.nodes[1].getnewaddress()
@@ -154,7 +156,8 @@ class sbh_rpc_cmds(BitcoinTestFramework):
         assert_equal(ud['unconfirmedTxApperances'], 1) 
 
         #--------------------------------------------------------------------------------------
-        outputs = [{'toaddress': sc_toaddress, 'amount': sc_fwd_amount, "scid":scid}]
+        mc_return_address = self.nodes[1].getnewaddress("", True)
+        outputs = [{'toaddress': sc_toaddress, 'amount': sc_fwd_amount, "scid": scid, "mcReturnAddress": mc_return_address}]
         # if changeaddress is not specified but fromtaddress is, they are the same
         # with minconf == 0 we can use also change from the previous tx, which is still in mempool 
         cmdParms = { 'fromaddress': taddr_1, "minconf": 0, "fee": fee}
@@ -201,8 +204,10 @@ class sbh_rpc_cmds(BitcoinTestFramework):
         try:
             #Create proof for WCert
             quality = 1
+            scid_swapped = str(swap_bytes(scid))
+            
             proof = certMcTest.create_test_proof(
-                "sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node1], [bwt_amount1])
+                "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount1])
 
             #----------------------------------------------------------------------------------------------
             cert_1 = self.nodes[0].send_certificate(scid, epoch_number, quality,

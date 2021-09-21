@@ -6,8 +6,10 @@ from subprocess import call
 
 SC_FIELD_SIZE = 32
 SC_FIELD_SAFE_SIZE = 31
-MAX_SC_PROOF_SIZE_IN_BYTES = 1024*10                                                                     
-MAX_SC_VK_SIZE_IN_BYTES    = 1024*10
+
+# these should be aligned with the definitions in src/sc/sidechaintypes.h
+MAX_SC_PROOF_SIZE_IN_BYTES = 9*1024                                                                     
+MAX_SC_VK_SIZE_IN_BYTES    = 9*1024
 COIN = 100000000
 
 def generate_random_field_element_hex():
@@ -24,7 +26,7 @@ class MCTestUtils(object):
         assert(ps_type == "darlin" or ps_type == "cob_marlin")
         self.ps_type = ps_type
 
-    def _generate_params(self, id, circuit_type, ps_type, file_prefix):
+    def _generate_params(self, id, circuit_type, ps_type, file_prefix, num_constraints, segment_size):
         params_dir = self._get_params_dir(id)
 
         if os.path.isfile(params_dir + file_prefix + "test_pk") and os.path.isfile(params_dir + file_prefix + "test_vk"):
@@ -35,6 +37,8 @@ class MCTestUtils(object):
         args.append(str(circuit_type))
         args.append(str(ps_type))
         args.append(str(params_dir))
+        args.append(str(segment_size))
+        args.append(str(num_constraints))
 
         subprocess.check_call(args)
         assert(os.path.isfile(params_dir + file_prefix + "test_pk"))
@@ -65,24 +69,39 @@ class MCTestUtils(object):
 class CertTestUtils(MCTestUtils):
     def __init__(self, datadir, srcdir, ps_type = "cob_marlin"):
         MCTestUtils.__init__(self, datadir, srcdir, ps_type)
-        self.file_prefix = str(ps_type) + "_cert_"
 
-    def generate_params(self, id):
-        return self._generate_params(id, "cert", self.ps_type, self.file_prefix)
+    def _get_file_prefix(self, circ_type):
+        return str(self.ps_type) + "_" + circ_type + "_"
 
-    def create_test_proof(self, id, epoch_number, quality, btr_fee, ft_min_amount, constant, end_cum_comm_tree_root, pks = [], amounts = [], custom_fields = []):
+    def generate_params(self, id, circ_type = "cert", num_constraints = 1 << 10, segment_size = 1 << 9):
+        file_prefix = self._get_file_prefix(circ_type)
+
+        return self._generate_params(id, circ_type, self.ps_type, file_prefix, num_constraints, segment_size)
+
+    def create_test_proof(self, id, scid, epoch_number, quality, btr_fee, ft_min_amount, end_cum_comm_tree_root, constant = None, pks = [], amounts = [], custom_fields = [], num_constraints = 1 << 10, segment_size = 1 << 9):
+        if constant is not None:
+            circ_type = "cert"
+        else:
+            circ_type = "cert_no_const"
+
+        file_prefix = self._get_file_prefix(circ_type)
         params_dir = self._get_params_dir(id)
-        if not os.path.isfile(params_dir + self.file_prefix + "test_pk") or not os.path.isfile(params_dir + self.file_prefix + "test_vk"):
+        if not os.path.isfile(params_dir + file_prefix + "test_pk") or not os.path.isfile(params_dir + file_prefix + "test_vk"):
             return
-        proof_path = "{}_epoch_{}_{}_proof".format(self._get_proofs_dir(id), epoch_number, self.file_prefix)
+        proof_path = "{}_epoch_{}_{}_proof".format(self._get_proofs_dir(id), epoch_number, file_prefix)
         args = []
         args.append(os.getenv("ZENDOOMC", os.path.join(self.srcdir, "zendoo/mcTest")))
-        args += ["create", "cert", str(self.ps_type), str(proof_path), str(params_dir)]
-        args += [str(epoch_number), str(quality), str(constant), str(end_cum_comm_tree_root), str(int(btr_fee * COIN)), str(int(ft_min_amount * COIN))]
+        args += ["create", str(circ_type), str(self.ps_type), str(proof_path), str(params_dir), str(segment_size)]
+        args += [str(scid), str(epoch_number), str(quality)]
+        if constant is not None:
+             args.append(str(constant))
+
+        args += [str(end_cum_comm_tree_root), str(int(round(btr_fee * COIN))), str(int(round(ft_min_amount * COIN)))]
+        args.append(str(num_constraints))
         args.append(str(len(pks)))
         for (pk, amount) in zip(pks, amounts):
             args.append(str(pk))
-            args.append(str(int(amount * COIN))) #codebase works in satoshi
+            args.append(str(int(round(amount * COIN)))) #codebase works in satoshi
         args.append(str(len(custom_fields)))
         for custom_field in custom_fields:
             args.append(str(custom_field))
@@ -92,19 +111,40 @@ class CertTestUtils(MCTestUtils):
 class CSWTestUtils(MCTestUtils):
     def __init__(self, datadir, srcdir, ps_type = "cob_marlin"):
         MCTestUtils.__init__(self, datadir, srcdir, ps_type)
-        self.file_prefix = str(ps_type) + "_csw_"
 
-    def generate_params(self, id):
-        return self._generate_params(id, "csw", self.ps_type, self.file_prefix)
+    def _get_file_prefix(self, circ_type):
+        return str(self.ps_type) + "_" + circ_type + "_"
 
-    def create_test_proof(self, id, amount, sc_id, nullifier, mc_pk_hash, end_cum_comm_tree_root, cert_data_hash):
+    def generate_params(self, id, circ_type = "csw", num_constraints = 1 << 10, segment_size = 1 << 9):
+        file_prefix = self._get_file_prefix(circ_type)
+
+        return self._generate_params(id, circ_type, self.ps_type, file_prefix, num_constraints, segment_size)
+
+    def create_test_proof(self, id, amount, sc_id, nullifier, mc_pk_hash, end_cum_comm_tree_root,
+        cert_data_hash = None, constant = None, num_constraints = 1 << 10, segment_size = 1 << 9):
+        if constant is not None:
+            circ_type = "csw"
+        else:
+            circ_type = "csw_no_const"
+
+        file_prefix = self._get_file_prefix(circ_type)
         params_dir = self._get_params_dir(id)
-        if not os.path.isfile(params_dir + self.file_prefix + "test_pk") or not os.path.isfile(params_dir + self.file_prefix + "test_vk"):
+        if not os.path.isfile(params_dir + file_prefix + "test_pk") or not os.path.isfile(params_dir + file_prefix + "test_vk"):
             return
-        proof_path = "{}_addr_{}_{}_proof".format(self._get_proofs_dir(id), mc_pk_hash, self.file_prefix)
+        proof_path = "{}_addr_{}_{}_proof".format(self._get_proofs_dir(id), mc_pk_hash, file_prefix)
         args = []
         args.append(os.getenv("ZENDOOMC", os.path.join(self.srcdir, "zendoo/mcTest")))
-        args += ["create", "csw", str(self.ps_type), str(proof_path), str(params_dir)]
-        args += [str(int(amount * COIN)), str(sc_id), str(nullifier), str(mc_pk_hash), str(end_cum_comm_tree_root), str(cert_data_hash)]
+
+        args += ["create", str(circ_type), str(self.ps_type), str(proof_path), str(params_dir), str(segment_size)]
+        args += [str(int(round(amount * COIN))), str(sc_id), str(nullifier), str(mc_pk_hash), str(end_cum_comm_tree_root), str(num_constraints)]
+
+        if cert_data_hash is not None:
+            args.append(str(cert_data_hash))
+        else:
+            args.append(str("NO_CERT_DATA_HASH"))
+
+        if constant is not None:
+             args.append(str(constant))
+
         subprocess.check_call(args)
         return self._get_proof(proof_path)

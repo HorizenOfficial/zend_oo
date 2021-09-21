@@ -4,6 +4,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
     stop_nodes, wait_bitcoinds, \
@@ -55,8 +56,8 @@ class SCCreateTest(BitcoinTestFramework):
         '''
         # network topology: (0)--(1)--(2)
 
-        mark_logs("Node 1 generates 220 block", self.nodes, DEBUG_MODE)
-        self.nodes[1].generate(220)
+        mark_logs("Node 1 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[1].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
 
         creation_amount = Decimal("0.00000001")
@@ -348,17 +349,25 @@ class SCCreateTest(BitcoinTestFramework):
         # Node 1 sends 1 amount to SC
         mark_logs("\nNode 1 sends " + str(fwt_amount_1) + " coins to SC", self.nodes, DEBUG_MODE)
 
-        self.nodes[1].sc_send("abcd", fwt_amount_1, scid)
+        mc_return_address = self.nodes[1].getnewaddress("", True)
+        self.nodes[1].sc_send("abcd", fwt_amount_1, scid, mc_return_address)
         self.sync_all()
 
         # Node 1 sends 3 amounts to SC
         mark_logs("\nNode 1 sends 3 amounts to SC (tot: " + str(fwt_amount_many) + ")", self.nodes, DEBUG_MODE)
 
+        mc_return_address = self.nodes[1].getnewaddress("", True)
+
         amounts = []
-        amounts.append({"address": "add1", "amount": fwt_amount_1, "scid": scid})
-        amounts.append({"address": "add2", "amount": fwt_amount_2, "scid": scid})
-        amounts.append({"address": "add3", "amount": fwt_amount_3, "scid": scid})
-        self.nodes[1].sc_sendmany(amounts)
+        amounts.append({"address": "add1", "amount": fwt_amount_1, "scid": scid, "mcReturnAddress": mc_return_address})
+        amounts.append({"address": "add2", "amount": fwt_amount_2, "scid": scid, "mcReturnAddress": mc_return_address})
+        amounts.append({"address": "add3", "amount": fwt_amount_3, "scid": scid, "mcReturnAddress": mc_return_address})
+
+        # Check that mcReturnAddress was properly set.
+        tx_id = self.nodes[1].sc_sendmany(amounts)
+        tx_obj = self.nodes[1].getrawtransaction(tx_id, 1)
+        for out in tx_obj['vft_ccout']:
+            assert_equal(mc_return_address, out["mcReturnAddress"], "FT mc return address is different.")
         self.sync_all()
 
         mark_logs("\n...Node0 generating 1 block", self.nodes, DEBUG_MODE)

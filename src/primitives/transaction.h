@@ -540,11 +540,12 @@ class CTxForwardTransferOut : public CTxCrosschainOut
 {
 public:
     uint256 scId;
+    uint160 mcReturnAddress;
 
     CTxForwardTransferOut() {}
 
-    CTxForwardTransferOut(const uint256& scIdIn, const CAmount& nValueIn, const uint256& addressIn):
-        CTxCrosschainOut(nValueIn, addressIn), scId(scIdIn) {}
+    CTxForwardTransferOut(const uint256& scIdIn, const CAmount& nValueIn, const uint256& addressIn, const uint160& mcReturnAddressIn):
+        CTxCrosschainOut(nValueIn, addressIn), scId(scIdIn), mcReturnAddress(mcReturnAddressIn) {}
 
     ADD_SERIALIZE_METHODS;
 
@@ -553,15 +554,16 @@ public:
         READWRITE(nValue);
         READWRITE(address);
         READWRITE(scId);
+        READWRITE(mcReturnAddress);
     }
 
-    const uint256& GetScId() const override final { return scId;}; 
+    const uint256& GetScId() const override final { return scId;};
     uint256 GetHash() const override final;
     std::string ToString() const override final;
 
     friend bool operator==(const CTxForwardTransferOut& a, const CTxForwardTransferOut& b)
     {
-        return (isBaseEqual(a, b) && a.scId == b.scId);
+        return (isBaseEqual(a, b) && a.scId == b.scId && a.mcReturnAddress == b.mcReturnAddress);
     }
 
     friend bool operator!=(const CTxForwardTransferOut& a, const CTxForwardTransferOut& b)
@@ -1102,23 +1104,6 @@ struct CMutableTransaction : public CMutableTransactionBase
     bool add(const CTxForwardTransferOut& out);
     bool add(const CBwtRequestOut& out);
     bool add(const CFieldElement& acd);
-};
-
-/**
- * @brief A structure that includes all the arguments needed for verifying the proof of a CSW input.
- */
-struct CCswProofVerifierInput
-{
-    CScVKey ceasedVk;
-    CFieldElement ceasingCumScTxCommTree;
-    CFieldElement certDataHash;
-    CScProof cswProof;
-    CNode* node;    /**< The node that sent the transaction. */
-    CAmount nValue;
-    CFieldElement nullifier;
-    uint160 pubKeyHash;
-    uint256 scId;
-    std::shared_ptr<CTransaction> transactionPtr;
 };
 
 #endif // BITCOIN_PRIMITIVES_TRANSACTION_H

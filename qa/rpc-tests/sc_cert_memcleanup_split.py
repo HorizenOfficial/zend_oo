@@ -12,8 +12,8 @@ from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
     start_nodes, connect_nodes_bi, assert_true, assert_false, mark_logs, \
     wait_bitcoinds, stop_nodes, get_epoch_data, sync_mempools, sync_blocks, \
-    disconnect_nodes, advance_epoch
-
+    disconnect_nodes, advance_epoch, swap_bytes
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.mc_test.mc_test import *
 
 from decimal import Decimal
@@ -35,7 +35,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
 
     def setup_network(self, split=False):
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir,
-                                 extra_args=[['-logtimemicros=1', '-debug=sc', '-debug=py',
+                                 extra_args=[['-logtimemicros=1', '-scproofqueuesize=0', '-debug=sc', '-debug=py',
                                               '-debug=mempool', '-debug=net', '-debug=bench']] * NUMB_OF_NODES)
 
         if not split:
@@ -80,11 +80,10 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         self.sync_all()
         self.nodes[1].generate(1)
         self.sync_all()
-        self.nodes[0].generate(217)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT-3)
         self.sync_all()
         self.nodes[0].generate(1)
         self.sync_all()
-        prev_epoch_hash = self.nodes[0].getbestblockhash()
 
         print "Node0 Chain h = ", self.nodes[0].getblockcount()
 
@@ -93,11 +92,9 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         sc_cr_amount = Decimal('12.00000000')
 
         certMcTest = CertTestUtils(self.options.tmpdir, self.options.srcdir)
-        cswMcTest = CSWTestUtils(self.options.tmpdir, self.options.srcdir)
 
         # generate wCertVk and constant
         vk = certMcTest.generate_params("sc1")
-        cswVk = cswMcTest.generate_params("csw1")
         constant = generate_random_field_element_hex()
 
         cmdInput = {
@@ -112,6 +109,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         res = self.nodes[0].create_sidechain(cmdInput)
         tx =   res['txid']
         scid = res['scid']
+        scid_swapped = str(swap_bytes(scid))
         self.sync_all()
         mark_logs("tx {} created SC {}".format(tx, scid), self.nodes, DEBUG_MODE)
 
@@ -119,7 +117,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         fe1 = [generate_random_field_element_hex()]
 
         # advance two epochs
-        mark_logs("\nLet 2 epochs pass by...".  format(sc_epoch_len), self.nodes, DEBUG_MODE)
+        mark_logs("\nLet 2 epochs pass by...", self.nodes, DEBUG_MODE)
 
         cert, epoch_number = advance_epoch(
             certMcTest, self.nodes[0], self.sync_all,
@@ -153,8 +151,9 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         print "------------------"
         # use different nodes for sending txes and cert in order to be sure there are no dependancies from each other
         fwt_amount = Decimal("2.0")
+        mc_return_address = self.nodes[0].getnewaddress("", True)
         mark_logs("\nNTW part 1) Node0 sends {} coins to SC".format(fwt_amount), self.nodes, DEBUG_MODE)
-        tx_fwd = self.nodes[0].sc_send("abcd", fwt_amount, scid)
+        tx_fwd = self.nodes[0].sc_send("abcd", fwt_amount, scid, mc_return_address)
         sync_mempools(self.nodes[0:3])
 
         mark_logs("              Check fwd tx {} is in mempool".format(tx_fwd), self.nodes, DEBUG_MODE)
@@ -164,7 +163,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         cmdParms = { "minconf":0, "fee":0.0}
         mark_logs("\nNTW part 1) Node1 creates a tx with a bwt request", self.nodes, DEBUG_MODE)
         try:
-            tx_bwt = self.nodes[1].request_transfer_from_sidechain(outputs, cmdParms);
+            tx_bwt = self.nodes[1].request_transfer_from_sidechain(outputs, cmdParms)
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs(errorString,self.nodes,DEBUG_MODE)
@@ -182,7 +181,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         pkh_node1 = self.nodes[1].getnewaddress("", True)
         quality = 10
 
-        proof = certMcTest.create_test_proof("sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node1], [bt_amount])
+        proof = certMcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bt_amount])
 
         amount_cert = [{"pubkeyhash": pkh_node1, "amount": bt_amount}]
         try:
@@ -207,7 +206,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         pkh_node1 = self.nodes[1].getnewaddress("", True)
         quality = 5
 
-        proof = certMcTest.create_test_proof("sc1", epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node1], [bt_amount_2])
+        proof = certMcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bt_amount_2])
 
         amount_cert = [{"pubkeyhash": pkh_node1, "amount": bt_amount_2}]
         try:
@@ -241,37 +240,16 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         mark_logs("Check fwd tx {} is still in mempool...".format(tx_fwd), self.nodes, DEBUG_MODE)
         assert_true(tx_fwd in self.nodes[0].getrawmempool()) 
 
-        any_error = False
-
-        mark_logs("Check bwd tx {} is no more in mempool, since we crossed the epoch safeguard".format(tx_bwt), self.nodes, DEBUG_MODE)
-        #assert_false(tx_bwt in self.nodes[0].getrawmempool()) 
-        if tx_bwt in self.nodes[0].getrawmempool():
-            print "FIX FIX FIX!!! bwt is still in mempool" 
-            any_error = True
-
-        mark_logs("And that no info are available too...".format(tx_bwt), self.nodes, DEBUG_MODE)
-        try:
-            dec = self.nodes[0].getrawtransaction(tx_bwt, 1)
-            print "FIX FIX FIX!!! tx_bwt has info in Node0" 
-            any_error = True
-            #assert (False)
-        except JSONRPCException, e:
-            errorString = e.error['message']
-            mark_logs("===> {}".format(errorString), self.nodes, DEBUG_MODE)
-            assert_true("No information" in errorString)
+        mark_logs("Check bwd tx {} is still in mempool, even though we crossed the epoch safeguard".format(tx_bwt), self.nodes, DEBUG_MODE)
+        assert_true(tx_bwt in self.nodes[0].getrawmempool()) 
 
         mark_logs("Check cert {} is no more in mempool, since we crossed the epoch safeguard".format(cert_bad), self.nodes, DEBUG_MODE)
-        #assert_false(cert_bad in self.nodes[0].getrawmempool()) 
-        if cert_bad in self.nodes[0].getrawmempool():
-            print "FIX FIX FIX!!! cert is still in mempool" 
-            any_error = True
+        assert_false(cert_bad in self.nodes[0].getrawmempool()) 
 
         mark_logs("And that no info are available too...", self.nodes, DEBUG_MODE)
         try:
-            dec = self.nodes[0].getrawcertificate(cert_bad, 1)
-            print "FIX FIX FIX!!! cert has info in Node0" 
-            any_error = True
-            #assert (False)
+            self.nodes[0].getrawcertificate(cert_bad, 1)
+            assert (False)
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs("===> {}".format(errorString), self.nodes, DEBUG_MODE)
@@ -284,11 +262,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
             errorString = e.error['message']
             mark_logs("===> {}".format(errorString), self.nodes, DEBUG_MODE)
 
-        if any_error:
-            print" =========================> Test failed!!!"
-            #assert(False)
-
-        for i in range(0,4):
+        for i in range(NUMB_OF_NODES):
             pprint.pprint(self.nodes[i].getrawmempool())
 
         # if any_error this should fail

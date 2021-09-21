@@ -4,11 +4,11 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
     start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, stop_nodes, mark_logs,\
-    get_epoch_data, wait_bitcoinds, \
-    assert_false, assert_true
+    get_epoch_data, wait_bitcoinds, assert_false, assert_true, swap_bytes
 from test_framework.mc_test.mc_test import *
 import os
 from decimal import Decimal
@@ -35,7 +35,7 @@ class quality_voiding(BitcoinTestFramework):
         self.nodes = []
 
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir, extra_args=
-            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-debug=zendoo_mc_cryptolib', '-logtimemicros=1', '-rescan']] * NUMB_OF_NODES)
+            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-scproofqueuesize=0', '-logtimemicros=1', '-rescan']] * NUMB_OF_NODES)
 
         connect_nodes_bi(self.nodes, 0, 1)
         sync_blocks(self.nodes[1:NUMB_OF_NODES])
@@ -65,8 +65,8 @@ class quality_voiding(BitcoinTestFramework):
         self.nodes[1].generate(1)
         self.sync_all()
 
-        mark_logs("Node 0 generates 220 block", self.nodes, DEBUG_MODE)
-        self.nodes[0].generate(220)
+        mark_logs("Node 0 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
 
         # SC creation
@@ -82,6 +82,7 @@ class quality_voiding(BitcoinTestFramework):
         ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
+        scid_swapped = str(swap_bytes(scid))
         mark_logs("Node 1 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -106,8 +107,9 @@ class quality_voiding(BitcoinTestFramework):
 
         # Fwd Transfer to Sc
         bal_before_fwd_tx = self.nodes[0].getbalance("", 0)
+        mc_return_address = self.nodes[0].getnewaddress("", True)
         mark_logs("Node0 balance before fwd tx: {}".format(bal_before_fwd_tx), self.nodes, DEBUG_MODE)
-        fwd_tx = self.nodes[0].sc_send("abcd", fwt_amount, scid)
+        fwd_tx = self.nodes[0].sc_send("abcd", fwt_amount, scid, mc_return_address)
         mark_logs("Node0 transfers {} coins to SC with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -120,7 +122,7 @@ class quality_voiding(BitcoinTestFramework):
         mark_logs("Fee paid for fwd tx: {}".format(fee_fwt), self.nodes, DEBUG_MODE)
         bal_after_fwd_tx = self.nodes[0].getbalance("", 0)
         mark_logs("Node0 balance after fwd: {}".format(bal_after_fwd_tx), self.nodes, DEBUG_MODE)
-        assert_equal(bal_before_fwd_tx, bal_after_fwd_tx + fwt_amount - fee_fwt - Decimal(8.75))  # 8.75 is matured coinbase
+        assert_equal(bal_before_fwd_tx, bal_after_fwd_tx + fwt_amount - fee_fwt - Decimal(MINER_REWARD_POST_H200))
 
         assert_equal(self.nodes[0].getscinfo(scid)['items'][0]['balance'], Decimal(0))
         assert_equal(self.nodes[0].getscinfo(scid)['items'][0]['immature amounts'][0]['amount'], creation_amount)
@@ -145,7 +147,7 @@ class quality_voiding(BitcoinTestFramework):
         quality = 80
         mark_logs("Create Cert1 with quality {}, bwt transfer {} and place it in mempool".format(quality, bwt_amount), self.nodes, DEBUG_MODE)
         proof = mcTest.create_test_proof(
-            vk_tag, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node1], [bwt_amount])
+            vk_tag, scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount])
         try:
             cert_1_epoch_0 = self.nodes[0].send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
@@ -170,7 +172,7 @@ class quality_voiding(BitcoinTestFramework):
         amount_cert_2 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount_2}]
         mark_logs("Create Cert2 with quality {}, bwt transfer {} and place it in mempool".format(quality, bwt_amount_2), self.nodes, DEBUG_MODE)
         proof = mcTest.create_test_proof(
-            vk_tag, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node1], [bwt_amount_2])
+            vk_tag, scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount_2])
         try:
             cert_2_epoch_0 = self.nodes[1].send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
@@ -213,7 +215,7 @@ class quality_voiding(BitcoinTestFramework):
         amount_cert_3 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount_3}]
         mark_logs("Create Cert1 with quality {}, bwt transfer {} and place it in mempool".format(quality, bwt_amount_3), self.nodes, DEBUG_MODE)
         proof = mcTest.create_test_proof(
-            vk_tag, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, constant, epoch_cum_tree_hash, [pkh_node1], [bwt_amount_3])
+            vk_tag, scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount_3])
         try:
             cert_3_epoch_0 = self.nodes[1].send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)

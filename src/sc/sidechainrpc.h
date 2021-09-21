@@ -7,7 +7,7 @@
 #include "base58.h"
 
 //------------------------------------------------------------------------------------
-static const CAmount SC_RPC_OPERATION_DEFAULT_MINERS_FEE(1000);
+static const CAmount SC_RPC_OPERATION_DEFAULT_MINERS_FEE(1500);
 static const int SC_RPC_OPERATION_DEFAULT_EPOCH_LENGTH(100);
 
 class UniValue;
@@ -24,7 +24,7 @@ namespace Sidechain
 void AddCeasedSidechainWithdrawalInputsToJSON(const CTransaction& tx, UniValue& parentObj);
 void AddSidechainOutsToJSON(const CTransaction& tx, UniValue& parentObj);
 
-enum class CheckSizeMode {OFF, STRICT, UPPER_LIMIT};
+enum class CheckSizeMode {CHECK_OFF, CHECK_STRICT, CHECK_UPPER_LIMIT};
 // Parses an hex inputString and writes it into a vector vBytes of required size vSize. 
 // If enforceStrictvSize is set to true, it will be checked that inputString.size()/2 == vSize,
 // otherwise the check is relaxed to inputString.size()/2 <= vSize
@@ -86,6 +86,7 @@ class ScRpcCmd
 
     virtual void execute() = 0;
 
+    unsigned int getSignedObjSize() const { return _signedObjHex.size()/2; }
 };
 
 class ScRpcCmdTx : public ScRpcCmd
@@ -202,11 +203,12 @@ class ScRpcSendCmdTx : public ScRpcCmdTx
         uint256 _scid;
         uint256 _toScAddress;
         CAmount _nAmount;
-        sFtOutParams(): _scid(), _toScAddress(), _nAmount(0) {}
+        uint160 _mcReturnAddress;
+        sFtOutParams(): _scid(), _toScAddress(), _nAmount(0), _mcReturnAddress() {}
 
         sFtOutParams(
-            const uint256& scId, const uint256& toaddress, const CAmount nAmount):
-            _scid(scId), _toScAddress(toaddress), _nAmount(nAmount) {}
+            const uint256& scId, const uint256& toaddress, const CAmount nAmount, const uint160& mcReturnAddress):
+            _scid(scId), _toScAddress(toaddress), _nAmount(nAmount), _mcReturnAddress(mcReturnAddress) {}
     };
 
     // cmd params
