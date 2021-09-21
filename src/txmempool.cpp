@@ -258,8 +258,8 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
         }
     }
 
-    // default value for non-cert-bwt outputs
-    CMempoolAddressDelta::OutputStatus certBwtStatus = CMempoolAddressDelta::OutputStatus::ORDINARY_OUTPUT;
+    // default values for cert handling, not used for ordinary txes
+    CMempoolAddressDelta::OutputStatus certBwtStatus = CMempoolAddressDelta::OutputStatus::NOT_APPLICABLE;
     int certFirstBwtPos = -1;
 
     if (txBase.IsCertificate())
@@ -275,48 +275,47 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
             CMempoolAddressDelta::OutputStatus::TOP_QUALITY_CERT_BACKWARD_TRANSFER :
                 CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER;
 
-        // and position in vout
+        // position of first bwt in vout vector
         certFirstBwtPos = cert->nFirstBwtPos;
 
         LogPrint("mempool", "%s():%d - cert[%s], isTopQualityCert[%s], certBwtStatus[%d], certFirstBwtPos[%d]\n",
             __func__, __LINE__, cert->GetHash().ToString(), isTopQualityCert?"Y":"N", (int)certBwtStatus, certFirstBwtPos);
 
-        // if this is a top quality, we must modify the entry which was the previous top quality (if any)
-        if (isTopQualityCert && mapSidechains.at(cert->GetScId()).mBackwardCertificates.size() > 1)
+        // if we have also other certificates for this sidechain and this is the top quality, we must modify the entry which was the
+        // previous top quality cert
+        if ( (mapSidechains.at(cert->GetScId()).mBackwardCertificates.size() > 1) && isTopQualityCert)
         {
-            // get the former top cert for this scid.
-
             // Entries are ordered by quality, therefore the former top-quality is the second starting from the bottom
-            const auto& mempoolCertEntry = *(++mapSidechains.at(cert->GetScId()).mBackwardCertificates.crbegin());
+            std::map<int64_t, uint256>::const_reverse_iterator mempoolCertEntryIt =
+                mapSidechains.at(cert->GetScId()).mBackwardCertificates.crbegin();
 
-            const uint256& certHash = mempoolCertEntry.second;
-            const CScCertificate& certSuperseeded = mapCertificate[certHash].GetCertificate();
-            int64_t nTime = mapCertificate[certHash].GetTime();
-            int certSuperseededFirstBwtPos = certSuperseeded.nFirstBwtPos;
+            const uint256& certSuperseededHash = (++mempoolCertEntryIt)->second;
 
-            LogPrint("mempool", "%s():%d - cert[%s] is now superseeded\n", __func__, __LINE__, certHash.ToString());
+            const CScCertificate& certSuperseeded = mapCertificate[certSuperseededHash].GetCertificate();
 
-            for (unsigned int m = certSuperseededFirstBwtPos; m < certSuperseeded.GetVout().size(); m++)
+            LogPrint("mempool", "%s():%d - cert[%s] is now superseeded\n", __func__, __LINE__, certSuperseededHash.ToString());
+
+            for (unsigned int m = certSuperseeded.nFirstBwtPos; m < certSuperseeded.GetVout().size(); m++)
             {
                 const CTxOut &out = certSuperseeded.GetVout()[m];
   
-                if (out.scriptPubKey.IsPayToScriptHash()) {
-                    // should not concern certificates as of now
+                if (out.scriptPubKey.IsPayToScriptHash())
+                {
                     std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+2, out.scriptPubKey.begin()+22);
-                    CMempoolAddressDeltaKey key(2, uint160(hashBytes), certHash, m, 0);
-                    CMempoolAddressDelta val(nTime, out.nValue, CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER);
-                    mapAddress[key] = val;
-                } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
+                    CMempoolAddressDeltaKey key(2, uint160(hashBytes), certSuperseededHash, m, 0);
+                    mapAddress[key].outStatus = CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER;
+                }
+                else if (out.scriptPubKey.IsPayToPublicKeyHash())
+                {
                     std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
-                    std::pair<addressDeltaMap::iterator,bool> ret;
-                    CMempoolAddressDeltaKey key(1, uint160(hashBytes), certHash, m, 0);
-                    mapAddress[key] = CMempoolAddressDelta(
-                        nTime, out.nValue, CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER);
+                    CMempoolAddressDeltaKey key(1, uint160(hashBytes), certSuperseededHash, m, 0);
+                    mapAddress[key].outStatus = CMempoolAddressDelta::OutputStatus::LOW_QUALITY_CERT_BACKWARD_TRANSFER;
                 }
             }
         }
     }
 
+    // default for tx outputs and non-bwt cert outputs
     CMempoolAddressDelta::OutputStatus outStatus = CMempoolAddressDelta::OutputStatus::ORDINARY_OUTPUT;
 
     for (unsigned int k = 0; k < txBase.GetVout().size(); k++) {
@@ -336,7 +335,6 @@ void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, 
             inserted.push_back(key);
         } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
             std::vector<unsigned char> hashBytes(out.scriptPubKey.begin()+3, out.scriptPubKey.begin()+23);
-            std::pair<addressDeltaMap::iterator,bool> ret;
             CMempoolAddressDeltaKey key(1, uint160(hashBytes), txBaseHash, k, 0);
             mapAddress.insert(std::make_pair(key, CMempoolAddressDelta(nTime, out.nValue, outStatus)));
             inserted.push_back(key);
