@@ -7,12 +7,14 @@
 # Test addressindex generation and fetching
 #
 
-import time
-from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import *
-from test_framework.script import *
-from test_framework.mininode import *
 import binascii
+import pprint
+import time
+from decimal import Decimal
+from test_framework.test_framework import BitcoinTestFramework
+from test_framework.util import assert_equal, connect_nodes, initialize_chain_clean, start_node
+from test_framework.mininode import COutPoint, CTransaction, CTxIn, CTxOut
+from test_framework.authproxy import JSONRPCException
 
 class AddressIndexTest(BitcoinTestFramework):
 
@@ -45,40 +47,43 @@ class AddressIndexTest(BitcoinTestFramework):
         assert_equal(self.nodes[1].getbalance(), 0)
         assert_equal(self.nodes[2].getbalance(), 0)
 
+        addr1 = "zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS"
+        addr2 = "ztano5XjpquCJdSipz7VRGFgdLqNjXmV9cD"
+
         # Check that balances are correct
-        balance0 = self.nodes[1].getaddressbalance("zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS")
+        balance0 = self.nodes[1].getaddressbalance(addr1)
         assert_equal(balance0["balance"], 0)
 
         # Check p2pkh and p2sh address indexes
         print "Testing p2pkh and p2sh address index..."
 
-        txid0 = self.nodes[0].sendtoaddress("ztano5XjpquCJdSipz7VRGFgdLqNjXmV9cD", 10)
+        txid0 = self.nodes[0].sendtoaddress(addr2, 10)
         self.nodes[0].generate(1)
 
-        txidb0 = self.nodes[0].sendtoaddress("zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS", 10)
+        txidb0 = self.nodes[0].sendtoaddress(addr1, 10)
         self.nodes[0].generate(1)
 
-        txid1 = self.nodes[0].sendtoaddress("ztano5XjpquCJdSipz7VRGFgdLqNjXmV9cD", 15)
+        txid1 = self.nodes[0].sendtoaddress(addr2, 15)
         self.nodes[0].generate(1)
 
-        txidb1 = self.nodes[0].sendtoaddress("zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS", 15)
+        txidb1 = self.nodes[0].sendtoaddress(addr1, 15)
         self.nodes[0].generate(1)
 
-        txid2 = self.nodes[0].sendtoaddress("ztano5XjpquCJdSipz7VRGFgdLqNjXmV9cD", 20)
+        txid2 = self.nodes[0].sendtoaddress(addr2, 20)
         self.nodes[0].generate(1)
 
-        txidb2 = self.nodes[0].sendtoaddress("zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS", 20)
+        txidb2 = self.nodes[0].sendtoaddress(addr1, 20)
         self.nodes[0].generate(1)
 
         self.sync_all()
 
-        txids = self.nodes[1].getaddresstxids("ztano5XjpquCJdSipz7VRGFgdLqNjXmV9cD")
+        txids = self.nodes[1].getaddresstxids(addr2)
         assert_equal(len(txids), 3)
         assert_equal(txids[0], txid0)
         assert_equal(txids[1], txid1)
         assert_equal(txids[2], txid2)
 
-        txidsb = self.nodes[1].getaddresstxids("zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS")
+        txidsb = self.nodes[1].getaddresstxids(addr1)
         assert_equal(len(txidsb), 3)
         assert_equal(txidsb[0], txidb0)
         assert_equal(txidsb[1], txidb1)
@@ -87,7 +92,7 @@ class AddressIndexTest(BitcoinTestFramework):
         # Check that limiting by height works
         print "Testing querying txids by range of block heights.."
         height_txids = self.nodes[1].getaddresstxids({
-            "addresses": ["zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS"],
+            "addresses": [addr1],
             "start": 105,
             "end": 110
         })
@@ -96,7 +101,7 @@ class AddressIndexTest(BitcoinTestFramework):
         assert_equal(height_txids[1], txidb1)
 
         # Check that multiple addresses works
-        multitxids = self.nodes[1].getaddresstxids({"addresses": ["zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS", "ztano5XjpquCJdSipz7VRGFgdLqNjXmV9cD"]})
+        multitxids = self.nodes[1].getaddresstxids({"addresses": [addr1, addr2]})
         assert_equal(len(multitxids), 6)
         assert_equal(multitxids[0], txid0)
         assert_equal(multitxids[1], txidb0)
@@ -106,7 +111,7 @@ class AddressIndexTest(BitcoinTestFramework):
         assert_equal(multitxids[5], txidb2)
 
         # Check that balances are correct
-        balance0 = self.nodes[1].getaddressbalance("zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS")
+        balance0 = self.nodes[1].getaddressbalance(addr1)
         assert_equal(balance0["balance"], 45 * 100000000)
 
         # Check that outputs with the same address will only return one txid
@@ -129,13 +134,13 @@ class AddressIndexTest(BitcoinTestFramework):
         self.nodes[0].generate(1)
         self.sync_all()
 
-        txidsmany = self.nodes[1].getaddresstxids("zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS")
+        txidsmany = self.nodes[1].getaddresstxids(addr1)
         assert_equal(len(txidsmany), 4)
         assert_equal(txidsmany[3], sent_txid)
 
         # Check that balances are correct
         print "Testing balances..."
-        balance0 = self.nodes[1].getaddressbalance("zrCBKy4Uoy1X5jws6cxLqrMuE1ukuctSqfS")
+        balance0 = self.nodes[1].getaddressbalance(addr1)
         assert_equal(balance0["balance"], 45 * 100000000 + 21)
 
         # Check that balances are correct after spending
@@ -220,9 +225,9 @@ class AddressIndexTest(BitcoinTestFramework):
         # Check sorting of utxos
         self.nodes[2].generate(150)
 
-        txidsort1 = self.nodes[2].sendtoaddress(address2, 50)
+        self.nodes[2].sendtoaddress(address2, 50)
         self.nodes[2].generate(1)
-        txidsort2 = self.nodes[2].sendtoaddress(address2, 50)
+        self.nodes[2].sendtoaddress(address2, 50)
         self.nodes[2].generate(1)
         self.sync_all()
 
@@ -239,7 +244,7 @@ class AddressIndexTest(BitcoinTestFramework):
         address3 = "ztihzFwiPbcoMVWzvMAHf37o8jw9VSHdLtC"
         addressHash3 = "aa9872b5bbcdb511d89e0e11aa27da73fd2c3f50"
         scriptPubKey3 = binascii.unhexlify(op_dup + op_hash160 + op_push_20_bytes_onto_the_stack + addressHash3 + op_equalverify + op_checksig + genesisCbah)
-        address4 = "zrJgNMHvfLY26avAQCeHk8NAQxubq7CExqH"
+        #address4 = "zrJgNMHvfLY26avAQCeHk8NAQxubq7CExqH"
         scriptPubKey4 = binascii.unhexlify(op_hash160 + op_push_20_bytes_onto_the_stack + addressHash3 + op_equal + genesisCbah)
         unspent = self.nodes[2].listunspent()
 
@@ -276,8 +281,8 @@ class AddressIndexTest(BitcoinTestFramework):
         assert_equal(mempool[2]["txid"], memtxid2)
         assert_equal(mempool[2]["index"], 1)
 
-        self.nodes[2].generate(1);
-        self.sync_all();
+        self.nodes[2].generate(1)
+        self.sync_all()
         mempool2 = self.nodes[2].getaddressmempool({"addresses": [address3]})
         assert_equal(len(mempool2), 0)
 
@@ -290,7 +295,7 @@ class AddressIndexTest(BitcoinTestFramework):
         tx.rehash()
         self.nodes[2].importprivkey(privKey3)
         signed_tx3 = self.nodes[2].signrawtransaction(binascii.hexlify(tx.serialize()).decode("utf-8"))
-        memtxid3 = self.nodes[2].sendrawtransaction(signed_tx3["hex"], True)
+        self.nodes[2].sendrawtransaction(signed_tx3["hex"], True)
         time.sleep(2)
 
         mempool3 = self.nodes[2].getaddressmempool({"addresses": [address3]})
@@ -322,7 +327,7 @@ class AddressIndexTest(BitcoinTestFramework):
         tx.rehash()
         self.nodes[0].importprivkey(privkey1)
         signed_tx = self.nodes[0].signrawtransaction(binascii.hexlify(tx.serialize()).decode("utf-8"))
-        mem_txid = self.nodes[0].sendrawtransaction(signed_tx["hex"], True)
+        self.nodes[0].sendrawtransaction(signed_tx["hex"], True)
 
         self.sync_all()
         mempool_deltas = self.nodes[2].getaddressmempool({"addresses": [address1]})
@@ -337,17 +342,107 @@ class AddressIndexTest(BitcoinTestFramework):
             "end": 200,
             "chainInfo": True
         })
-        start_block_hash = self.nodes[1].getblockhash(1);
-        end_block_hash = self.nodes[1].getblockhash(200);
+        start_block_hash = self.nodes[1].getblockhash(1)
+        end_block_hash = self.nodes[1].getblockhash(200)
         assert_equal(deltas_with_info["start"]["height"], 1)
         assert_equal(deltas_with_info["start"]["hash"], start_block_hash)
         assert_equal(deltas_with_info["end"]["height"], 200)
         assert_equal(deltas_with_info["end"]["hash"], end_block_hash)
 
         utxos_with_info = self.nodes[1].getaddressutxos({"addresses": [address2], "chainInfo": True})
-        expected_tip_block_hash = self.nodes[1].getblockhash(267);
+        expected_tip_block_hash = self.nodes[1].getblockhash(267)
         assert_equal(utxos_with_info["height"], 267)
         assert_equal(utxos_with_info["hash"], expected_tip_block_hash)
+
+
+        # Check that indexes don't get updated when checking a new block (e.g. when calling getBlockTemplate)
+
+        # Initial balance is 0 and no index has been stored for addr3
+        addr3 = self.nodes[1].getnewaddress()
+        addr3_balance = self.nodes[2].getaddressbalance(addr3)
+        addr3_txs = self.nodes[2].getaddresstxids(addr3)
+        addr3_utxos = self.nodes[2].getaddressutxos(addr3)
+        addr3_mempool = self.nodes[2].getaddressmempool(addr3)
+
+        # The initial balance must be 0
+        assert_equal(addr3_balance["balance"], 0)
+
+        # At the beginning no address index must be stored
+        assert_equal(addr3_txs, [])
+
+        # At the beginning no unspent index must be stored
+        assert_equal(addr3_utxos, [])
+
+        # At the beginning no address mempool index must be stored
+        assert_equal(addr3_mempool, [])
+
+
+        # Add to mempool a transaction that sends money to addr3
+        addr3_amount = 0.1
+        addr3_txid = self.nodes[2].sendtoaddress(addr3, addr3_amount)
+        addr3_balance = self.nodes[2].getaddressbalance(addr3)
+        addr3_txs = self.nodes[2].getaddresstxids(addr3)
+        addr3_utxos = self.nodes[2].getaddressutxos(addr3)
+        addr3_mempool = self.nodes[2].getaddressmempool(addr3)
+
+        # The balance must still be 0
+        assert_equal(addr3_balance["balance"], 0)
+
+        # The address index must still be empty
+        assert_equal(addr3_txs, [])
+
+        # The unspent index must still be empty
+        assert_equal(addr3_utxos, [])
+
+        # The address mempool index must contain the new transaction
+        assert_equal(len(addr3_mempool), 1)
+        assert_equal(addr3_mempool[0]["txid"], addr3_txid)
+
+
+        # Call getBlockTemplate to trigger a call to VerifyBlock() => ConnectBlock()
+        # It should not update any index
+        self.nodes[2].getblocktemplate()
+        addr3_balance = self.nodes[2].getaddressbalance(addr3)
+        addr3_txs = self.nodes[2].getaddresstxids(addr3)
+        addr3_utxos = self.nodes[2].getaddressutxos(addr3)
+        addr3_mempool = self.nodes[2].getaddressmempool(addr3)
+
+        # The balance must still be 0
+        assert_equal(addr3_balance["balance"], 0)
+
+        # The address index must still be empty
+        assert_equal(addr3_txs, [])
+
+        # The unspent index must still be empty
+        assert_equal(addr3_utxos, [])
+
+        # The address mempool index must still be empty
+        assert_equal(len(addr3_mempool), 1)
+        assert_equal(addr3_mempool[0]["txid"], addr3_txid)
+
+
+        # Connect a new block "validating" the transaction sending money to addr3
+        self.nodes[2].generate(1)
+        self.sync_all()
+        addr3_balance = self.nodes[2].getaddressbalance(addr3)
+        addr3_txs = self.nodes[2].getaddresstxids(addr3)
+        addr3_utxos = self.nodes[2].getaddressutxos(addr3)
+        addr3_mempool = self.nodes[2].getaddressmempool(addr3)
+
+        # The balance must be updated
+        assert_equal(addr3_balance["balance"], 0.1 * 1e8)
+
+        # The address index must contain only the new transaction
+        assert_equal(len(addr3_txs), 1)
+        assert_equal(addr3_txs[0], addr3_txid)
+
+        # The unspent index must contain only the new transaction
+        assert_equal(len(addr3_utxos), 1)
+        assert_equal(addr3_utxos[0]["txid"], addr3_txid)
+
+        # The address mempool index must be empty again
+        assert_equal(addr3_mempool, [])
+
 
         print "Passed\n"
 
