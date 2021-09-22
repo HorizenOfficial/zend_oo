@@ -682,7 +682,14 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
     std::sort(unspentOutputs.begin(), unspentOutputs.end(), heightSort);
 
     UniValue utxos(UniValue::VARR);
-    int currentTipHeight = (int)chainActive.Height();
+    int currentTipHeight = -1;
+    std::string bestHashStr;
+    {
+        LOCK(cs_main);
+        if (includeChainInfo)
+            bestHashStr = chainActive.Tip()->GetBlockHash().GetHex();
+        currentTipHeight = (int)chainActive.Height();
+    }
 
     for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> >::const_iterator it=unspentOutputs.begin(); it!=unspentOutputs.end(); it++) {
         UniValue output(UniValue::VOBJ);
@@ -746,8 +753,7 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
         UniValue result(UniValue::VOBJ);
         result.pushKV("utxos", utxos);
 
-        LOCK(cs_main);
-        result.pushKV("hash", chainActive.Tip()->GetBlockHash().GetHex());
+        result.pushKV("hash",   bestHashStr);
         result.pushKV("height", currentTipHeight);
         return result;
     } else {
