@@ -318,6 +318,7 @@ static const CRPCCommand vRPCCommands[] =
     { "blockchain",         "gettxoutsetinfo",        &gettxoutsetinfo,        true  },
     { "blockchain",         "verifychain",            &verifychain,            true  },
     { "blockchain",         "checkcswnullifier",      &checkcswnullifier,      true  },
+    { "blockchain",         "getcertmaturityinfo",    &getcertmaturityinfo,    true },
     { "blockchain",         "getspentinfo",           &getspentinfo,           false },
 
     /* Mining */

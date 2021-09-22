@@ -32,6 +32,7 @@
 #include "sc/sidechainrpc.h"
 
 #include "validationinterface.h"
+#include "txdb.h"
 
 using namespace std;
 
@@ -2322,3 +2323,90 @@ UniValue setproofverifierlowpriorityguard(const UniValue& params, bool fHelp)
 
     return obj;
 }
+
+UniValue getcertmaturityinfo(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "getcertmaturityinfo (\"hash\")\n"
+            "\nArgument:\n"
+            "   \"hash\"   (string, mandatory) certificate hash (txid)\n"
+            "\nReturns the informations about certificate maturity. The cmd line option -txindex must have been used in the node\n"
+            "\nResult:\n"
+            "{\n"
+            "    \"maturityHeight\"     (number) The maturity height when the backwardtransfer output are spendable\n"           
+            "    \"blocksToMaturity\"   (number) The number of blocks to be mined for achieving maturity (0 means already spendable)\n"           
+            "    \"certificateState\"   (string) Can be one of [\"MATURE\", \"IMMATURE\", \"SUPERSEDED\"]\n"  
+            "}\n"
+
+            "\nExamples\n"
+            + HelpExampleCli("getcertmaturityinfo", "\"1a3e7ccbfd40c4e2304c3215f76d204e4de63c578ad835510f580d529516a874\"")
+        );
+
+    if (!fTxIndex)
+    {
+        throw JSONRPCError(RPC_TYPE_ERROR, "txindex option not set: can not retrieve info");
+    }
+
+    if (pblocktree == NULL)
+    {
+        throw JSONRPCError(RPC_TYPE_ERROR, "DB not initialized: can not retrieve info");
+    }
+
+    uint256 hash;
+    string hashString = params[0].get_str();
+    {
+        if (hashString.find_first_not_of("0123456789abcdefABCDEF", 0) != std::string::npos)
+            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid hash format: not an hex");
+    }
+
+    hash.SetHex(hashString);
+
+    int currentTipHeight = -1;
+    UniValue ret(UniValue::VOBJ);
+    CTxIndexValue txIndexValue;
+ 
+    {
+        LOCK(cs_main);
+        currentTipHeight = (int)chainActive.Height();
+        if (!pblocktree->ReadTxIndex(hash, txIndexValue))
+        {
+            throw JSONRPCError(RPC_TYPE_ERROR, "No info in Tx DB for the specified certificate");
+        }
+    }
+
+    int bwtMatHeight = txIndexValue.maturityHeight;
+
+    if (bwtMatHeight == 0)
+    {
+        // for instance when the hash is related to a tx
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid (null) certificate maturity height: is the input a tx hash?");
+    }
+
+    ret.pushKV("maturityHeight", bwtMatHeight);
+
+    if (bwtMatHeight < 0)
+    {
+        ret.pushKV("blocksToMaturity", -1);
+        ret.pushKV("certificateState", "SUPERSEDED");
+    }
+    else
+    {
+        int deltaMaturity    = bwtMatHeight - currentTipHeight;
+        bool isMature        = (deltaMaturity <= 0);
+
+        if (!isMature)
+        {
+            ret.pushKV("blocksToMaturity", deltaMaturity);
+            ret.pushKV("certificateState", "IMMATURE");
+        }
+        else
+        {
+            ret.pushKV("blocksToMaturity", 0);
+            ret.pushKV("certificateState", "MATURE");
+        }
+    }
+    
+    return ret;
+}
+
