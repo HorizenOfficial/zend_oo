@@ -642,7 +642,10 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
             "    \"outputIndex\"        (number) The output index\n"
             "    \"script\"             (string) The script hex encoded\n"
             "    \"satoshis\"           (number) The number of satoshis of the output\n"
-            "    \"maturityHeight\"     (number) The maturity height when the utxo'll became spendable (0 means already spendable)\n"           
+            "    \"backwardTransfer\"   (bool)   True if the output is a certificate backward transfer, False otherwise\n"
+            "    \"maturityHeight\"     (number) The maturity height when the utxo is spendable (0 means already spendable)\n"           
+            "    \"mature\"             (bool)   False if the output is a bwt of a certificate that has not yet reached maturity, True otherwise\n"  
+            "    \"blocksToMaturity\"   (number) The number of blocks to be mined for achieving maturity (0 means already spendable)\n"           
             "  }\n"
             "]\n"
             "\nExamples:\n"
@@ -679,7 +682,7 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
     std::sort(unspentOutputs.begin(), unspentOutputs.end(), heightSort);
 
     UniValue utxos(UniValue::VARR);
-    int currentTipHeight = chainActive.Tip()->nHeight;
+    int currentTipHeight = (int)chainActive.Height();
 
     for (std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> >::const_iterator it=unspentOutputs.begin(); it!=unspentOutputs.end(); it++) {
         UniValue output(UniValue::VOBJ);
@@ -687,12 +690,22 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
         if (!getAddressFromIndex(it->first.type, it->first.hashBytes, address)) {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Unknown address type");
         }
-        //If maturityHeight is negative it's superseded and we skip it
-        if (it->second.maturityHeight < 0)
-            continue;
-        //If it's immature and we don't include immature BTS, skip it
-        if (it->second.maturityHeight > currentTipHeight && !includeImmatureBTs) {
-            continue;
+
+        int bwtMatHeight  = it->second.maturityHeight;
+        bool isBwt        = (bwtMatHeight != 0);
+        int deltaMaturity = bwtMatHeight - currentTipHeight;
+        bool isMature     = (deltaMaturity <= 0);
+
+        if (isBwt)
+        {
+            //If maturityHeight is negative it's superseded and we skip it
+            if (bwtMatHeight < 0)
+                continue;
+    
+            //If it's immature and we don't include immature BTS, skip it
+            if (!isMature && !includeImmatureBTs) {
+                continue;
+            }
         }
 
         output.pushKV("address", address);
@@ -701,7 +714,31 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
         output.pushKV("script", HexStr(it->second.script.begin(), it->second.script.end()));
         output.pushKV("satoshis", it->second.satoshis);
         output.pushKV("height", it->second.blockHeight);
-        output.pushKV("maturityHeight", it->second.maturityHeight);
+
+        output.pushKV("backwardTransfer", isBwt);
+
+        // [AS] proposal: add these fields only if bwt
+        output.pushKV("maturityHeight", bwtMatHeight);
+
+        if (isBwt)
+        {
+            output.pushKV("mature", isMature);
+
+            if (!isMature)
+            {
+                output.pushKV("blocksToMaturity", deltaMaturity);
+            }
+            else
+            {
+                output.pushKV("blocksToMaturity", 0);
+            }
+        }
+        else
+        {
+            output.pushKV("mature", true);
+            output.pushKV("blocksToMaturity", 0);
+        }
+
         utxos.push_back(output);
     }
 
@@ -711,7 +748,7 @@ UniValue getaddressutxos(const UniValue& params, bool fHelp)
 
         LOCK(cs_main);
         result.pushKV("hash", chainActive.Tip()->GetBlockHash().GetHex());
-        result.pushKV("height", (int)chainActive.Height());
+        result.pushKV("height", currentTipHeight);
         return result;
     } else {
         return utxos;
