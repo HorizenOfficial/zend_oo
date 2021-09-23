@@ -7,7 +7,7 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import initialize_chain_clean, assert_equal, \
     start_nodes, get_epoch_data, assert_true, \
     sync_blocks, sync_mempools, connect_nodes_bi, mark_logs, \
-    swap_bytes, disconnect_nodes
+    swap_bytes, to_satoshis, disconnect_nodes
 from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.mc_test.mc_test import generate_random_field_element_hex, CertTestUtils
 import os
@@ -42,7 +42,7 @@ class sc_cert_addressindex(BitcoinTestFramework):
 
     def setup_network(self, split=False):
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir, extra_args= [['-blockprioritysize=0',
-            '-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-debug=zendoo_mc_cryptolib',
+            '-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', 
             '-scproofqueuesize=0', '-logtimemicros=1', '-txindex', '-addressindex', '-sccoinsmaturity=%d' % SC_COINS_MAT]] * NUMB_OF_NODES )
 
         for idx, _ in enumerate(self.nodes):
@@ -69,9 +69,6 @@ class sc_cert_addressindex(BitcoinTestFramework):
         # self.sync_all()
         time.sleep(2)
         self.is_network_split = False    
-
-    def to_satoshis(self, decimalAmount):
-        return float(decimalAmount) * 1e8
 
     def run_test(self):
 
@@ -147,11 +144,11 @@ class sc_cert_addressindex(BitcoinTestFramework):
         addressbalance = self.nodes[1].getaddressbalance({"addresses":[tAddr1]})
         addressbalanceWithImmature = self.nodes[1].getaddressbalance({"addresses":[tAddr1]}, True)
         assert_equal(addressbalance["balance"], 0)
-        assert_equal(addressbalance["immature"], self.to_satoshis(bwt_amount))
+        assert_equal(addressbalance["immature"], to_satoshis(bwt_amount))
         assert_equal(addressbalance["received"], 0)
-        assert_equal(addressbalanceWithImmature["balance"], self.to_satoshis(bwt_amount))
-        assert_equal(addressbalanceWithImmature["immature"], self.to_satoshis(bwt_amount))
-        assert_equal(addressbalanceWithImmature["received"], self.to_satoshis(bwt_amount))
+        assert_equal(addressbalanceWithImmature["balance"], to_satoshis(bwt_amount))
+        assert_equal(addressbalanceWithImmature["immature"], to_satoshis(bwt_amount))
+        assert_equal(addressbalanceWithImmature["received"], to_satoshis(bwt_amount))
         #TODO: Verify the difference between addressbalance and addressbalanceWithImmature
         ####### Test getaddressutxo ########
         addressutxo = self.nodes[1].getaddressutxos({"addresses":[tAddr1]})
@@ -224,11 +221,11 @@ class sc_cert_addressindex(BitcoinTestFramework):
         print(addressbalance)
         print(addressbalanceWithImmature)
         assert_equal(addressbalance["balance"], 0)
-        assert_equal(addressbalance["immature"], self.to_satoshis(bwt_amount3))
+        assert_equal(addressbalance["immature"], to_satoshis(bwt_amount3))
         assert_equal(addressbalance["received"], 0)
-        assert_equal(addressbalanceWithImmature["balance"], self.to_satoshis(bwt_amount3))
-        assert_equal(addressbalanceWithImmature["immature"], self.to_satoshis(bwt_amount3))
-        assert_equal(addressbalanceWithImmature["received"], self.to_satoshis(bwt_amount3))
+        assert_equal(addressbalanceWithImmature["balance"], to_satoshis(bwt_amount3))
+        assert_equal(addressbalanceWithImmature["immature"], to_satoshis(bwt_amount3))
+        assert_equal(addressbalanceWithImmature["received"], to_satoshis(bwt_amount3))
         #TODO: Verify the difference between addressbalance and addressbalanceWithImmature
         addressutxo = self.nodes[1].getaddressutxos({"addresses":[tAddr1]})
         addressutxoWithImmature = self.nodes[1].getaddressutxos({"addresses":[tAddr1]}, True)
