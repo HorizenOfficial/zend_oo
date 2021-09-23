@@ -5,11 +5,11 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import initialize_chain_clean, assert_equal, \
-    start_nodes, get_epoch_data, \
+    start_nodes, get_epoch_data, assert_true, \
     sync_blocks, sync_mempools, connect_nodes_bi, mark_logs, \
     swap_bytes, disconnect_nodes
 from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
-from test_framework.mc_test.mc_test import *
+from test_framework.mc_test.mc_test import generate_random_field_element_hex, CertTestUtils
 import os
 from decimal import Decimal
 import time
@@ -43,7 +43,7 @@ class sc_cert_addressindex(BitcoinTestFramework):
     def setup_network(self, split=False):
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir, extra_args= [['-blockprioritysize=0',
             '-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-debug=zendoo_mc_cryptolib',
-            '-scproofqueuesize=0', '-logtimemicros=1', '-addressindex', '-sccoinsmaturity=%d' % SC_COINS_MAT]] * NUMB_OF_NODES )
+            '-scproofqueuesize=0', '-logtimemicros=1', '-txindex', '-addressindex', '-sccoinsmaturity=%d' % SC_COINS_MAT]] * NUMB_OF_NODES )
 
         for idx, _ in enumerate(self.nodes):
             if idx < (NUMB_OF_NODES-1):
@@ -69,6 +69,9 @@ class sc_cert_addressindex(BitcoinTestFramework):
         # self.sync_all()
         time.sleep(2)
         self.is_network_split = False    
+
+    def to_satoshis(self, decimalAmount):
+        return float(decimalAmount) * 1e8
 
     def run_test(self):
 
@@ -138,15 +141,23 @@ class sc_cert_addressindex(BitcoinTestFramework):
         assert_equal(addressmempool, [])
         ####### Test getaddresstxids ########
         addresstxids = self.nodes[1].getaddresstxids({"addresses":[tAddr1]})
-        #assert_equal(len(addresstxids),1)
-        #assert_equal(addresstxids[0],cert1)
+        assert_equal(len(addresstxids),1)
+        assert_equal(addresstxids[0],cert1)
         ####### Test getaddressbalance ########
         addressbalance = self.nodes[1].getaddressbalance({"addresses":[tAddr1]})
         addressbalanceWithImmature = self.nodes[1].getaddressbalance({"addresses":[tAddr1]}, True)
+        assert_equal(addressbalance["balance"], 0)
+        assert_equal(addressbalance["immature"], self.to_satoshis(bwt_amount))
+        assert_equal(addressbalance["received"], 0)
+        assert_equal(addressbalanceWithImmature["balance"], self.to_satoshis(bwt_amount))
+        assert_equal(addressbalanceWithImmature["immature"], self.to_satoshis(bwt_amount))
+        assert_equal(addressbalanceWithImmature["received"], self.to_satoshis(bwt_amount))
         #TODO: Verify the difference between addressbalance and addressbalanceWithImmature
         ####### Test getaddressutxo ########
         addressutxo = self.nodes[1].getaddressutxos({"addresses":[tAddr1]})
+        assert_equal(len(addressutxo), 0)
         addressutxoWithImmature = self.nodes[1].getaddressutxos({"addresses":[tAddr1]}, True)
+        assert_equal(len(addressutxoWithImmature), 1)
         #TODO: Verify the difference between addressutxo and addressutxoWithImmature
 
         #Add to mempool Certificate 2 with quality = 7
@@ -201,18 +212,27 @@ class sc_cert_addressindex(BitcoinTestFramework):
 
         ####### Test getaddresstxids ########
         addresstxids = self.nodes[1].getaddresstxids({"addresses":[tAddr1]})
-        #assert_equal(len(addresstxids),3)
+        assert_equal(len(addresstxids),3)
+        assert_true(cert1 in addresstxids and cert2 in addresstxids and cert3 in addresstxids)
         #TODO: Verify that Certificate1,2,3 are in the response     
         ####### Test getaddressmempool ########
         addressmempool = self.nodes[1].getaddressmempool({"addresses":[tAddr1]})
         assert_equal(len(addressmempool), 0)
         ####### Test getaddressbalance ########
         addressbalance = self.nodes[1].getaddressbalance({"addresses":[tAddr1]})
-        addressbalanceWithImmature = self.nodes[1].getaddressbalance({"addresses":[tAddr1]}, True)  
+        addressbalanceWithImmature = self.nodes[1].getaddressbalance({"addresses":[tAddr1]}, True)
+        print(addressbalance)
+        print(addressbalanceWithImmature)
+        assert_equal(addressbalance["balance"], 0)
+        assert_equal(addressbalance["immature"], self.to_satoshis(bwt_amount3))
+        assert_equal(addressbalance["received"], 0)
+        assert_equal(addressbalanceWithImmature["balance"], self.to_satoshis(bwt_amount3))
+        assert_equal(addressbalanceWithImmature["immature"], self.to_satoshis(bwt_amount3))
+        assert_equal(addressbalanceWithImmature["received"], self.to_satoshis(bwt_amount3))
         #TODO: Verify the difference between addressbalance and addressbalanceWithImmature
         addressutxo = self.nodes[1].getaddressutxos({"addresses":[tAddr1]})
         addressutxoWithImmature = self.nodes[1].getaddressutxos({"addresses":[tAddr1]}, True)
-        #TODO: Verify the difference between addressutxo and addressutxoWithImmature    
+        #TODO: Verify the difference between addressutxo and addressutxoWithImmature
 
 
         # Split the network: (0)--(1) / (2)

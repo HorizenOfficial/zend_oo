@@ -3154,7 +3154,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     int nInputs = 0;
     unsigned int nSigOps = 0;
     CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
-    CTxIndexValue txIndexValue = CTxIndexValue(pos, 0);
     std::vector<std::pair<uint256, CTxIndexValue> > vTxIndexValues;
     vTxIndexValues.reserve(block.vtx.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1 + block.vcert.size());
@@ -3324,7 +3323,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             }
         }
 
-        vTxIndexValues.push_back(std::make_pair(tx.GetHash(), CTxIndexValue(pos, 0)));
+        vTxIndexValues.push_back(std::make_pair(tx.GetHash(), CTxIndexValue(pos, txIdx, 0)));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
 
         if (fScRelatedChecks == flagScRelatedChecks::ON)
@@ -3347,7 +3346,42 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (!view.HaveInputs(cert))
             return state.DoS(100, error("%s():%d: certificate inputs missing/spent",__func__, __LINE__),
                                  CValidationState::Code::INVALID, "bad-cert-inputs-missingorspent");
-// TODO add address indexing handling for vins
+
+        // Update the explorer indexes with the inputs
+        if (fAddressIndex || fSpentIndex)
+        {
+            for (size_t j = 0; j < cert.GetVin().size(); j++) {
+
+                const CTxIn input = cert.GetVin()[j];
+                const CTxOut &prevout = view.GetOutputFor(cert.GetVin()[j]);
+                CScript::ScriptType scriptType = prevout.scriptPubKey.GetType();
+                const uint160 addrHash = prevout.scriptPubKey.AddressHash();
+
+                if (fAddressIndex && scriptType != CScript::UNKNOWN) {
+                    // record spending activity
+                    addressIndex.push_back(make_pair(
+                        CAddressIndexKey(scriptType, addrHash, pindex->nHeight, certIdx, cert.GetHash(), j, true),
+                        CAddressIndexValue(prevout.nValue * -1, 0)));
+
+                    // remove address from unspent index
+                    addressUnspentIndex.push_back(make_pair(
+                        CAddressUnspentKey(scriptType, addrHash, input.prevout.hash, input.prevout.n),
+                        CAddressUnspentValue()));
+                }
+
+                if (fSpentIndex) {
+                    // Add the spent index to determine the txid and input that spent an output
+                    // and to find the amount and address from an input.
+                    // If we do not recognize the script type, we still add an entry to the
+                    // spentindex db, with a script type of 0 and addrhash of all zeroes.
+                    spentIndex.push_back(make_pair(
+                        CSpentIndexKey(input.prevout.hash, input.prevout.n),
+                        CSpentIndexValue(cert.GetHash(), j, pindex->nHeight, prevout.nValue, scriptType, addrHash)));
+                }
+            }
+
+        }
+
         // Add in sigops done by pay-to-script-hash inputs;
         // this is to prevent a "rogue miner" from creating
         // an incredibly-expensive-to-validate block.
@@ -3376,10 +3410,38 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         {
             scVerifier.LoadDataForCertVerification(view, cert);
         }
-// TODO add address indexing handling for vouts
+
+        // Update the explorer indexes with the "normal" outputs
+        if (fAddressIndex) {
+            for (unsigned int k = 0; k < cert.nFirstBwtPos; k++) {
+                const CTxOut &out = cert.GetVout()[k];
+
+                CScript::ScriptType scriptType = out.scriptPubKey.GetType();
+                if (scriptType != CScript::UNKNOWN) {
+                    uint160 const addrHash = out.scriptPubKey.AddressHash();
+
+                    // record receiving activity
+                    addressIndex.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, certIdx, cert.GetHash(), k, false),
+                                                     CAddressIndexValue(out.nValue, 0)));
+
+                    // record unspent output
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(scriptType, addrHash, cert.GetHash(), k),
+                                                            CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight, 0)));
+                }
+            }
+        }
+
         blockundo.vtxundo.push_back(CTxUndo());
         bool isBlockTopQualityCert = highQualityCertData.count(cert.GetHash()) != 0;
         UpdateCoins(cert, view, blockundo.vtxundo.back(), pindex->nHeight, isBlockTopQualityCert);
+
+        CSidechain sidechain;
+        assert(view.GetSidechain(cert.GetScId(), sidechain));
+        int certMaturityHeight = sidechain.GetCertMaturityHeight(cert.epochNumber);
+
+        if (!isBlockTopQualityCert) {
+            certMaturityHeight *= -1;   // A negative maturity height indicates that the certificate is superseded
+        }
 
         if (isBlockTopQualityCert)
         {
@@ -3393,6 +3455,15 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             if (!prevBlockTopQualityCertHash.IsNull())
             {
                 // if prevBlockTopQualityCertHash is not null, it has same scId/epochNumber as cert
+
+                // Set any lower quality BT as superseded on the explorer indexes
+                if (fAddressIndex) {
+                    CTxIndexValue txIndexVal;
+                    assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
+
+                    // Set the lower quality BTs as superseded
+                    view.NullifyBackwardTransferIndexes(prevBlockTopQualityCertHash, txIndexVal.txIndex, addressIndex, addressUnspentIndex);
+                }
 
                 view.NullifyBackwardTransfers(prevBlockTopQualityCertHash, blockundo.scUndoDatabyScId.at(cert.GetScId()).lowQualityBwts);
                 blockundo.scUndoDatabyScId.at(cert.GetScId()).contentBitMask |= CSidechainUndoData::AvailableSections::SUPERSEDED_CERT_DATA;
@@ -3420,20 +3491,32 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             LogPrint("cert", "%s():%d - nTxOffset=%d\n", __func__, __LINE__, pos.nTxOffset );
         }
 
-        CSidechain sidechain;
-        assert(view.GetSidechain(cert.GetScId(), sidechain));
-        int certMaturityHeight = sidechain.GetCertMaturityHeight(cert.epochNumber);
-
-        if (!isBlockTopQualityCert) {
-            certMaturityHeight *= -1;   // A negative maturity height indicates that the certificate is superseded
-        }
-
-        vTxIndexValues.push_back(std::make_pair(cert.GetHash(), CTxIndexValue(pos, certMaturityHeight)));
+        vTxIndexValues.push_back(std::make_pair(cert.GetHash(), CTxIndexValue(pos, certIdx, certMaturityHeight)));
         pos.nTxOffset += cert.GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
 
         if (fScRelatedChecks == flagScRelatedChecks::ON)
         {
             scCommitmentBuilder.add(cert, view);
+        }
+
+        // Update the explorer indexes according to the Backward Transfer outputs
+        if (fAddressIndex) {
+            for (unsigned int k = cert.nFirstBwtPos; k < cert.GetVout().size(); k++) {
+                const CTxOut &out = cert.GetVout()[k];
+
+                CScript::ScriptType scriptType = out.scriptPubKey.GetType();
+                if (scriptType != CScript::UNKNOWN) {
+                    uint160 const addrHash = out.scriptPubKey.AddressHash();
+
+                    // record receiving activity
+                    addressIndex.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, certIdx, cert.GetHash(), k, false),
+                                                     CAddressIndexValue(out.nValue, certMaturityHeight)));
+
+                    // record unspent output
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(scriptType, addrHash, cert.GetHash(), k),
+                                                            CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight, certMaturityHeight)));
+                }
+            }
         }
 
         LogPrint("cert", "%s():%d - nTxOffset=%d\n", __func__, __LINE__, pos.nTxOffset );

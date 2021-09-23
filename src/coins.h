@@ -25,6 +25,11 @@ class CTxInUndo;
 class CSidechainUndoData;
 class CScProofVerifier;
 
+struct CAddressIndexKey;
+struct CAddressIndexValue;
+struct CAddressUnspentKey;
+struct CAddressUnspentValue;
+
 static const int BWT_POS_UNSET = -1;
 
 /**
@@ -699,6 +704,10 @@ public:
     bool CheckQuality(const CScCertificate& cert)  const override;
     void NullifyBackwardTransfers(const uint256& certHash, std::vector<CTxInUndo>& nullifiedOuts);
     bool RestoreBackwardTransfers(const uint256& certHash, const std::vector<CTxInUndo>& outsToRestore);
+    void NullifyBackwardTransferIndexes(const uint256& certHash,
+                                        int certIndex,
+                                        std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
+                                        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex);
 
     //SIDECHAINS EVENTS RELATED MEMBERS
     bool HaveSidechainEvents(int height)                            const override;

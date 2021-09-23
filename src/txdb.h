@@ -66,18 +66,41 @@ struct CDiskTxPos : public CDiskBlockPos
 
 struct CTxIndexValue {
     CDiskTxPos txPosition;
-    int maturityHeight;
+    int txIndex;
+    int maturityHeight;     // It can contain negative numbers
 
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(txPosition);
-        READWRITE(VARINT(maturityHeight));
+        READWRITE(VARINT(txIndex));
+        
+        // Since the maturity can be negative, we have to manipulate it to store the sign bit in a VARINT
+        if (ser_action.ForRead()) {
+            READWRITE(VARINT(maturityHeight));
+            if ((maturityHeight & 1) == 1) {
+                maturityHeight >>=  1;
+                maturityHeight *= -1;
+            } else {
+                maturityHeight >>= 1;
+            }
+        } else {
+            int tempMaturityHeight = maturityHeight;
+            if (tempMaturityHeight < 0) {
+                tempMaturityHeight *= -1;
+                tempMaturityHeight <<= 1;
+                tempMaturityHeight |= 1;
+            } else {
+                tempMaturityHeight <<= 1;
+            }
+            READWRITE(VARINT(tempMaturityHeight));
+        }
     }
 
-    CTxIndexValue(const CDiskTxPos& txPos, int maturity) {
+    CTxIndexValue(const CDiskTxPos& txPos, int txIdx, int maturity) {
         txPosition = txPos;
+        txIndex = txIdx;
         maturityHeight = maturity;
     }
 
@@ -87,6 +110,7 @@ struct CTxIndexValue {
 
     void SetNull() {
         txPosition = CDiskTxPos();
+        txIndex = 0;
         maturityHeight = 0;
     }
 };
