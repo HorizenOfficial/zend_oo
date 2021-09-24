@@ -2680,7 +2680,8 @@ bool AbortNode(CValidationState& state, const std::string& strMessage, const std
 } // anon namespace
 
 bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view,
-    bool* pfClean, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo)
+                     bool* pfClean, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo,
+                     flagBlockProcessingType indexesProcessing)
 {
     assert(pindex->GetBlockHash() == view.GetBestBlock());
 
@@ -2716,7 +2717,8 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     std::map<uint256, uint256> highQualityCertData = HighQualityCertData(block, blockUndo);
     // key: current block top quality cert for given sc --> value: prev block superseeded cert hash (possibly null)
 
-    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndex;
+    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndexToRemove;
+    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndexToUpdate;
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
 
@@ -2728,7 +2730,24 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
         LogPrint("cert", "%s():%d - reverting outs of cert[%s]\n", __func__, __LINE__, hash.ToString());
 
-// TODO add address indexing handling for vouts
+        // Update the explorer indexes according to the removed outputs
+        if (fAddressIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
+            for (unsigned int k = cert.GetVout().size(); k-- > 0;) {
+                const CTxOut &out = cert.GetVout()[k];
+
+                CScript::ScriptType scriptType = out.scriptPubKey.GetType();
+                if (scriptType != CScript::UNKNOWN) {
+                    uint160 const addrHash = out.scriptPubKey.AddressHash();
+
+                    // undo receiving activity
+                    addressIndexToRemove.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, i, hash, k, false),
+                                                        CAddressIndexValue(out.nValue, 0)));
+
+                    // undo unspent index
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(scriptType, addrHash, hash, k), CAddressUnspentValue()));
+                }
+            }
+        }
 
         // Check that all outputs are available and match the outputs in the block itself
         // exactly.
@@ -2773,6 +2792,15 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                 // resurrect prevBlockTopQualityCertHash bwts
                 assert(blockUndo.scUndoDatabyScId.at(cert.GetScId()).contentBitMask & CSidechainUndoData::AvailableSections::SUPERSEDED_CERT_DATA);
                 view.RestoreBackwardTransfers(prevBlockTopQualityCertHash, blockUndo.scUndoDatabyScId.at(cert.GetScId()).lowQualityBwts);
+
+                CTxIndexValue txIndexVal;
+                assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
+
+                // Set the lower quality BTs as top quality
+                if (fAddressIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
+                    view.UpdateBackwardTransferIndexes(prevBlockTopQualityCertHash, txIndexVal.txIndex, addressIndexToUpdate, addressUnspentIndex,
+                                                       CCoinsViewCache::flagIndexesUpdateType::RESTORE_CERTIFICATE);
+                }
             }
 
             // Refresh previous certificate in wallet, whether it has been just restored or it is from previous epoch
@@ -2803,7 +2831,31 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                 LogPrint("cert", "%s():%d ApplyTxInUndo returned FALSE on cert [%s] \n", __func__, __LINE__, cert.GetHash().ToString());
                 fClean = false;
             }
-// TODO add address indexing handling for vins
+
+            // Update the explorer indexes according to the removed inputs
+            if (fAddressIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
+
+                CScript::ScriptType scriptType = undo.txout.scriptPubKey.GetType();
+
+                if (scriptType != CScript::UNKNOWN) {
+                    uint160 const addrHash = undo.txout.scriptPubKey.AddressHash();
+
+                    // undo spending activity
+                    addressIndexToRemove.push_back(make_pair(
+                        CAddressIndexKey(scriptType, addrHash, pindex->nHeight, i, hash, j, true),
+                        CAddressIndexValue(undo.txout.nValue * -1, 0)));
+
+                    // restore unspent index
+                    addressUnspentIndex.push_back(make_pair(
+                        CAddressUnspentKey(scriptType, addrHash, undo.txout.GetHash(), out.n),
+                        CAddressUnspentValue(undo.txout.nValue, undo.txout.scriptPubKey, undo.nHeight, 0)));
+                }
+            }
+
+            if (fSpentIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
+                // undo and delete the spent index
+                spentIndex.push_back(make_pair(CSpentIndexKey(out.hash, out.n), CSpentIndexValue()));
+            }
         }
     }
 
@@ -2812,7 +2864,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         const CTransaction &tx = block.vtx[i];
         uint256 hash = tx.GetHash();
 
-        if (fAddressIndex) {
+        if (fAddressIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
 
             for (unsigned int k = tx.GetVout().size(); k-- > 0;) {
                 const CTxOut &out = tx.GetVout()[k];
@@ -2822,7 +2874,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                     uint160 const addrHash = out.scriptPubKey.AddressHash();
 
                     // undo receiving activity
-                    addressIndex.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, i, hash, k, false),
+                    addressIndexToRemove.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, i, hash, k, false),
                                                      CAddressIndexValue(out.nValue, 0)));
 
                     // undo unspent index
@@ -2891,12 +2943,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
                 const CTxIn input = tx.GetVin()[j];
 
-                if (fSpentIndex) {
-                    // undo and delete the spent index
-                    spentIndex.push_back(make_pair(CSpentIndexKey(input.prevout.hash, input.prevout.n), CSpentIndexValue()));
-                }
-
-                if (fAddressIndex) {
+                if (fAddressIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
                     const CTxOut &prevout = view.GetOutputFor(tx.GetVin()[j]);
 
                     CScript::ScriptType scriptType = prevout.scriptPubKey.GetType();
@@ -2905,7 +2952,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                         uint160 const addrHash = prevout.scriptPubKey.AddressHash();
 
                         // undo spending activity
-                        addressIndex.push_back(make_pair(
+                        addressIndexToRemove.push_back(make_pair(
                             CAddressIndexKey(scriptType, addrHash, pindex->nHeight, i, hash, j, true),
                             CAddressIndexValue(prevout.nValue * -1, 0)));
 
@@ -2914,6 +2961,11 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                             CAddressUnspentKey(scriptType, addrHash, input.prevout.hash, input.prevout.n),
                             CAddressUnspentValue(prevout.nValue, prevout.scriptPubKey, undo.nHeight, 0)));
                     }
+                }
+
+                if (fSpentIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
+                    // undo and delete the spent index
+                    spentIndex.push_back(make_pair(CSpentIndexKey(input.prevout.hash, input.prevout.n), CSpentIndexValue()));
                 }
 
             }
@@ -2931,16 +2983,19 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         return true;
     }
 
-    if (fAddressIndex) {
-        if (!pblocktree->EraseAddressIndex(addressIndex)) {
+    if (fAddressIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
+        if (!pblocktree->EraseAddressIndex(addressIndexToRemove)) {
             return AbortNode(state, "Failed to delete address index");
+        }
+        if (!pblocktree->WriteAddressIndex(addressIndexToUpdate)) {
+            return AbortNode(state, "Failed to update address index");
         }
         if (!pblocktree->UpdateAddressUnspentIndex(addressUnspentIndex)) {
             return AbortNode(state, "Failed to write address unspent index");
         }
     }
 
-    if (fSpentIndex)
+    if (fSpentIndex && indexesProcessing == flagBlockProcessingType::COMPLETE)
     {
         if (!pblocktree->UpdateSpentIndex(spentIndex))
         {
@@ -3462,7 +3517,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                     assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
 
                     // Set the lower quality BTs as superseded
-                    view.NullifyBackwardTransferIndexes(prevBlockTopQualityCertHash, txIndexVal.txIndex, addressIndex, addressUnspentIndex);
+                    view.UpdateBackwardTransferIndexes(prevBlockTopQualityCertHash, txIndexVal.txIndex, addressIndex, addressUnspentIndex,
+                                                       CCoinsViewCache::flagIndexesUpdateType::SUPERSEDE_CERTIFICATE);
                 }
 
                 view.NullifyBackwardTransfers(prevBlockTopQualityCertHash, blockundo.scUndoDatabyScId.at(cert.GetScId()).lowQualityBwts);
@@ -3844,7 +3900,7 @@ bool static DisconnectTip(CValidationState &state) {
     std::vector<CScCertificateStatusUpdateInfo> certsStateInfo;
     {
         CCoinsViewCache view(pcoinsTip);
-        if (!DisconnectBlock(block, state, pindexDelete, view, NULL, &certsStateInfo))
+        if (!DisconnectBlock(block, state, pindexDelete, view, nullptr, &certsStateInfo, flagBlockProcessingType::COMPLETE))
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         assert(view.Flush());
     }
@@ -5490,7 +5546,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
         // check level 3: check for inconsistencies during memory-only disconnect of tip blocks
         if (nCheckLevel >= 3 && pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage) {
             bool fClean = true;
-            if (!DisconnectBlock(block, state, pindex, coins, &fClean))
+            if (!DisconnectBlock(block, state, pindex, coins, &fClean, nullptr, flagBlockProcessingType::CHECK_ONLY))
                 return error("VerifyDB(): *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
             pindexState = pindex->pprev;
             if (!fClean) {

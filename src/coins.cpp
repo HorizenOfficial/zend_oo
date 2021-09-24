@@ -1747,10 +1747,11 @@ bool CCoinsViewCache::RestoreBackwardTransfers(const uint256& certHash, const st
     return fClean;
 }
 
-void CCoinsViewCache::NullifyBackwardTransferIndexes(const uint256& certHash,
-                                                     int certIndex,
-                                                     std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
-                                                     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex)
+void CCoinsViewCache::UpdateBackwardTransferIndexes(const uint256& certHash,
+                                                    int certIndex,
+                                                    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
+                                                    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex,
+                                                    flagIndexesUpdateType updateType)
 {
     LogPrint("cert", "%s():%d - called for cert %s\n", __func__, __LINE__, certHash.ToString());
     if (certHash.IsNull())
@@ -1766,6 +1767,8 @@ void CCoinsViewCache::NullifyBackwardTransferIndexes(const uint256& certHash,
     const CCoins* coins = this->AccessCoins(certHash);
     assert(coins->nBwtMaturityHeight != 0);
 
+    const int multiplier = updateType == flagIndexesUpdateType::SUPERSEDE_CERTIFICATE ? -1 : 1;
+
     for(int pos = coins->nFirstBwtPos; pos < coins->vout.size(); ++pos)
     {
         const CTxOut& btOut = coins->vout.at(pos);
@@ -1775,11 +1778,11 @@ void CCoinsViewCache::NullifyBackwardTransferIndexes(const uint256& certHash,
 
             // update receiving activity
             addressIndex.push_back(std::make_pair(CAddressIndexKey(scriptType, addrHash, coins->nHeight, certIndex, certHash, pos, false),
-                                                  CAddressIndexValue(btOut.nValue, coins->nBwtMaturityHeight * -1)));
+                                                  CAddressIndexValue(btOut.nValue, coins->nBwtMaturityHeight * multiplier)));
 
-            // update unspent output
+            // Add unspent output (to be removed)
             addressUnspentIndex.push_back(std::make_pair(CAddressUnspentKey(scriptType, addrHash, certHash, pos),
-                                                         CAddressUnspentValue(btOut.nValue, btOut.scriptPubKey, coins->nHeight, coins->nBwtMaturityHeight * -1)));
+                                                         CAddressUnspentValue(btOut.nValue, btOut.scriptPubKey, coins->nHeight, coins->nBwtMaturityHeight * multiplier)));
         }
     }
 }

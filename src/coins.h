@@ -704,10 +704,24 @@ public:
     bool CheckQuality(const CScCertificate& cert)  const override;
     void NullifyBackwardTransfers(const uint256& certHash, std::vector<CTxInUndo>& nullifiedOuts);
     bool RestoreBackwardTransfers(const uint256& certHash, const std::vector<CTxInUndo>& outsToRestore);
-    void NullifyBackwardTransferIndexes(const uint256& certHash,
+
+    /**
+     * @brief The enumeration of allowed operations related to the indexes update.
+     * When connecting a new block, a previous top quality certificate get superseded.
+     * When disconnecting a block, a lower quality certificate becomes a top quality one
+     * and its Backward Transfers must be restored.
+     */
+    enum class flagIndexesUpdateType
+    {
+        SUPERSEDE_CERTIFICATE,      /**< Perform the normal/complete procedure applying changes. */
+        RESTORE_CERTIFICATE         /**< Perofrm only the validity check and do not apply any changes. */
+    };
+
+    void UpdateBackwardTransferIndexes(const uint256& certHash,
                                         int certIndex,
                                         std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
-                                        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex);
+                                        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex,
+                                        flagIndexesUpdateType updateType);
 
     //SIDECHAINS EVENTS RELATED MEMBERS
     bool HaveSidechainEvents(int height)                            const override;
