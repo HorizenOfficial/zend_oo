@@ -2683,6 +2683,11 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                      bool* pfClean, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo,
                      flagBlockProcessingType indexesProcessing)
 {
+    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndexToRemove;
+    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndexToUpdate;
+    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
+    std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
+
     assert(pindex->GetBlockHash() == view.GetBestBlock());
 
     if (pfClean)
@@ -2712,15 +2717,14 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         return error("DisconnectBlock(): cannot revert sidechains scheduled events");
     }
 
+    if (fAddressIndex) {
+        view.RevertIndexesSidechainEvents(pindex->nHeight, blockUndo, pCertsStateInfo, pblocktree, addressIndexToUpdate, addressUnspentIndex);
+    }
+
     // not including coinbase
     const int certOffset = block.vtx.size() - 1;
     std::map<uint256, uint256> highQualityCertData = HighQualityCertData(block, blockUndo);
     // key: current block top quality cert for given sc --> value: prev block superseeded cert hash (possibly null)
-
-    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndexToRemove;
-    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndexToUpdate;
-    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
-    std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
 
     // undo certificates in reverse order
     for (int i = block.vcert.size() - 1; i >= 0; i--) {
@@ -3577,6 +3581,10 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
         LogPrint("cert", "%s():%d - nTxOffset=%d\n", __func__, __LINE__, pos.nTxOffset );
     } //end of Processing certificates loop
+
+    if (fAddressIndex) {
+        view.HandleIndexesSidechainEvents(pindex->nHeight, blockundo, pCertsStateInfo, pblocktree, addressIndex, addressUnspentIndex);
+    }
 
     if (!view.HandleSidechainEvents(pindex->nHeight, blockundo, pCertsStateInfo))
     {

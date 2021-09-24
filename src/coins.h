@@ -21,6 +21,7 @@
 #include <consensus/validation.h>
 
 class CBlockUndo;
+class CBlockTreeDB;
 class CTxInUndo;
 class CSidechainUndoData;
 class CScProofVerifier;
@@ -729,6 +730,16 @@ public:
 
     bool HandleSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo);
     bool RevertSidechainEvents(const CBlockUndo& blockUndo, int height, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo);
+
+    void HandleIndexesSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo,
+                                      CBlockTreeDB* pblocktree,
+                                      std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
+                                      std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex);
+
+    void RevertIndexesSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo,
+                                      CBlockTreeDB* pblocktree,
+                                      std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
+                                      std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex);
 
     //CSW NULLIFIER PUBLIC MEMBERS
     bool HaveCswNullifier(const uint256& scId, const CFieldElement &nullifier) const override;
