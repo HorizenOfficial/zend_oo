@@ -1098,16 +1098,14 @@ int CCoinsViewCache::GetHeight() const {return -1;}
 CValidationState::Code CCoinsViewCache::IsCertApplicableToState(const CScCertificate& cert, bool* banSenderNode) const {return CValidationState::Code::OK;}
 CValidationState::Code CCoinsViewCache::IsScTxApplicableToState(const CTransaction& tx, Sidechain::ScFeeCheckFlag scFeeCheckType, bool* banSenderNode) const { return CValidationState::Code::OK;}
 
-void CCoinsViewCache::HandleIndexesSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo,
-                                                   CBlockTreeDB* pblocktree,
+void CCoinsViewCache::HandleIndexesSidechainEvents(int height, CBlockTreeDB* pblocktree,
                                                    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                                    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex)
 {
     return;
 }
 
-void CCoinsViewCache::RevertIndexesSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo,
-                                                   CBlockTreeDB* pblocktree,
+void CCoinsViewCache::RevertIndexesSidechainEvents(int height, CBlockUndo& blockUndo, CBlockTreeDB* pblocktree,
                                                    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                                    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex)
 {
@@ -1575,8 +1573,7 @@ CValidationState::Code CCoinsViewCache::IsScTxApplicableToState(const CTransacti
     return CValidationState::Code::OK;
 }
 
-void CCoinsViewCache::HandleIndexesSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo,
-                                                   CBlockTreeDB* pblocktree,
+void CCoinsViewCache::HandleIndexesSidechainEvents(int height, CBlockTreeDB* pblocktree,
                                                    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                                    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex)
 {
@@ -1606,8 +1603,7 @@ void CCoinsViewCache::HandleIndexesSidechainEvents(int height, CBlockUndo& block
     }
 }
 
-void CCoinsViewCache::RevertIndexesSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo,
-                                                   CBlockTreeDB* pblocktree,
+void CCoinsViewCache::RevertIndexesSidechainEvents(int height, CBlockUndo& blockUndo, CBlockTreeDB* pblocktree,
                                                    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                                    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex)
 {

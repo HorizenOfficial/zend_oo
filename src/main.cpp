@@ -2717,8 +2717,8 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         return error("DisconnectBlock(): cannot revert sidechains scheduled events");
     }
 
-    if (fAddressIndex) {
-        view.RevertIndexesSidechainEvents(pindex->nHeight, blockUndo, pCertsStateInfo, pblocktree, addressIndexToUpdate, addressUnspentIndex);
+    if (fAddressIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
+        view.RevertIndexesSidechainEvents(pindex->nHeight, blockUndo, pblocktree, addressIndexToUpdate, addressUnspentIndex);
     }
 
     // not including coinbase
@@ -3583,7 +3583,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     } //end of Processing certificates loop
 
     if (fAddressIndex) {
-        view.HandleIndexesSidechainEvents(pindex->nHeight, blockundo, pCertsStateInfo, pblocktree, addressIndex, addressUnspentIndex);
+        view.HandleIndexesSidechainEvents(pindex->nHeight, pblocktree, addressIndex, addressUnspentIndex);
     }
 
     if (!view.HandleSidechainEvents(pindex->nHeight, blockundo, pCertsStateInfo))

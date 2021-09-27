@@ -731,13 +731,11 @@ public:
     bool HandleSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo);
     bool RevertSidechainEvents(const CBlockUndo& blockUndo, int height, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo);
 
-    void HandleIndexesSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo,
-                                      CBlockTreeDB* pblocktree,
+    void HandleIndexesSidechainEvents(int height, CBlockTreeDB* pblocktree,
                                       std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                       std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex);
 
-    void RevertIndexesSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo,
-                                      CBlockTreeDB* pblocktree,
+    void RevertIndexesSidechainEvents(int height, CBlockUndo& blockUndo, CBlockTreeDB* pblocktree,
                                       std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                       std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex);
 
