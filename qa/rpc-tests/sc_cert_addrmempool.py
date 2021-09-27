@@ -137,7 +137,6 @@ class AddresMempool(BitcoinTestFramework):
         #pprint.pprint(utxos_2)
         assert_equal(len(utxos_2), 1)
         assert_equal(utxos_2[0]['confirmations'], 101)
-        #raw_input("_____________")
 
         epoch_number, epoch_cum_tree_hash = get_epoch_data(scid, self.nodes[0], EPOCH_LENGTH)
 
@@ -319,7 +318,7 @@ class AddresMempool(BitcoinTestFramework):
 
         mark_logs("Calling getaddressmempool for cert {}".format(cert_2_top_retried), self.nodes, DEBUG_MODE)
         ret = self.nodes[3].getaddressmempool(args)
-        pprint.pprint(ret)
+        #pprint.pprint(ret)
 
         for x in ret:
             sat = x['satoshis']
@@ -343,20 +342,26 @@ class AddresMempool(BitcoinTestFramework):
         am_bwt1 = Decimal(0.011)
         am_bwt2 = Decimal(0.022)
         am_out  = Decimal(0.001)
+
+        # python orders dictionaries by key, therefore we must use the same order when creating the proof
+        pkh_arr = []
+        am_bwt_arr = []
+        raw_bwt_outs = {pkh_node1: am_bwt1, pkh_node2: am_bwt2}
+        for key in raw_bwt_outs.iterkeys():
+            pkh_arr.append(key)
+            am_bwt_arr.append(raw_bwt_outs[key])
+
         proof = mcTest.create_test_proof(
             "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant,
-            [pkh_node1, pkh_node2], [am_bwt1, am_bwt2])
+            pkh_arr, am_bwt_arr)
         
         utx, change = get_spendable(self.nodes[0], CERT_FEE + am_out)
         raw_inputs  = [ {'txid' : utx['txid'], 'vout' : utx['vout']}]
 
-#---------------------------------------------------
-        # TODO proof fails if we have 2 non-bwt outputs!!
-        #raw_outs    = { taddr0: change, taddr1: am_out }
-#---------------------------------------------------
-        raw_outs    = { taddr0: change+am_out }
+        # do not use the same address, this is not supported (and python would prevent it anyway since this is a dictionary)
+        taddr3 = self.nodes[3].getnewaddress()
+        raw_outs    = { taddr0: change, taddr3: am_out }
 
-        raw_bwt_outs = {pkh_node1: am_bwt1, pkh_node2: am_bwt2}
         raw_params = {
             "scid": scid,
             "quality": quality,
@@ -365,7 +370,7 @@ class AddresMempool(BitcoinTestFramework):
             "withdrawalEpochNumber": epoch_number
         }
         raw_cert = []
-        cert = []
+        cert_last = []
 
         try:
             raw_cert    = self.nodes[0].createrawcertificate(raw_inputs, raw_outs, raw_bwt_outs, raw_params)
@@ -375,19 +380,53 @@ class AddresMempool(BitcoinTestFramework):
             print "\n======> ", errorString
             assert_true(False)
 
-        pprint.pprint(self.nodes[0].decoderawtransaction(signed_cert['hex']))
+        #pprint.pprint(self.nodes[0].decoderawcertificate(signed_cert['hex']))
+
         try:
-            cert = self.nodes[0].sendrawcertificate(signed_cert['hex'])
+            cert_last = self.nodes[0].sendrawcertificate(signed_cert['hex'])
             self.sync_all()
         except JSONRPCException, e:
             errorString = e.error['message']
             print "======> ", errorString, "\n"
             assert_true(False)
 
-        mark_logs("Calling getaddressmempool for cert {}".format(cert), self.nodes, DEBUG_MODE)
+        addr_list.append(taddr3)
+        args = {"addresses": addr_list} 
+        mark_logs("Calling getaddressmempool for cert {}".format(cert_last), self.nodes, DEBUG_MODE)
         ret = self.nodes[3].getaddressmempool(args)
-        pprint.pprint(ret)
+        #pprint.pprint(ret)
 
+        for x in ret:
+            sat = x['satoshis']
+            if sat < 0:
+                # skip inputs
+                continue
+
+            addr = x['address']
+            cert_id = x['txid']
+            out_status = x['outstatus']
+
+            # ordinary outputs
+            if addr == taddr0:
+                assert_equal(sat, to_satoshis(change)) 
+                assert_equal(out_status, 0)
+            if addr == taddr3:
+                assert_equal(sat, to_satoshis(am_out)) 
+                assert_equal(out_status, 0)
+
+            # certificates
+            if addr == taddr2:
+                # two certificates refer to this address, the latest is top quality, the former has been superseeded 
+                if cert_id == cert_last:
+                    assert_equal(sat, to_satoshis(am_bwt2)) 
+                    assert_equal(out_status, 1)
+                if cert_id == cert_2_top_retried:
+                    assert_equal(sat, to_satoshis(bwt_amount2)) 
+                    assert_equal(out_status, 2)
+            if addr == taddr1:
+                assert_equal(cert_id, cert_last)
+                assert_equal(sat, to_satoshis(am_bwt1)) 
+                assert_equal(out_status, 1)
 
 if __name__ == '__main__':
     AddresMempool().main()
