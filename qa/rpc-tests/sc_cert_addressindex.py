@@ -316,9 +316,9 @@ class sc_cert_addressindex(BitcoinTestFramework):
         # Checking the network chain tips
         mark_logs("\nChecking network chain tips...", self.nodes, DEBUG_MODE)
         for i in range(0, NUMB_OF_NODES):
-            print(self.nodes[i].getblockchaininfo()['blocks'])
             assert_equal(self.nodes[i].getblockchaininfo()['blocks'],524)
 
+        mark_logs("\nInvalidating the last block and checking RPC call results...", self.nodes, DEBUG_MODE)
         self.nodes[1].invalidateblock(lastBlock)
         ####### Test getaddressmempool ########
         addressmempool = self.nodes[1].getaddressmempool({"addresses":[tAddr1]})    
@@ -354,6 +354,56 @@ class sc_cert_addressindex(BitcoinTestFramework):
         assert_false(addressutxoWithImmature[0]["mature"])
         assert_equal(addressutxoWithImmature[0]["maturityHeight"], maturityHeight)
         assert_equal(addressutxoWithImmature[0]["satoshis"], to_satoshis(bwt_amount3))
+        currentHeight = self.nodes[1].getblockcount()
+        assert_equal(addressutxoWithImmature[0]["blocksToMaturity"], maturityHeight - currentHeight)
+        
+        
+        # Generate blocks to reach maturity height (and also make sidechain cease)
+        mark_logs("\nGenerating blocks to make the sidechain ceased...", self.nodes, DEBUG_MODE)
+        lastBlock = self.nodes[1].generate(int(maturityHeight - currentHeight))[-1]
+        self.sync_all()
+
+        mark_logs("Checking that all the certificates are considered as not mature...", self.nodes, DEBUG_MODE)
+        ####### Test getaddressbalance ########
+        addressbalance = self.nodes[1].getaddressbalance({"addresses":[tAddr1]})
+        addressbalanceWithImmature = self.nodes[1].getaddressbalance({"addresses":[tAddr1]}, True)
+        # All the balances should be 0 since the sidechain is ceased and no BT has matured
+        assert_equal(addressbalance["balance"], 0)
+        assert_equal(addressbalance["immature"], 0)
+        assert_equal(addressbalance["received"], 0)
+        assert_equal(addressbalanceWithImmature["balance"], 0)
+        assert_equal(addressbalanceWithImmature["immature"], 0)
+        assert_equal(addressbalanceWithImmature["received"], 0)
+        ####### Test getaddressutxo ########
+        addressutxo = self.nodes[1].getaddressutxos({"addresses":[tAddr1]})
+        addressutxoWithImmature = self.nodes[1].getaddressutxos({"addresses":[tAddr1]}, True)
+        assert_equal(len(addressutxo), 0)
+        assert_equal(len(addressutxoWithImmature), 0)
+
+        # Invalidate the last block to recover the sidechain from the "ceased" state and make
+        # it "alive" again.
+        mark_logs("\nInvalidating the last block to make the sidechain alive again...", self.nodes, DEBUG_MODE)
+        self.nodes[1].invalidateblock(lastBlock)
+
+        mark_logs("Checking that the certificates are restored as they were before the block revert...", self.nodes, DEBUG_MODE)
+        ####### Test getaddressbalance ########
+        addressbalance = self.nodes[1].getaddressbalance({"addresses":[tAddr1]})
+        addressbalanceWithImmature = self.nodes[1].getaddressbalance({"addresses":[tAddr1]}, True)  
+        assert_equal(addressbalance["balance"], 0)
+        assert_equal(addressbalance["immature"], to_satoshis(bwt_amount5))
+        assert_equal(addressbalance["received"], 0)
+        assert_equal(addressbalanceWithImmature["balance"], to_satoshis(bwt_amount5))
+        assert_equal(addressbalanceWithImmature["immature"], to_satoshis(bwt_amount5))
+        assert_equal(addressbalanceWithImmature["received"], to_satoshis(bwt_amount5))        
+        ####### Test getaddressutxo ########
+        addressutxo = self.nodes[1].getaddressutxos({"addresses":[tAddr1]})
+        addressutxoWithImmature = self.nodes[1].getaddressutxos({"addresses":[tAddr1]}, True)
+        assert_equal(len(addressutxo), 0)
+        assert_equal(len(addressutxoWithImmature), 1)
+        assert_true(addressutxoWithImmature[0]["backwardTransfer"])
+        assert_false(addressutxoWithImmature[0]["mature"])
+        assert_equal(addressutxoWithImmature[0]["maturityHeight"], maturityHeight)
+        assert_equal(addressutxoWithImmature[0]["satoshis"], to_satoshis(bwt_amount5))
         currentHeight = self.nodes[1].getblockcount()
         assert_equal(addressutxoWithImmature[0]["blocksToMaturity"], maturityHeight - currentHeight)
 
