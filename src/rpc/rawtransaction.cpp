@@ -359,6 +359,10 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
         vin.push_back(in);
     }
     entry.pushKV("vin", vin);
+
+    // add to entry obj the ceased sidechain withdrawal inputs
+    Sidechain::AddCeasedSidechainWithdrawalInputsToJSON(tx, entry);
+
     UniValue vout(UniValue::VARR);
     for (unsigned int i = 0; i < tx.GetVout().size(); i++) {
         const CTxOut& txout = tx.GetVout()[i];
