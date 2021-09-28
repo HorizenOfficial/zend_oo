@@ -112,7 +112,7 @@ class AddresMempool(BitcoinTestFramework):
         constant = generate_random_field_element_hex()
 
         # Create a SC
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
         scid = ret['scid']
         tx_cr = ret['txid']
         scid_swapped = str(swap_bytes(scid))
@@ -144,9 +144,9 @@ class AddresMempool(BitcoinTestFramework):
         taddr1 = self.nodes[1].getnewaddress()
         taddr2 = self.nodes[2].getnewaddress()
 
-        pkh_node0 = self.nodes[0].validateaddress(taddr0)['pubkeyhash']
-        pkh_node1 = self.nodes[1].validateaddress(taddr1)['pubkeyhash']
-        pkh_node2 = self.nodes[2].validateaddress(taddr2)['pubkeyhash']
+        node0Addr = self.nodes[0].validateaddress(taddr0)['address']
+        node1Addr = self.nodes[1].validateaddress(taddr1)['address']
+        node2Addr = self.nodes[2].validateaddress(taddr2)['address']
 
         bwt_amount0      = Decimal("0.10")
         bwt_amount1      = Decimal("0.20")
@@ -155,35 +155,35 @@ class AddresMempool(BitcoinTestFramework):
         try:
             #Create proof for WCert
             quality = 1
-            amounts = [{"pubkeyhash": pkh_node0, "amount": bwt_amount0}]
+            amounts = [{"address": node0Addr, "amount": bwt_amount0}]
             proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality,
-                MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node0], [bwt_amount0])
+                MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [node0Addr], [bwt_amount0])
 
             mark_logs("Node 0 sends a cert with a bwd transfers of {} coins to Node0 taddr {}".format(bwt_amount0, taddr0), self.nodes, DEBUG_MODE)
-            cert_0_top = self.nodes[0].send_certificate(scid, epoch_number, quality,
+            cert_0_top = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_0_top), self.nodes, DEBUG_MODE)
             self.sync_all()
 
             quality = 2
-            amounts = [{"pubkeyhash": pkh_node1, "amount": bwt_amount1}]
+            amounts = [{"address": node1Addr, "amount": bwt_amount1}]
             proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality,
-                MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount1])
+                MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [node1Addr], [bwt_amount1])
 
             mark_logs("Node 1 sends a cert with a bwd transfers of {} coins to Node1 taddr {}".format(bwt_amount1, taddr1), self.nodes, DEBUG_MODE)
-            cert_1_top = self.nodes[1].send_certificate(scid, epoch_number, quality,
+            cert_1_top = self.nodes[1].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_1_top), self.nodes, DEBUG_MODE)
 
             self.sync_all()
 
             quality = 3
-            amounts = [{"pubkeyhash": pkh_node2, "amount": bwt_amount2}]
+            amounts = [{"address": node2Addr, "amount": bwt_amount2}]
             proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality,
-                MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node2], [bwt_amount2])
+                MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [node2Addr], [bwt_amount2])
 
             mark_logs("Node 2 sends a cert with a bwd transfers of {} coins to Node2 taddr {}".format(bwt_amount2, taddr2), self.nodes, DEBUG_MODE)
-            cert_2_top = self.nodes[2].send_certificate(scid, epoch_number, quality,
+            cert_2_top = self.nodes[2].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_2_top), self.nodes, DEBUG_MODE)
 
@@ -281,7 +281,7 @@ class AddresMempool(BitcoinTestFramework):
             # slightly increase the fee, just for not having the same cert id hash. The reason is that an inventory already
             # known (and this would be since already broadcasted and then evicted) are not broadcasted by th p2p network
             new_cert_fee = CERT_FEE + Decimal(0.00001)
-            cert_2_top_retried = self.nodes[2].send_certificate(scid, epoch_number, quality,
+            cert_2_top_retried = self.nodes[2].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, new_cert_fee)
 
             mark_logs("==> certificate is {}".format(cert_2_top_retried), self.nodes, DEBUG_MODE)
@@ -346,7 +346,7 @@ class AddresMempool(BitcoinTestFramework):
         # python orders dictionaries by key, therefore we must use the same order when creating the proof
         pkh_arr = []
         am_bwt_arr = []
-        raw_bwt_outs = {pkh_node1: am_bwt1, pkh_node2: am_bwt2}
+        raw_bwt_outs = {node1Addr: am_bwt1, node2Addr: am_bwt2}
         for key in raw_bwt_outs.iterkeys():
             pkh_arr.append(key)
             am_bwt_arr.append(raw_bwt_outs[key])
@@ -374,7 +374,7 @@ class AddresMempool(BitcoinTestFramework):
 
         try:
             raw_cert    = self.nodes[0].createrawcertificate(raw_inputs, raw_outs, raw_bwt_outs, raw_params)
-            signed_cert = self.nodes[0].signrawcertificate(raw_cert)
+            signed_cert = self.nodes[0].signrawtransaction(raw_cert)
         except JSONRPCException, e:
             errorString = e.error['message']
             print "\n======> ", errorString
@@ -383,7 +383,7 @@ class AddresMempool(BitcoinTestFramework):
         #pprint.pprint(self.nodes[0].decoderawcertificate(signed_cert['hex']))
 
         try:
-            cert_last = self.nodes[0].sendrawcertificate(signed_cert['hex'])
+            cert_last = self.nodes[0].sendrawtransaction(signed_cert['hex'])
             self.sync_all()
         except JSONRPCException, e:
             errorString = e.error['message']

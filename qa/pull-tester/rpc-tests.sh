@@ -161,6 +161,7 @@ testScriptsExt=(
   'checkblockatheight.py'
   'sc_big_block.py'
   'sc_cert_addressindex.py'  #This  works only in AddressIndexing branch
+  'sc_cert_addrmempool.py'  #This  works only in AddressIndexing branch
 );
 
 if [ "x$ENABLE_ZMQ" = "x1" ]; then

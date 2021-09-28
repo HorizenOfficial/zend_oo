@@ -216,7 +216,8 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
 
 void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& entry)
 {
-    entry.pushKV("txid", cert.GetHash().GetHex());
+    uint256 certId = cert.GetHash();
+    entry.pushKV("txid", certId.GetHex());
     entry.pushKV("version", cert.nVersion);
     UniValue vin(UniValue::VARR);
     BOOST_FOREACH(const CTxIn& txin, cert.GetVin()) {

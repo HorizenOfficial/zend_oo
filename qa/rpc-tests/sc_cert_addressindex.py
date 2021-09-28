@@ -76,7 +76,7 @@ class sc_cert_addressindex(BitcoinTestFramework):
         creation_amount = Decimal("50")
         bwt_amount = Decimal("5")
         tAddr1 = self.nodes[1].getnewaddress()
-        pkh_node1 = self.nodes[1].validateaddress(tAddr1)['pubkeyhash']
+        node1Addr = self.nodes[1].validateaddress(tAddr1)['address']
 
         self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()    
@@ -88,7 +88,7 @@ class sc_cert_addressindex(BitcoinTestFramework):
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
         scid_swapped = str(swap_bytes(scid))
@@ -113,13 +113,13 @@ class sc_cert_addressindex(BitcoinTestFramework):
         epoch_number, epoch_cum_tree_hash = get_epoch_data(scid, self.nodes[0], EPOCH_LENGTH)
         quality = 5
         proof = mcTest.create_test_proof(
-            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [node1Addr], [bwt_amount])
 
-        amount_cert_1 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount}]
+        amount_cert_1 = [{"address": node1Addr, "amount": bwt_amount}]
 
         mark_logs("Mine Certificate 1 with quality = {}...".format(quality), self.nodes, DEBUG_MODE)
 
-        cert1 = self.nodes[0].send_certificate(scid, epoch_number, quality,
+        cert1 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
         self.sync_all()
         
@@ -170,11 +170,11 @@ class sc_cert_addressindex(BitcoinTestFramework):
         bwt_amount2 = Decimal("7")      
         mark_logs("Add to mempool Certificate 2 with quality = {}...".format(quality), self.nodes, DEBUG_MODE)
         proof = mcTest.create_test_proof(
-            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount2])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [node1Addr], [bwt_amount2])
 
-        amount_cert_2 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount2}]
+        amount_cert_2 = [{"address": node1Addr, "amount": bwt_amount2}]
 
-        cert2 = self.nodes[0].send_certificate(scid, epoch_number, quality,
+        cert2 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
         self.sync_all()
 
@@ -190,11 +190,11 @@ class sc_cert_addressindex(BitcoinTestFramework):
         bwt_amount3 = Decimal("9")
         mark_logs("Add to mempool Certificate 3 with quality = {}...".format(quality), self.nodes, DEBUG_MODE)
         proof = mcTest.create_test_proof(
-            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount3])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [node1Addr], [bwt_amount3])
 
-        amount_cert_3 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount3}]
+        amount_cert_3 = [{"address": node1Addr, "amount": bwt_amount3}]
 
-        cert3 = self.nodes[0].send_certificate(scid, epoch_number, quality,
+        cert3 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
         self.sync_all()
 
@@ -254,22 +254,22 @@ class sc_cert_addressindex(BitcoinTestFramework):
         bwt_amount4 = Decimal("11")
         mark_logs("Create a Certificate 4 with quality = {}...".format(quality), self.nodes, DEBUG_MODE)
         proof = mcTest.create_test_proof(
-            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount4])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [node1Addr], [bwt_amount4])
 
-        amount_cert_4 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount4}]
+        amount_cert_4 = [{"address": node1Addr, "amount": bwt_amount4}]
 
-        cert4 = self.nodes[0].send_certificate(scid, epoch_number, quality,
+        cert4 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_4, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
 
         quality = 13
         bwt_amount5 = Decimal("13")
         mark_logs("Create a Certificat 5 with quality = {}...".format(quality), self.nodes, DEBUG_MODE)
         proof = mcTest.create_test_proof(
-            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount5])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [node1Addr], [bwt_amount5])
 
-        amount_cert_5 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount5}]
+        amount_cert_5 = [{"address": node1Addr, "amount": bwt_amount5}]
 
-        cert5 = self.nodes[0].send_certificate(scid, epoch_number, quality,
+        cert5 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_5, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
 
         lastBlock = self.nodes[0].generate(1)[0]
