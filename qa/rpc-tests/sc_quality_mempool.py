@@ -212,7 +212,7 @@ class quality_mempool(BitcoinTestFramework):
 
         inputs  = [ {'txid' : utx['txid'], 'vout' : utx['vout']}]
         outputs = { self.nodes[0].getnewaddress(): change }
-        bwt_outs = {addr_node1: bwt_amount}
+        bwt_outs = [{"address":addr_node1, "amount":bwt_amount}]
         params = {
             "scid": scid_1,
             "quality": quality - 10,
@@ -308,7 +308,7 @@ class quality_mempool(BitcoinTestFramework):
 
         inputs  = [ {'txid' : utx['txid'], 'vout' : utx['vout']}]
         outputs = { self.nodes[0].getnewaddress(): change }
-        bwt_outs = {addr_node1: bwt_amount}
+        bwt_outs = [{"address":addr_node1, "amount":bwt_amount}]
         params = {
             "scid": scid_1,
             "quality": quality,
@@ -499,7 +499,7 @@ class quality_mempool(BitcoinTestFramework):
 
         inputs = [{'txid': utx['txid'], 'vout': utx['vout']}]
         outputs = {self.nodes[0].getnewaddress(): change}
-        bwt_outs = {addr_node1: bwt_amount}
+        bwt_outs = [{"address":addr_node1, "amount":bwt_amount}]
         params = {
             "scid": scid_1,
             "quality": quality,
