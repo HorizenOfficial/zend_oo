@@ -78,8 +78,15 @@ class quality_voiding(BitcoinTestFramework):
         vk_tag = "sc1"
         vk = mcTest.generate_params(vk_tag)
         constant = generate_random_field_element_hex()
+        cmdInput = {
+            "withdrawalEpochLength": EPOCH_LENGTH,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant,
+        }
 
-        ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[1].sc_create(cmdInput)
         creating_tx = ret['txid']
         scid = ret['scid']
         scid_swapped = str(swap_bytes(scid))
@@ -108,7 +115,8 @@ class quality_voiding(BitcoinTestFramework):
         # Fwd Transfer to Sc
         bal_before_fwd_tx = self.nodes[0].getbalance("", 0)
         mark_logs("Node0 balance before fwd tx: {}".format(bal_before_fwd_tx), self.nodes, DEBUG_MODE)
-        fwd_tx = self.nodes[0].sc_send("abcd", fwt_amount, scid)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid}]
+        fwd_tx = self.nodes[0].sc_send(cmdInput)
         mark_logs("Node0 transfers {} coins to SC with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -149,7 +157,7 @@ class quality_voiding(BitcoinTestFramework):
             vk_tag, scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount])
         try:
             cert_1_epoch_0 = self.nodes[0].send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(len(cert_1_epoch_0) > 0)
             mark_logs("Certificate of quality {} is {}".format(quality, cert_1_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -174,7 +182,7 @@ class quality_voiding(BitcoinTestFramework):
             vk_tag, scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount_2])
         try:
             cert_2_epoch_0 = self.nodes[1].send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert_equal(True, cert_1_epoch_0 in self.nodes[0].getrawmempool())
             assert(len(cert_2_epoch_0) > 0)
             mark_logs("Certificate of quality {} is {}".format(quality, cert_2_epoch_0), self.nodes, DEBUG_MODE)
@@ -217,7 +225,7 @@ class quality_voiding(BitcoinTestFramework):
             vk_tag, scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount_3])
         try:
             cert_3_epoch_0 = self.nodes[1].send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert (len(cert_3_epoch_0) > 0)
             mark_logs("Certificate of quality {} is {}".format(quality, cert_3_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:

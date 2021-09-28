@@ -509,8 +509,17 @@ class CswNullifierTest(BitcoinTestFramework):
         prev_epoch_hash = self.nodes[0].getbestblockhash()
         vk2 = certMcTest.generate_params("sc2")
         cswVk2 = cswMcTest.generate_params("sc2")
+        cmdInput = {
+            "withdrawalEpochLength": sc_epoch_len,
+            "toaddress": "dada",
+            "amount": sc_cr_amount,
+            "wCertVk": vk2,
+            "constant": constant,
+            'customData': "abcdef",
+            'wCeasedVk': cswVk2,
+        }
 
-        ret = self.nodes[0].sc_create(sc_epoch_len, "dada", sc_cr_amount, vk2, "abcdef", constant, cswVk2)
+        ret = self.nodes[0].sc_create(cmdInput)
         creating_tx = ret['txid']
         mark_logs("Node 0 created SC spending {} coins via tx1 {}.".format(sc_cr_amount, creating_tx), self.nodes, DEBUG_MODE)
         self.sync_all()

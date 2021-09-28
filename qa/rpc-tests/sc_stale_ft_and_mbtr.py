@@ -176,10 +176,24 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         errorString = ""
         ftScFee   = FT_SC_FEES[0]
         mbtrScFee = MBTR_SC_FEES[0]
+        cmdInput = {
+            "withdrawalEpochLength": withdrawalEpochLength,
+            "toaddress": address,
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant,
+            'customData': custom_data,
+            'wCeasedVk': cswVk,
+            'vFieldElementCertificateFieldConfig': feCfg,
+            'vBitVectorCertificateFieldConfig': bvCfg,
+            'forwardTransferScFee': ftScFee,
+            'mainchainBackwardTransferScFee': mbtrScFee,
+            'mainchainBackwardTransferRequestDataLength': mbtrRequestDataLength
+        }
+
 
         try:
-            ret = self.nodes[1].sc_create(withdrawalEpochLength, address, creation_amount, vk,
-                custom_data, constant, cswVk, feCfg, bvCfg, ftScFee, mbtrScFee, mbtrRequestDataLength)
+            ret = self.nodes[1].sc_create(cmdInput)
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs(errorString,self.nodes,DEBUG_MODE)
@@ -233,7 +247,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         forwardTransferOuts = [{'toaddress': address, 'amount': ftScFee, "scid":scid}]
 
         try:
-            txFT = self.nodes[2].send_to_sidechain(forwardTransferOuts, { "fee": 0.0})
+            txFT = self.nodes[2].sc_send(forwardTransferOuts, { "fee": 0.0})
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs(errorString,self.nodes,DEBUG_MODE)
@@ -280,7 +294,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
             constant, [pkh_node1], [cert_amount])
 
         cert = self.nodes[0].send_certificate(scid, epoch_number, quality,
-            epoch_cum_tree_hash, proof, amount_cert_1, ftScFee, mbtrScFee, CERT_FEE)
+            epoch_cum_tree_hash, proof, amount_cert_1, ftScFee, mbtrScFee, "*", CERT_FEE)
 
         self.sync_all()
 
@@ -317,7 +331,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
             constant, [pkh_node1], [cert_amount])
 
         cert = self.nodes[0].send_certificate(scid, epoch_number, quality,
-            epoch_cum_tree_hash, proof, amount_cert_1, ftScFee, mbtrScFee, CERT_FEE)
+            epoch_cum_tree_hash, proof, amount_cert_1, ftScFee, mbtrScFee, "*", CERT_FEE)
 
         self.sync_all()
 
@@ -434,7 +448,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         forwardTransferOuts = [{'toaddress': address, 'amount': ftScFee, "scid":scid}]
 
         try:
-            txFT = self.nodes[2].send_to_sidechain(forwardTransferOuts, { "fee": 0.0})
+            txFT = self.nodes[2].sc_send(forwardTransferOuts, { "fee": 0.0})
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs(errorString,self.nodes,DEBUG_MODE)

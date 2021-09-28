@@ -686,14 +686,14 @@ UniValue sendtoaddress(const UniValue& params, bool fHelp)
     return wtx.getWrappedTx().GetHash().GetHex();
 }
 
-UniValue create_sidechain(const UniValue& params, bool fHelp)
+UniValue sc_create(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
     if (fHelp ||  params.size() != 1)
         throw runtime_error(
-            "create_sidechain {\"withdrawalEpochLength\":... , \"fromaddress\":..., \"toaddress\":... ,\"amount\":... ,\"minconf\":..., \"fee\":..., \"wCertVk\":..., \"customData\":..., \"constant\":...}\n"
+            "sc_create {\"withdrawalEpochLength\":... , \"fromaddress\":..., \"toaddress\":... ,\"amount\":... ,\"minconf\":..., \"fee\":..., \"wCertVk\":..., \"customData\":..., \"constant\":...}\n"
             "\nCreate a Side chain.\n"
             "\nArguments:\n"
             "{\n"                     
@@ -728,7 +728,7 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
             "  \"scid\": sidechainid       (string) The id of the sidechain created by this tx.\n"
             "}\n"
             "\nExamples:\n"
-            + HelpExampleCli("create_sidechain", "'{\"toaddress\": \"8aaddc9671dc5c8d33a3494df262883411935f4f54002fe283745fb394be508a\" ,\"amount\": 5.0, \"wCertVk\": abcd..ef}'")
+            + HelpExampleCli("sc_create", "'{\"toaddress\": \"8aaddc9671dc5c8d33a3494df262883411935f4f54002fe283745fb394be508a\" ,\"amount\": 5.0, \"wCertVk\": abcd..ef}'")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -1032,14 +1032,14 @@ UniValue create_sidechain(const UniValue& params, bool fHelp)
     return ret;
 }
 
-UniValue send_to_sidechain(const UniValue& params, bool fHelp)
+UniValue sc_send(const UniValue& params, bool fHelp)
 {
     if (!EnsureWalletIsAvailable(fHelp))
         return NullUniValue;
 
     if (fHelp || (params.size() != 1 && params.size() != 2))
         throw runtime_error(
-            "send_to_sidechain {...}\n"
+            "sc_send {...}\n"
             "\nArguments:\n"
             "1. \"outputs\"                       (string, required) A json array of json objects representing the amounts to send.\n"
             "[{\n"
@@ -1059,7 +1059,7 @@ UniValue send_to_sidechain(const UniValue& params, bool fHelp)
             "\nResult:\n"
             "\"transactionid\"    (string) The resulting transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("send_to_sidechain", "'{TODO}]'")
+            + HelpExampleCli("sc_send", "'{TODO}]'")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -5087,11 +5087,14 @@ UniValue send_certificate(const UniValue& params, bool fHelp)
     }
 
     //--------------------------------------------------------------------------
+    CBitcoinAddress fromaddress;
     inputString = params[8].get_str();
-    CBitcoinAddress fromaddress(inputString);
-    if (!fromaddress.IsValid())
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Zen address(coin to ta from)");
+    if (inputString != "*") {
+        fromaddress = CBitcoinAddress(inputString);
 
+        if (!fromaddress.IsValid())
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Zen address(coin to ta from)");
+    }
     //--------------------------------------------------------------------------
     // fee, default to a small amount
     CAmount nCertFee = SC_RPC_OPERATION_DEFAULT_MINERS_FEE;

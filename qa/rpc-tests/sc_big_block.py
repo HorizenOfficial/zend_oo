@@ -82,7 +82,7 @@ class sc_big_block(BitcoinTestFramework):
 
         def create_sc(cmdInput, node):
             try:
-                res = node.create_sidechain(cmdInput)
+                res = node.sc_create(cmdInput)
                 tx =   res['txid']
                 scid = res['scid']
             except JSONRPCException, e:
@@ -115,7 +115,7 @@ class sc_big_block(BitcoinTestFramework):
  
                 try:
                     cert = self.nodes[0].send_certificate(scids[i], epoch_number, q,
-                        epoch_cum_tree_hash, proof, [], FT_SC_FEE, MBTR_SC_FEE, CERT_FEE, vCfe, vCmt)
+                        epoch_cum_tree_hash, proof, [], FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE, vCfe, vCmt)
                 except JSONRPCException, e:
                     errorString = e.error['message']
                     print "Send certificate failed with reason {}".format(errorString)

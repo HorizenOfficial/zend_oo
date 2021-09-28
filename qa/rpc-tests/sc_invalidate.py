@@ -189,7 +189,8 @@ class ScInvalidateTest(BitcoinTestFramework):
         # Node 1 creates a FT of 1.0 coin and Node 0 generates 1 block
         mark_logs("\nNode1 sends " + str(fwt_amount_1) + " coins to SC", self.nodes, DEBUG_MODE)
 
-        ftTx = self.nodes[1].sc_send("abcd", fwt_amount_1, scid)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_1, "scid": scid}]
+        ftTx = self.nodes[1].sc_send(cmdInput, {"minconf": 0})
         self.sync_all()
 
         assert_true(crTx in self.nodes[0].getrawmempool())

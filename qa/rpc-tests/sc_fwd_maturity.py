@@ -97,7 +97,15 @@ class sc_fwd_maturity(BitcoinTestFramework):
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[1].sc_create(123, "dada", creation_amount, vk, "", constant)
+        cmdInput = {
+            "withdrawalEpochLength": 123,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant
+        }
+
+        ret = self.nodes[1].sc_create(cmdInput)
         scid_1 = ret['scid']
         self.sync_all()
         mark_logs("created SC id: {}".format(scid_1), self.nodes, DEBUG_MODE)
@@ -120,31 +128,54 @@ class sc_fwd_maturity(BitcoinTestFramework):
 
         # raw_input("Press enter to send...")
         mark_logs("\nNode 1 sends " + str(fwt_amount_1) + " coins to SC", self.nodes, DEBUG_MODE)
-        self.nodes[1].sc_send("abcd", fwt_amount_1, scid_1)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_1, "scid": scid_1}]
+        self.nodes[1].sc_send(cmdInput)
         self.sync_all()
 
         mark_logs("\nNode 1 sends 3 amounts to SC 1 (tot: " + str(fwt_amount_many) + ")", self.nodes, DEBUG_MODE)
         amounts = []
-        amounts.append({"address": "add1", "amount": fwt_amount_1, "scid": scid_1})
-        amounts.append({"address": "add2", "amount": fwt_amount_2, "scid": scid_1})
-        amounts.append({"address": "add3", "amount": fwt_amount_3, "scid": scid_1})
-        self.nodes[1].sc_sendmany(amounts)
+        amounts.append({"toaddress": "add1", "amount": fwt_amount_1, "scid": scid_1})
+        amounts.append({"toaddress": "add2", "amount": fwt_amount_2, "scid": scid_1})
+        amounts.append({"toaddress": "add3", "amount": fwt_amount_3, "scid": scid_1})
+        self.nodes[1].sc_send(amounts)
         # print "tx=" + tx
         self.sync_all()
 
         mark_logs("\nNode 1 creates SC 2,3,4, all with " + str(creation_amount) + " coins", self.nodes, DEBUG_MODE)
         amounts = []
         amounts.append({"address": "dada", "amount": creation_amount})
+
+        cmdInput = {
+            "withdrawalEpochLength": 123,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": mcTest.generate_params("sc2"),
+            "constant": generate_random_field_element_hex()
+        }
         
-        ret = self.nodes[1].sc_create(123, "dada", creation_amount, mcTest.generate_params("sc2"), "", generate_random_field_element_hex())
+        ret = self.nodes[1].sc_create(cmdInput)
         scid_2 = ret['scid']
         mark_logs("created SC id: {}".format(scid_2), self.nodes, DEBUG_MODE)
 
-        ret = self.nodes[1].sc_create(123, "dada", creation_amount, mcTest.generate_params("sc3"), "", generate_random_field_element_hex())
+        cmdInput = {
+            "withdrawalEpochLength": 123,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": mcTest.generate_params("sc3"),
+            "constant": generate_random_field_element_hex()
+        }
+        ret = self.nodes[1].sc_create(cmdInput)
         scid_3 = ret['scid']
         mark_logs("created SC id: {}".format(scid_3), self.nodes, DEBUG_MODE)
 
-        ret = self.nodes[1].sc_create(123, "dada", creation_amount, mcTest.generate_params("sc4"), "", generate_random_field_element_hex())
+        cmdInput = {
+            "withdrawalEpochLength": 123,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": mcTest.generate_params("sc4"),
+            "constant": generate_random_field_element_hex()
+        }
+        ret = self.nodes[1].sc_create(cmdInput)
         scid_4 = ret['scid']
         mark_logs("created SC id: {}".format(scid_4), self.nodes, DEBUG_MODE)
 
@@ -176,9 +207,9 @@ class sc_fwd_maturity(BitcoinTestFramework):
 
         mark_logs("\nNode 1 sends 2 amounts to SC 2 (tot: " + str(fwt_amount_2 + fwt_amount_3) + ")", self.nodes, DEBUG_MODE)
         amounts = []
-        amounts.append({"address": "add2", "amount": fwt_amount_2, "scid": scid_2})
-        amounts.append({"address": "add3", "amount": fwt_amount_3, "scid": scid_2})
-        self.nodes[1].sc_sendmany(amounts)
+        amounts.append({"toaddress": "add2", "amount": fwt_amount_2, "scid": scid_2})
+        amounts.append({"toaddress": "add3", "amount": fwt_amount_3, "scid": scid_2})
+        self.nodes[1].sc_send(amounts)
         self.sync_all()
 
         mark_logs("\n...Node0 generating 1 block", self.nodes, DEBUG_MODE)

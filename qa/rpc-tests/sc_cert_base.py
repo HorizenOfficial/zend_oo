@@ -83,7 +83,15 @@ class sc_cert_base(BitcoinTestFramework):
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[1].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        cmdInput = {
+            "withdrawalEpochLength":EPOCH_LENGTH,
+            "toaddress":"dada",
+            "amount":creation_amount,
+            "wCertVk":vk,
+            "constant":constant
+        }
+
+        ret = self.nodes[1].sc_create(cmdInput)
         creating_tx = ret['txid']
         scid = ret['scid']
         scid_swapped = str(swap_bytes(scid))
@@ -112,7 +120,8 @@ class sc_cert_base(BitcoinTestFramework):
         # Fwd Transfer to Sc
         bal_before_fwd_tx = self.nodes[0].getbalance("", 0)
         mark_logs("Node0 balance before fwd tx: {}".format(bal_before_fwd_tx), self.nodes, DEBUG_MODE)
-        fwd_tx = self.nodes[0].sc_send("abcd", fwt_amount, scid)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid}]
+        fwd_tx = self.nodes[0].sc_send(cmdInput)
         mark_logs("Node0 transfers {} coins to SC with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -142,6 +151,7 @@ class sc_cert_base(BitcoinTestFramework):
         mark_logs("epoch_number = {}, epoch_cum_tree_hash = {}".format(epoch_number, epoch_cum_tree_hash), self.nodes, DEBUG_MODE)
 
         pkh_node1 = self.nodes[1].getnewaddress("", True)
+        pkh_node0 = self.nodes[0].getnewaddress("", True)
 
         #Create proof for WCert
         quality = 10
@@ -155,7 +165,7 @@ class sc_cert_base(BitcoinTestFramework):
 
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -169,7 +179,7 @@ class sc_cert_base(BitcoinTestFramework):
 
         try:
             self.nodes[0].send_certificate(scid, epoch_number + 1, quality, 
-                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -186,7 +196,7 @@ class sc_cert_base(BitcoinTestFramework):
         wrong_epoch_cum_tree_hash = generate_random_field_element_hex()
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                wrong_epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                wrong_epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -201,7 +211,7 @@ class sc_cert_base(BitcoinTestFramework):
 
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality - 100, 
-                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -216,7 +226,7 @@ class sc_cert_base(BitcoinTestFramework):
 
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, "aa" * (MAX_SC_PROOF_SIZE_IN_BYTES + 1), amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, "aa" * (MAX_SC_PROOF_SIZE_IN_BYTES + 1), amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -232,7 +242,7 @@ class sc_cert_base(BitcoinTestFramework):
 
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, "aa", amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, "aa", amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -251,7 +261,7 @@ class sc_cert_base(BitcoinTestFramework):
         
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -271,7 +281,7 @@ class sc_cert_base(BitcoinTestFramework):
         
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -290,7 +300,7 @@ class sc_cert_base(BitcoinTestFramework):
         
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -309,7 +319,7 @@ class sc_cert_base(BitcoinTestFramework):
         
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -328,7 +338,7 @@ class sc_cert_base(BitcoinTestFramework):
         
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -347,7 +357,7 @@ class sc_cert_base(BitcoinTestFramework):
         
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -367,7 +377,7 @@ class sc_cert_base(BitcoinTestFramework):
         
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof_wrong, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -395,7 +405,7 @@ class sc_cert_base(BitcoinTestFramework):
 
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, wrong_proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, wrong_proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -424,7 +434,7 @@ class sc_cert_base(BitcoinTestFramework):
         mark_logs("Node 0 sends a certificate of {} coins to Node1 pkh".format(amount_cert_1[0]["pubkeyhash"], amount_cert_1[0]["amount"]), self.nodes, DEBUG_MODE)
         try:
             cert_epoch_0 = self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(len(cert_epoch_0) > 0)
             mark_logs("Certificate is {}".format(cert_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -456,7 +466,7 @@ class sc_cert_base(BitcoinTestFramework):
 
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, proof2, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof2, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -527,7 +537,7 @@ class sc_cert_base(BitcoinTestFramework):
         nullFee = Decimal("0.0")
         try:
             cert_epoch_1 = self.nodes[0].send_certificate(scid, epoch_number, quality, 
-                epoch_cum_tree_hash, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, nullFee)
+                epoch_cum_tree_hash, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, "*", nullFee)
             assert(len(cert_epoch_1) > 0)
             mark_logs("Certificate is {}".format(cert_epoch_1), self.nodes, DEBUG_MODE)
             self.sync_all()
@@ -621,7 +631,7 @@ class sc_cert_base(BitcoinTestFramework):
         amounts = []
         try:
             self.nodes[0].send_certificate(scid, epoch_number_0, 0,
-                epoch_cum_tree_hash_0, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash_0, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -631,8 +641,14 @@ class sc_cert_base(BitcoinTestFramework):
         mark_logs("Default proof constant test", self.nodes, DEBUG_MODE)
         mark_logs("Node0 creates new sidechain", self.nodes, DEBUG_MODE)
         vk2 = mcTest.generate_params("sc2", "cert_no_const")
+        cmdInput = {
+            "withdrawalEpochLength":EPOCH_LENGTH,
+            "toaddress":"dada",
+            "amount":creation_amount,
+            "wCertVk":vk2
+        }
 
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dadb", creation_amount, vk2, "")
+        ret = self.nodes[0].sc_create(cmdInput)
         creating_tx = ret['txid']
         scid2 = ret['scid']
         scid2_swapped = str(swap_bytes(scid2))
@@ -663,7 +679,7 @@ class sc_cert_base(BitcoinTestFramework):
 
         try:
             self.nodes[0].send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except JSONRPCException, e:
             errorString = e.error['message']

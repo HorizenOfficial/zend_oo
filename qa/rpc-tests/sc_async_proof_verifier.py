@@ -173,7 +173,7 @@ class AsyncProofVerifierTest(BitcoinTestFramework):
         try:
             # The send_certificate call must be ok since the proof verification is disabled on node 2
             invalid_cert = self.nodes[2].send_certificate(scid, epoch_number, cert_quality, epoch_cum_tree_hash,
-                                                          proof, [], ft_fee, mbtr_fee, cert_fee)
+                                                          proof, [], ft_fee, mbtr_fee, "*", cert_fee)
         except JSONRPCException, e:
             error_string = e.error['message']
             print "Send certificate failed with reason {}".format(error_string)
@@ -213,7 +213,7 @@ class AsyncProofVerifierTest(BitcoinTestFramework):
 
         try:
             cert2 = self.nodes[0].send_certificate(scid, epoch_number, cert_quality, epoch_cum_tree_hash,
-                                                   proof, [], ft_fee, mbtr_fee, cert_fee)
+                                                   proof, [], ft_fee, mbtr_fee, "*", cert_fee)
         except JSONRPCException, e:
             error_string = e.error['message']
             print "Send certificate failed with reason {}".format(error_string)

@@ -106,7 +106,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
             'mainchainBackwardTransferRequestDataLength': 1
         }
 
-        res = self.nodes[0].create_sidechain(cmdInput)
+        res = self.nodes[0].sc_create(cmdInput)
         tx =   res['txid']
         scid = res['scid']
         scid_swapped = str(swap_bytes(scid))
@@ -152,7 +152,8 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         # use different nodes for sending txes and cert in order to be sure there are no dependancies from each other
         fwt_amount = Decimal("2.0")
         mark_logs("\nNTW part 1) Node0 sends {} coins to SC".format(fwt_amount), self.nodes, DEBUG_MODE)
-        tx_fwd = self.nodes[0].sc_send("abcd", fwt_amount, scid)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid}]
+        tx_fwd = self.nodes[0].sc_send(cmdInput)
         sync_mempools(self.nodes[0:3])
 
         mark_logs("              Check fwd tx {} is in mempool".format(tx_fwd), self.nodes, DEBUG_MODE)
@@ -185,7 +186,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         amount_cert = [{"pubkeyhash": pkh_node1, "amount": bt_amount}]
         try:
             cert_bad = self.nodes[2].send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amount_cert, 0, 0, 0.01)
+                epoch_cum_tree_hash, proof, amount_cert, 0, 0, "*", 0.01)
         except JSONRPCException, e:
             errorString = e.error['message']
             print "Send certificate failed with reason {}".format(errorString)
@@ -210,7 +211,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
         amount_cert = [{"pubkeyhash": pkh_node1, "amount": bt_amount_2}]
         try:
             cert = self.nodes[3].send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amount_cert, 0, 0, 0.01)
+                epoch_cum_tree_hash, proof, amount_cert, 0, 0, "*", 0.01)
         except JSONRPCException, e:
             errorString = e.error['message']
             print "Send certificate failed with reason {}".format(errorString)
