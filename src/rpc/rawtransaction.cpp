@@ -1092,7 +1092,7 @@ UniValue createrawcertificate(const UniValue& params, bool fHelp)
             "3. \"backward addresses\"     (string, required) A json object with pubkeyhash as keys and amounts as values. Can be an empty obj if no amounts are trasferred (empty certificate)\n"
             "    [\n"
             "      {\n"                     
-            "        \"address\":\"pkh\"          (string, required) The Horizen transaparent address of the receiver\n"
+            "        \"address\":\"address\"          (string, required) The Horizen transaparent address of the receiver\n"
             "        \"amount\":amount            (numeric, required) The numeric amount in ZEN\n"
             "      }\n"
             "      , ...\n"
