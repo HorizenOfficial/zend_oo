@@ -189,7 +189,7 @@ struct CAddressIndexValue {
         if (ser_action.ForRead()) {
             READWRITE(VARINT(maturityHeight));
             if ((maturityHeight & 1) == 1) {
-                maturityHeight >>=  1;
+                maturityHeight >>= 1;
                 maturityHeight *= -1;
             } else {
                 maturityHeight >>= 1;
@@ -219,6 +219,10 @@ struct CAddressIndexValue {
     void SetNull() {
         satoshis = -1;
         maturityHeight = 0;
+    }
+
+    bool IsNull() const {
+        return satoshis == -1 && maturityHeight == 0;
     }
 };
 

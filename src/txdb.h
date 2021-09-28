@@ -175,6 +175,7 @@ public:
                                  std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &vect);
     bool WriteAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > &vect);
     bool EraseAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > &vect);
+    bool UpdateAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > &vect);
     bool ReadAddressIndex(uint160 addressHash, int type,
                           std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > &addressIndex,
                           int start = 0, int end = 0);

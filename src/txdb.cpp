@@ -513,6 +513,25 @@ bool CBlockTreeDB::ReadAddressUnspentIndex(uint160 addressHash, int type,
     return true;
 }
 
+bool CBlockTreeDB::UpdateAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > &vect)
+{
+    CLevelDBBatch batch;
+
+    for (std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
+    {
+        if (it->second.IsNull())
+        {
+            batch.Erase(make_pair(DB_ADDRESSINDEX, it->first));
+        }
+        else
+        {
+            batch.Write(make_pair(DB_ADDRESSINDEX, it->first), it->second);
+        }
+    }
+
+    return WriteBatch(batch);
+}
+
 bool CBlockTreeDB::WriteAddressIndex(const std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> >&vect) {
     CLevelDBBatch batch;
     for (std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
