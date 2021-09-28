@@ -158,17 +158,17 @@ class sc_cert_getraw(BitcoinTestFramework):
         self.sync_all()
 
         decoded_cert_mempool = self.nodes[1].getrawtransaction(cert_epoch_0, 1)
-        decoded_cert_mempool2 = self.nodes[1].getrawcertificate(cert_epoch_0, 1)
+        decoded_cert_mempool2 = self.nodes[1].getrawtransaction(cert_epoch_0, 1)
         assert_equal(decoded_cert_mempool, decoded_cert_mempool2)
         assert_equal(scid, decoded_cert_mempool['cert']['scid'])
 
         decoded_cert_mempool_hex = self.nodes[1].getrawtransaction(cert_epoch_0)
-        decoded_cert_mempool_hex2 = self.nodes[1].getrawcertificate(cert_epoch_0)
+        decoded_cert_mempool_hex2 = self.nodes[1].getrawtransaction(cert_epoch_0)
         assert_equal(decoded_cert_mempool_hex, decoded_cert_mempool_hex2)
         dec = self.nodes[2].decoderawtransaction(decoded_cert_mempool_hex)
         assert_equal(cert_epoch_0, dec['certid'])
         assert_equal(scid, dec['cert']['scid'])
-        dec2 = self.nodes[2].decoderawcertificate(decoded_cert_mempool_hex)
+        dec2 = self.nodes[2].decoderawtransaction(decoded_cert_mempool_hex)
         assert_equal(dec2, dec)
 
         mark_logs("Node0 confims bwd transfer generating 1 block", self.nodes, DEBUG_MODE)

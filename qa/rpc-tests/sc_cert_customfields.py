@@ -541,7 +541,7 @@ class sc_cert_customfields(BitcoinTestFramework):
         #-------------------------------------------------------
         # parse a good cert and check custom fields
         mark_logs("\nVerify vFieldElementCertificateField/ vBitVectorCertificateFieldare correctly set in cert", self.nodes,DEBUG_MODE)
-        decoded = self.nodes[1].getrawcertificate(cert, 1)
+        decoded = self.nodes[1].getrawtransaction(cert, 1)
 
         vCfeCert = decoded['cert']['vFieldElementCertificateField']
         assert_equal(vCfeCert, vCfe)

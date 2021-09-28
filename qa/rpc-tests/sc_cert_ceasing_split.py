@@ -274,7 +274,7 @@ class CeasingSplitTest(BitcoinTestFramework):
 
         mark_logs("And that no info are available too...", self.nodes, DEBUG_MODE)
         try:
-            dec = self.nodes[0].getrawcertificate(cert_bad, 1)
+            dec = self.nodes[0].getrawtransaction(cert_bad, 1)
             print "FIX FIX FIX!!! cert has info in Node0" 
             any_error = True
             #assert (False)

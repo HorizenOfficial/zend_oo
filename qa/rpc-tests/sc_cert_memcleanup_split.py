@@ -248,7 +248,7 @@ class CertMempoolCleanupSplit(BitcoinTestFramework):
 
         mark_logs("And that no info are available too...", self.nodes, DEBUG_MODE)
         try:
-            self.nodes[0].getrawcertificate(cert_bad, 1)
+            self.nodes[0].getrawtransaction(cert_bad, 1)
             assert (False)
         except JSONRPCException, e:
             errorString = e.error['message']

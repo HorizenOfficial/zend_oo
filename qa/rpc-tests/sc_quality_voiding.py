@@ -201,7 +201,7 @@ class quality_voiding(BitcoinTestFramework):
         self.sync_all()
 
         # Check balance
-        bwt_address = self.nodes[1].getrawcertificate(cert_2_epoch_0, 1)['vout'][1]['scriptPubKey']['addresses'][0]
+        bwt_address = self.nodes[1].getrawtransaction(cert_2_epoch_0, 1)['vout'][1]['scriptPubKey']['addresses'][0]
         res = self.nodes[1].listtxesbyaddress(bwt_address)
         assert_equal(res[0]['scid'], scid)
         mark_logs("Height : {}".format(res[0]['vout'][1]['maturityHeight']), self.nodes, DEBUG_MODE)
