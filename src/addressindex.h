@@ -68,25 +68,7 @@ struct CAddressUnspentValue {
         READWRITE(blockHeight);
         
         // Since the maturity can be negative, we have to manipulate it to store the sign bit in a VARINT
-        if (ser_action.ForRead()) {
-            READWRITE(VARINT(maturityHeight));
-            if ((maturityHeight & 1) == 1) {
-                maturityHeight >>=  1;
-                maturityHeight *= -1;
-            } else {
-                maturityHeight >>= 1;
-            }
-        } else {
-            int tempMaturityHeight = maturityHeight;
-            if (tempMaturityHeight < 0) {
-                tempMaturityHeight *= -1;
-                tempMaturityHeight <<= 1;
-                tempMaturityHeight |= 1;
-            } else {
-                tempMaturityHeight <<= 1;
-            }
-            READWRITE(VARINT(tempMaturityHeight));
-        }
+        READWRITE_VARINT_WITH_SIGN(maturityHeight);
     }
 
     CAddressUnspentValue(CAmount sats, CScript scriptPubKey, int height, int maturity) {
@@ -186,25 +168,7 @@ struct CAddressIndexValue {
         READWRITE(satoshis);
 
         // Since the maturity can be negative, we have to manipulate it to store the sign bit in a VARINT
-        if (ser_action.ForRead()) {
-            READWRITE(VARINT(maturityHeight));
-            if ((maturityHeight & 1) == 1) {
-                maturityHeight >>= 1;
-                maturityHeight *= -1;
-            } else {
-                maturityHeight >>= 1;
-            }
-        } else {
-            int tempMaturityHeight = maturityHeight;
-            if (tempMaturityHeight < 0) {
-                tempMaturityHeight *= -1;
-                tempMaturityHeight <<= 1;
-                tempMaturityHeight |= 1;
-            } else {
-                tempMaturityHeight <<= 1;
-            }
-            READWRITE(VARINT(tempMaturityHeight));
-        }
+        READWRITE_VARINT_WITH_SIGN(maturityHeight);
     }
 
     CAddressIndexValue(CAmount sats, int height) {
