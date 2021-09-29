@@ -9,7 +9,7 @@ NEED_MAC_SIGN_CREDS="false"
 NEED_WIN_SIGN_CREDS="false"
 NEED_PGP_SIGN_CREDS="false"
 
-export B2_DOWNLOAD_URL="https://downloads.horizen.global/file/${B2_BUCKET_NAME}/"
+export B2_DOWNLOAD_URL="https://f001.backblazeb2.com/file/${B2_BUCKET_NAME}/"
 
 if [ "${TRAVIS_OS_NAME}" = "linux" ]; then
   export DOCKER_UPDATE_PACKAGES="binfmt-support containerd.io docker-ce docker-ce-cli qemu-user-static"
@@ -55,11 +55,12 @@ if [ "${TRAVIS_OS_NAME}" = "linux" ]; then
     NEED_GH_CREDS="true"
     NEED_PGP_SIGN_CREDS="true"
   fi
+  # due to new ratelimiting on hub.docker.com always login, we use a service account that has no push permissions
+  echo "$DOCKER_READONLY_PASSWORD" | docker login -u "$DOCKER_READONLY_USERNAME" --password-stdin
 fi
 
 if [ "${TRAVIS_OS_NAME}" = "osx" ]; then
-#  export UPDATE_PACKAGES="aria2 pigz"
-  export UPDATE_PACKAGES="pigz"
+  export UPDATE_PACKAGES=""
   export PIP_INSTALL=""
   if [ "${TRAVIS_BUILD_STAGE_NAME}" = "Prepare" ]; then
     export PIP_INSTALL="${PIP_INSTALL} b2==1.4.2"
@@ -78,9 +79,11 @@ if [ "${TRAVIS_OS_NAME}" = "osx" ]; then
     NEED_B2_CREDS="true"
   fi
   if [ "${TRAVIS_BUILD_STAGE_NAME}" = "Test" ]; then
-    export PIP_INSTALL="${PIP_INSTALL} pyblake2 pyzmq"
+    export PIP_INSTALL="${PIP_INSTALL} pyblake2 pyzmq websocket-client2"
     export B2_DL_DECOMPRESS_FOLDER="${TRAVIS_BUILD_DIR}"
     export B2_DL_FILENAME="${TRAVIS_CPU_ARCH}-${TRAVIS_OS_NAME}-${TRAVIS_OSX_IMAGE}-${TRAVIS_BUILD_ID}-${TRAVIS_COMMIT}.tar.gz"
+    mkdir -p "$HOME/ZcashParams"
+    ln -sf "$HOME/ZcashParams" "$HOME/Library/Application Support/ZcashParams"
   fi
   if [ "${TRAVIS_BUILD_STAGE_NAME}" = "Package" ]; then
     NEED_B2_CREDS="true"
@@ -137,5 +140,11 @@ if [ "${NEED_PGP_SIGN_CREDS}" = "false" ]; then
   export PGP_KEY_PASSWORD=""
   unset PGP_KEY_PASSWORD
 fi
+
+# clear credentials after use
+export DOCKER_READONLY_USERNAME=""
+export DOCKER_READONLY_PASSWORD=""
+unset DOCKER_READONLY_USERNAME
+unset DOCKER_READONLY_PASSWORD
 
 set +u

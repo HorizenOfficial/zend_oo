@@ -45,25 +45,27 @@ UniValue getinfo(const UniValue& params, bool fHelp)
         throw runtime_error(
             "getinfo\n"
             "Returns an object containing various state info.\n"
+            
             "\nResult:\n"
             "{\n"
             "  \"version\": xxxxx,           (numeric) the server version\n"
-            "  \"protocolversion\": xxxxx,   (numeric) the protocol version\n"
+            "  \"protocolversion\": xxxxx,   (numeric) the latest supported protocol version\n"
             "  \"walletversion\": xxxxx,     (numeric) the wallet version\n"
-            "  \"balance\": xxxxxxx,         (numeric) the total Zcash balance of the wallet\n"
+            "  \"balance\": xxxxxxx,         (numeric) the total balance of the wallet in " + CURRENCY_UNIT + "\n"
             "  \"blocks\": xxxxxx,           (numeric) the current number of blocks processed in the server\n"
-            "  \"timeoffset\": xxxxx,        (numeric) the time offset (deprecated; always 0)\n"
-            "  \"connections\": xxxxx,       (numeric) the number of connections\n"
+            "  \"timeoffset\": 0,            (numeric) the time offset (deprecated; always 0)\n"
+            "  \"connections\": xxxxx,       (numeric) the number of connected peers\n"
             "  \"proxy\": \"host:port\",     (string, optional) the proxy used by the server\n"
             "  \"difficulty\": xxxxxx,       (numeric) the current difficulty\n"
             "  \"testnet\": true|false,      (boolean) if the server is using testnet or not\n"
-            "  \"keypoololdest\": xxxxxx,    (numeric) the timestamp (seconds since GMT epoch) of the oldest pre-generated key in the key pool\n"
+            "  \"keypoololdest\": xxxxxx,    (numeric) the timestamp in seconds of the oldest pre-generated key in the key pool\n"
             "  \"keypoolsize\": xxxx,        (numeric) how many new keys are pre-generated\n"
-            "  \"unlocked_until\": ttt,      (numeric) the timestamp in seconds since epoch (midnight Jan 1 1970 GMT) that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
-            "  \"paytxfee\": x.xxxx,         (numeric) the transaction fee set in " + CURRENCY_UNIT + "/kB\n"
-            "  \"relayfee\": x.xxxx,         (numeric) minimum relay fee for non-free transactions in " + CURRENCY_UNIT + "/kB\n"
+            "  \"unlocked_until\": ttt,      (numeric, optional) the timestamp in seconds that the wallet is unlocked for transfers, or 0 if the wallet is locked\n"
+            "  \"paytxfee\": xxxxx,          (numeric) the transaction fee set in " + CURRENCY_UNIT + " /kB\n"
+            "  \"relayfee\": xxxxx,          (numeric) minimum relay fee for non-free transactions in " + CURRENCY_UNIT + " /kB\n"
             "  \"errors\": \"...\"           (string) any error messages\n"
             "}\n"
+            
             "\nExamples:\n"
             + HelpExampleCli("getinfo", "")
             + HelpExampleRpc("getinfo", "")
@@ -79,31 +81,31 @@ UniValue getinfo(const UniValue& params, bool fHelp)
     GetProxy(NET_IPV4, proxy);
 
     UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("version", CLIENT_VERSION));
-    obj.push_back(Pair("protocolversion", PROTOCOL_VERSION));
+    obj.pushKV("version", CLIENT_VERSION);
+    obj.pushKV("protocolversion", PROTOCOL_VERSION);
 #ifdef ENABLE_WALLET
     if (pwalletMain) {
-        obj.push_back(Pair("walletversion", pwalletMain->GetVersion()));
-        obj.push_back(Pair("balance",       ValueFromAmount(pwalletMain->GetBalance())));
+        obj.pushKV("walletversion", pwalletMain->GetVersion());
+        obj.pushKV("balance",       ValueFromAmount(pwalletMain->GetBalance()));
     }
 #endif
-    obj.push_back(Pair("blocks",        (int)chainActive.Height()));
-    obj.push_back(Pair("timeoffset",    0));
-    obj.push_back(Pair("connections",   (int)vNodes.size()));
-    obj.push_back(Pair("proxy",         (proxy.IsValid() ? proxy.proxy.ToStringIPPort() : string())));
-    obj.push_back(Pair("difficulty",    (double)GetDifficulty()));
-    obj.push_back(Pair("testnet",       Params().TestnetToBeDeprecatedFieldRPC()));
+    obj.pushKV("blocks",        (int)chainActive.Height());
+    obj.pushKV("timeoffset",    0);
+    obj.pushKV("connections",   (int)vNodes.size());
+    obj.pushKV("proxy",         (proxy.IsValid() ? proxy.proxy.ToStringIPPort() : string()));
+    obj.pushKV("difficulty",    (double)GetDifficulty());
+    obj.pushKV("testnet",       Params().TestnetToBeDeprecatedFieldRPC());
 #ifdef ENABLE_WALLET
     if (pwalletMain) {
-        obj.push_back(Pair("keypoololdest", pwalletMain->GetOldestKeyPoolTime()));
-        obj.push_back(Pair("keypoolsize",   (int)pwalletMain->GetKeyPoolSize()));
+        obj.pushKV("keypoololdest", pwalletMain->GetOldestKeyPoolTime());
+        obj.pushKV("keypoolsize",   (int)pwalletMain->GetKeyPoolSize());
     }
     if (pwalletMain && pwalletMain->IsCrypted())
-        obj.push_back(Pair("unlocked_until", nWalletUnlockTime));
-    obj.push_back(Pair("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK())));
+        obj.pushKV("unlocked_until", nWalletUnlockTime);
+    obj.pushKV("paytxfee",      ValueFromAmount(payTxFee.GetFeePerK()));
 #endif
-    obj.push_back(Pair("relayfee",      ValueFromAmount(::minRelayTxFee.GetFeePerK())));
-    obj.push_back(Pair("errors",        GetWarnings("statusbar")));
+    obj.pushKV("relayfee",      ValueFromAmount(::minRelayTxFee.GetFeePerK()));
+    obj.pushKV("errors",        GetWarnings("statusbar"));
     return obj;
 }
 
@@ -116,11 +118,10 @@ public:
     UniValue operator()(const CKeyID &keyID) const {
         UniValue obj(UniValue::VOBJ);
         CPubKey vchPubKey;
-        obj.push_back(Pair("isscript", false));
+        obj.pushKV("isscript", false);
         if (pwalletMain && pwalletMain->GetPubKey(keyID, vchPubKey)) {
-            obj.push_back(Pair("pubkey", HexStr(vchPubKey)));
-            obj.push_back(Pair("pubkeyhash", keyID.ToString()));
-            obj.push_back(Pair("iscompressed", vchPubKey.IsCompressed()));
+            obj.pushKV("pubkey", HexStr(vchPubKey));
+            obj.pushKV("iscompressed", vchPubKey.IsCompressed());
         }
         return obj;
     }
@@ -128,20 +129,20 @@ public:
     UniValue operator()(const CScriptID &scriptID) const {
         UniValue obj(UniValue::VOBJ);
         CScript subscript;
-        obj.push_back(Pair("isscript", true));
+        obj.pushKV("isscript", true);
         if (pwalletMain && pwalletMain->GetCScript(scriptID, subscript)) {
             std::vector<CTxDestination> addresses;
             txnouttype whichType;
             int nRequired;
             ExtractDestinations(subscript, whichType, addresses, nRequired);
-            obj.push_back(Pair("script", GetTxnOutputType(whichType)));
-            obj.push_back(Pair("hex", HexStr(subscript.begin(), subscript.end())));
+            obj.pushKV("script", GetTxnOutputType(whichType));
+            obj.pushKV("hex", HexStr(subscript.begin(), subscript.end()));
             UniValue a(UniValue::VARR);
             BOOST_FOREACH(const CTxDestination& addr, addresses)
                 a.push_back(CBitcoinAddress(addr).ToString());
-            obj.push_back(Pair("addresses", a));
+            obj.pushKV("addresses", a);
             if (whichType == TX_MULTISIG)
-                obj.push_back(Pair("sigsrequired", nRequired));
+                obj.pushKV("sigsrequired", nRequired);
         }
         return obj;
     }
@@ -152,25 +153,28 @@ UniValue validateaddress(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "validateaddress \"zcashaddress\"\n"
-            "\nReturn information about the given Zcash address.\n"
+            "validateaddress \"zenaddress\"\n"
+            "\nReturn information about the given ZEN address.\n"
+
             "\nArguments:\n"
-            "1. \"zcashaddress\"     (string, required) The Zcash address to validate\n"
+            "1. \"zenaddress\"                   (string, required) the ZEN address to validate\n"
+
             "\nResult:\n"
             "{\n"
-            "  \"isvalid\" : true|false,           (boolean) If the address is valid or not. If not, this is the only property returned.\n"
-            "  \"address\" : \"zcashaddress\",     (string) The Zcash address validated\n"
-            "  \"scriptPubKey\" : \"hex\",         (string) The hex encoded scriptPubKey generated by the address\n"
-            "  \"ismine\" : true|false,            (boolean) If the address is yours or not\n"
-            "  \"isscript\" : true|false,          (boolean) If the key is a script\n"
-            "  \"pubkey\" : \"publickeyhex\",      (string) The hex value of the raw public key\n"
-            "  \"pubkeyhash\" : \"publickeyhash\", (string) The hex value of the corresponding public key hash\n"
-            "  \"iscompressed\" : true|false,      (boolean) If the address is compressed\n"
-            "  \"account\" : \"account\"           (string) DEPRECATED. The account associated with the address, \"\" is the default account\n"
+            "  \"isvalid\": true|false,            (boolean) if the address is valid or not. If not, this is the only property returned\n"
+            "  \"address\": \"zenaddress\",        (string) the " + CURRENCY_UNIT  + " address validated\n"
+            "  \"scriptPubKey\": \"hex\",          (string) the hex encoded scriptPubKey generated by the address\n"
+            "  \"ismine\": true|false,             (boolean) if the address is yours or not\n"
+            "  \"iswatchonly\": true|false,        (boolean) if the address is set to watch only mode or not\n"
+            "  \"isscript\": true|false,           (boolean) if the key is a script\n"
+            "  \"pubkey\": \"publickeyhex\",       (string, optional) the hex value of the raw public key, only when the address is yours\n"
+            "  \"iscompressed\": true|false,       (boolean, optional) if the address is compressed, only when the address is yours\n"
+            "  \"account\": \"account\"            (string, optional) DEPRECATED. the account associated with the address, \"\" is the default account, only when the address is yours\n"
             "}\n"
+
             "\nExamples:\n"
-            + HelpExampleCli("validateaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"")
-            + HelpExampleRpc("validateaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"")
+            + HelpExampleCli("validateaddress", "\"zenaddress\"")
+            + HelpExampleRpc("validateaddress", "\"zenaddress\"")
         );
 
 #ifdef ENABLE_WALLET
@@ -188,24 +192,24 @@ UniValue validateaddress(const UniValue& params, bool fHelp)
     }
 
     UniValue ret(UniValue::VOBJ);
-    ret.push_back(Pair("isvalid", isValid));
+    ret.pushKV("isvalid", isValid);
     if (isValid)
     {
         CTxDestination dest = address.Get();
         string currentAddress = address.ToString();
-        ret.push_back(Pair("address", currentAddress));
+        ret.pushKV("address", currentAddress);
 
         CScript scriptPubKey = GetScriptForDestination(dest);
-        ret.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
+        ret.pushKV("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end()));
 
 #ifdef ENABLE_WALLET
         isminetype mine = pwalletMain ? IsMine(*pwalletMain, dest) : ISMINE_NO;
-        ret.push_back(Pair("ismine", (mine & ISMINE_SPENDABLE) ? true : false));
-        ret.push_back(Pair("iswatchonly", (mine & ISMINE_WATCH_ONLY) ? true: false));
+        ret.pushKV("ismine", (mine & ISMINE_SPENDABLE) ? true : false);
+        ret.pushKV("iswatchonly", (mine & ISMINE_WATCH_ONLY) ? true: false);
         UniValue detail = boost::apply_visitor(DescribeAddressVisitor(), dest);
         ret.pushKVs(detail);
         if (pwalletMain && pwalletMain->mapAddressBook.count(dest))
-            ret.push_back(Pair("account", pwalletMain->mapAddressBook[dest].name));
+            ret.pushKV("account", pwalletMain->mapAddressBook[dest].name);
 #endif
     }
     return ret;
@@ -217,21 +221,23 @@ UniValue z_validateaddress(const UniValue& params, bool fHelp)
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "z_validateaddress \"zaddr\"\n"
-            "\nReturn information about the given z address.\n"
+            "\nReturn information about the given zaddress.\n"
+
             "\nArguments:\n"
-            "1. \"zaddr\"     (string, required) The z address to validate\n"
+            "1. \"zaddr\"                       (string, required) the zaddress to validate\n"
+
             "\nResult:\n"
             "{\n"
-            "  \"isvalid\" : true|false,      (boolean) If the address is valid or not. If not, this is the only property returned.\n"
-            "  \"address\" : \"zaddr\",         (string) The z address validated\n"
-            "  \"ismine\" : true|false,       (boolean) If the address is yours or not\n"
-            "  \"payingkey\" : \"hex\",         (string) The hex value of the paying key, a_pk\n"
-            "  \"transmissionkey\" : \"hex\",   (string) The hex value of the transmission key, pk_enc\n"
-
+            "  \"isvalid\": true|false,         (boolean) if the address is valid or not. If not, this is the only property returned\n"
+            "  \"address\": \"zaddr\",          (string) the zaddress validated\n"
+            "  \"payingkey\": \"hex\",          (string) the hex value of the paying key, a_pk\n"
+            "  \"transmissionkey\": \"hex\",    (string) the hex value of the transmission key, pk_enc\n"
+            "  \"ismine\": true|false           (boolean) if the address is yours or not\n"
             "}\n"
+
             "\nExamples:\n"
-            + HelpExampleCli("z_validateaddress", "\"zcWsmqT4X2V4jgxbgiCzyrAfRT1vi1F4sn7M5Pkh66izzw8Uk7LBGAH3DtcSMJeUb2pi3W4SQF8LMKkU2cUuVP68yAGcomL\"")
-            + HelpExampleRpc("z_validateaddress", "\"zcWsmqT4X2V4jgxbgiCzyrAfRT1vi1F4sn7M5Pkh66izzw8Uk7LBGAH3DtcSMJeUb2pi3W4SQF8LMKkU2cUuVP68yAGcomL\"")
+            + HelpExampleCli("z_validateaddress", "\"zaddr\"")
+            + HelpExampleRpc("z_validateaddress", "\"zaddr\"")
         );
 
 
@@ -261,14 +267,14 @@ UniValue z_validateaddress(const UniValue& params, bool fHelp)
     }
 
     UniValue ret(UniValue::VOBJ);
-    ret.push_back(Pair("isvalid", isValid));
+    ret.pushKV("isvalid", isValid);
     if (isValid)
     {
-        ret.push_back(Pair("address", strAddress));
-        ret.push_back(Pair("payingkey", payingKey));
-        ret.push_back(Pair("transmissionkey", transmissionKey));
+        ret.pushKV("address", strAddress);
+        ret.pushKV("payingkey", payingKey);
+        ret.pushKV("transmissionkey", transmissionKey);
 #ifdef ENABLE_WALLET
-        ret.push_back(Pair("ismine", isMine));
+        ret.pushKV("ismine", isMine);
 #endif
     }
     return ret;
@@ -348,24 +354,23 @@ UniValue createmultisig(const UniValue& params, bool fHelp)
             "It returns a json object with the address and redeemScript.\n"
 
             "\nArguments:\n"
-            "1. nrequired      (numeric, required) The number of required signatures out of the n keys or addresses.\n"
-            "2. \"keys\"       (string, required) A json array of keys which are Zcash addresses or hex-encoded public keys\n"
+            "1. nrequired                          (numeric, required) the number of required signatures out of the n keys or addresses\n"
+            "2. \"keys\"                           (string, required) a json array of keys which are " + CURRENCY_UNIT + " addresses or hex-encoded public keys\n"
             "     [\n"
-            "       \"key\"    (string) Zcash address or hex-encoded public key\n"
+            "       \"key\"                        (string) " + CURRENCY_UNIT + " address or hex-encoded public key\n"
             "       ,...\n"
             "     ]\n"
 
             "\nResult:\n"
             "{\n"
-            "  \"address\":\"multisigaddress\",  (string) The value of the new multisig address.\n"
-            "  \"redeemScript\":\"script\"       (string) The string value of the hex-encoded redemption script.\n"
+            "  \"address\": \"multisigaddress\",   (string) the value of the new multisig address\n"
+            "  \"redeemScript\": \"hex\"           (string) the string value of the hex-encoded redemption script\n"
             "}\n"
 
             "\nExamples:\n"
             "\nCreate a multisig address from 2 addresses\n"
-            + HelpExampleCli("createmultisig", "2 \"[\\\"t16sSauSf5pF2UkUwvKGq4qjNRzBZYqgEL5\\\",\\\"t171sgjn4YtPu27adkKGrdDwzRTxnRkBfKV\\\"]\"") +
-            "\nAs a json rpc call\n"
-            + HelpExampleRpc("createmultisig", "2, \"[\\\"t16sSauSf5pF2UkUwvKGq4qjNRzBZYqgEL5\\\",\\\"t171sgjn4YtPu27adkKGrdDwzRTxnRkBfKV\\\"]\"")
+            + HelpExampleCli("createmultisig", "2 \"[\\\"addr1\\\",\\\"addr2\\\"]\"")
+            + HelpExampleRpc("createmultisig", "2, \"[\\\"addr1\\\",\\\"addr2\\\"]\"")
         ;
         throw runtime_error(msg);
     }
@@ -376,8 +381,8 @@ UniValue createmultisig(const UniValue& params, bool fHelp)
     CBitcoinAddress address(innerID);
 
     UniValue result(UniValue::VOBJ);
-    result.push_back(Pair("address", address.ToString()));
-    result.push_back(Pair("redeemScript", HexStr(inner.begin(), inner.end())));
+    result.pushKV("address", address.ToString());
+    result.pushKV("redeemScript", HexStr(inner.begin(), inner.end()));
 
     return result;
 }
@@ -386,23 +391,26 @@ UniValue verifymessage(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 3)
         throw runtime_error(
-            "verifymessage \"zcashaddress\" \"signature\" \"message\"\n"
+            "verifymessage \"zenaddress\" \"signature\" \"message\"\n"
             "\nVerify a signed message\n"
+
             "\nArguments:\n"
-            "1. \"zcashaddress\"    (string, required) The Zcash address to use for the signature.\n"
-            "2. \"signature\"       (string, required) The signature provided by the signer in base 64 encoding (see signmessage).\n"
-            "3. \"message\"         (string, required) The message that was signed.\n"
+            "1. \"zenaddress\"      (string, required) the " + CURRENCY_UNIT + " address to use for the signature\n"
+            "2. \"signature\"       (string, required) the signature provided by the signer in base 64 encoding (see signmessage)\n"
+            "3. \"message\"         (string, required) the message that was signed\n"
+
             "\nResult:\n"
-            "true|false   (boolean) If the signature is verified or not.\n"
+            "true|false             (boolean) if the signature is verified or not\n"
+
             "\nExamples:\n"
             "\nUnlock the wallet for 30 seconds\n"
             + HelpExampleCli("walletpassphrase", "\"mypassphrase\" 30") +
             "\nCreate the signature\n"
-            + HelpExampleCli("signmessage", "\"t14oHp2v54vfmdgQ3v3SNuQga8JKHTNi2a1\" \"my message\"") +
+            + HelpExampleCli("signmessage", "\"zenaddress\" \"my message\"") +
             "\nVerify the signature\n"
-            + HelpExampleCli("verifymessage", "\"t14oHp2v54vfmdgQ3v3SNuQga8JKHTNi2a1\" \"signature\" \"my message\"") +
+            + HelpExampleCli("verifymessage", "\"zenaddress\" \"signature\" \"my message\"") +
             "\nAs json rpc\n"
-            + HelpExampleRpc("verifymessage", "\"t14oHp2v54vfmdgQ3v3SNuQga8JKHTNi2a1\", \"signature\", \"my message\"")
+            + HelpExampleRpc("verifymessage", "\"zenaddress\", \"signature\", \"my message\"")
         );
 
     LOCK(cs_main);
@@ -442,9 +450,17 @@ UniValue setmocktime(const UniValue& params, bool fHelp)
         throw runtime_error(
             "setmocktime timestamp\n"
             "\nSet the local time to given timestamp (-regtest only)\n"
+            
             "\nArguments:\n"
-            "1. timestamp  (integer, required) Unix seconds-since-epoch timestamp\n"
-            "   Pass 0 to go back to using the system time."
+            "1. timestamp  (numeric, required) Unix seconds-since-epoch timestamp\n"
+            "               pass 0 to go back to using the system time."
+            
+            "\nResult:\n"
+            "Nothing\n"
+            
+            "\nExamples:\n"
+            + HelpExampleCli("setmocktime", "0")
+            + HelpExampleRpc("setmocktime", "0")
         );
 
     if (!Params().MineBlocksOnDemand())

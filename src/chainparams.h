@@ -70,7 +70,10 @@ public:
     int CbhMinimumAge() const { return nCbhMinimumAge; }
     int CbhSafeDepth() const { return nCbhSafeDepth; }
     int ScCoinsMaturity() const { return nScCoinsMaturity; }
+    int ScNumBlocksForScFeeCheck() const { return nScNumBlocksForScFeeCheck; }
     int ScMinWithdrawalEpochLength() const { return nScMinWithdrawalEpochLength; }
+    int ScMaxWithdrawalEpochLength() const { return nScMaxWithdrawalEpochLength; }
+    int ScMaxNumberOfCswInputsInMempool() const { return nScMaxNumberOfCswInputsInMempool; }
     int64_t MaxTipAge() const { return nMaxTipAge; }
     int64_t PruneAfterHeight() const { return nPruneAfterHeight; }
     unsigned int EquihashN() const { return nEquihashN; }
@@ -91,6 +94,8 @@ public:
     CScript GetCommunityFundScriptAtHeight(int height, Fork::CommunityFundType cfType) const;
     /** Enforce coinbase consensus rule in regtest mode */
     void SetRegTestCoinbaseMustBeProtected() { consensus.fCoinbaseMustBeProtected = true; }
+
+    void SetSubsidyHalvingInterval(int val) { consensus.nSubsidyHalvingInterval = val;}
 protected:
     CChainParams() {}
 
@@ -117,7 +122,10 @@ protected:
     int  nCbhMinimumAge = 0;
     int  nCbhSafeDepth = 0;
     int  nScCoinsMaturity = 0;
+    int  nScNumBlocksForScFeeCheck = 0;
     int  nScMinWithdrawalEpochLength = 0;
+    int  nScMaxWithdrawalEpochLength = 0;
+    int  nScMaxNumberOfCswInputsInMempool = 0;
     Checkpoints::CCheckpointData checkpointData;
 };
 

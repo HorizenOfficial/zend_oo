@@ -271,9 +271,13 @@ libbitcoin_server_a_SOURCES = \
   rpc/net.cpp \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
+  sc/asyncproofverifier.cpp \
+  sc/sidechainTxsCommitmentBuilder.cpp \
+  sc/sidechaintypes.cpp \
   sc/proofverifier.cpp \
   sc/sidechain.cpp \
   sc/sidechainrpc.cpp \
+  sc/sidechaintypes.cpp \
   timedata.cpp \
   torcontrol.cpp \
   txdb.cpp \
@@ -369,6 +373,7 @@ libbitcoin_common_a_SOURCES = \
   arith_uint256.cpp \
   base58.cpp \
   chainparams.cpp \
+  sc/proofverifier.cpp \
   coins.cpp \
   compressor.cpp \
   core_read.cpp \
@@ -506,6 +511,10 @@ zen_tx_SOURCES = \
     bitcoin-tx.cpp \
     primitives/transaction.cpp \
     primitives/certificate.cpp \
+    sc/sidechainTxsCommitmentBuilder.cpp \
+    sc/sidechaintypes.cpp \
+    sc/proofverifier.cpp \
+    sc/sidechain.cpp \
     coins.cpp \
     script/interpreter.cpp \
     script/standard.cpp
@@ -598,7 +607,8 @@ libzencash_a_SOURCES = \
     zen/forks/fork4_nulltransactionfork.cpp\
     zen/forks/fork5_shieldfork.cpp\
     zen/forks/fork6_timeblockfork.cpp\
-    zen/forks/fork7_sidechainfork.cpp\
+    zen/forks/fork7_replayprotectionfixfork.cpp\
+    zen/forks/fork8_sidechainfork.cpp\
     zen/tlsmanager.cpp\
     zen/delay.cpp \
     zen/websocket_server.cpp
@@ -620,9 +630,9 @@ noinst_PROGRAMS += \
   
 # tool for testing sidechain
 zendoo_mcTest_SOURCES = \
-    zendoo/mcTestCall.cpp \ 
+    zendoo/mcTestCall.cpp \
     uint256.cpp \
-    utilstrencodings.cpp 
+    utilstrencodings.cpp
 
 zendoo_mcTest_CPPFLAGS = $(AM_CPPFLAGS) $(EVENT_CFLAGS) $(PIC_FLAGS)
 zendoo_mcTest_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)

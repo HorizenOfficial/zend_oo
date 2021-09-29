@@ -4,10 +4,12 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, assert_true, initialize_chain_clean, \
     mark_logs, start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, \
-    disconnect_nodes, wait_and_assert_operationid_status
+    get_epoch_data, disconnect_nodes, wait_and_assert_operationid_status, \
+    swap_bytes
 from test_framework.mc_test.mc_test import *
 import os
 import pprint
@@ -17,17 +19,9 @@ import time
 NUMB_OF_NODES = 3
 DEBUG_MODE = 1
 EPOCH_LENGTH = 5
+FT_SC_FEE = Decimal('0')
+MBTR_SC_FEE = Decimal('0')
 CERT_FEE = Decimal('0.00015')
-
-def get_epoch_data( scid, node, epochLen):
-    sc_creating_height = node.getscinfo(scid)['created at block height']
-    current_height = node.getblockcount()
-    epoch_number = (current_height - sc_creating_height + 1) // epochLen - 1
-    epoch_block_hash = node.getblockhash(sc_creating_height - 1 + ((epoch_number + 1) * epochLen))
-    prev_epoch_block_hash = node.getblockhash(sc_creating_height - 1 + ((epoch_number) * epochLen))
-    return epoch_block_hash, epoch_number, prev_epoch_block_hash
-
-
 
 class sbh_rpc_cmds(BitcoinTestFramework):
 
@@ -45,7 +39,7 @@ class sbh_rpc_cmds(BitcoinTestFramework):
 
         self.nodes = start_nodes(
             NUMB_OF_NODES, self.options.tmpdir,
-            extra_args=[['-sccoinsmaturity=2', '-logtimemicros=1', '-debug=sc',
+            extra_args=[['-sccoinsmaturity=2', '-scproofqueuesize=0', '-logtimemicros=1', '-debug=sc',
                          '-debug=py', '-debug=mempool', '-debug=net',
                          '-debug=bench']] * NUMB_OF_NODES)
 
@@ -75,32 +69,6 @@ class sbh_rpc_cmds(BitcoinTestFramework):
         time.sleep(2)
         self.is_network_split = False
 
-    def dump_sc_info_record(self, info, i):
-        if DEBUG_MODE == 0:
-            return
-        print "  Node %d - scid: %s" % (i, info["scid"])
-        print "    balance: %f" % (info["balance"])
-        print "    created in block: %s (%d)" % (info["created in block"], info["created at block height"])
-        print "    created in tx:    %s" % info["creating tx hash"]
-        print "    immature amounts:  ", info["immature amounts"]
-        print
-
-    def dump_sc_info(self, scId=""):
-        if scId != "":
-            print "-------------------------------------------------------------------------------------"
-            for i in range(0, NUMB_OF_NODES):
-                try:
-                    self.dump_sc_info_record(self.nodes[i].getscinfo(scId), i)
-                except JSONRPCException, e:
-                    print "  Node %d: ### [no such scid: %s]" % (i, scId)
-        else:
-            print "-------------------------------------------------------------------------------------"
-            for i in range(0, NUMB_OF_NODES):
-                x = self.nodes[i].getscinfo()
-                for info in x:
-                    self.dump_sc_info_record(info, i)
-        print
-
     def run_test(self):
 
         ''' This test validates the rpc cmds for SBH wallet
@@ -114,8 +82,8 @@ class sbh_rpc_cmds(BitcoinTestFramework):
         txs_node1 = []
 
         # network topology: (0)--(1)--(2)
-        mark_logs("\nNode 0 generates 220 blocks", self.nodes, DEBUG_MODE)
-        self.nodes[0].generate(220)
+        mark_logs("\nNode 0 generates {} blocks".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
 
         taddr_1 = self.nodes[1].getnewaddress()
@@ -129,9 +97,12 @@ class sbh_rpc_cmds(BitcoinTestFramework):
         self.nodes[0].generate(1)
         self.sync_all()
 
+        prev_epoch_block_hash = self.nodes[0].getbestblockhash()
+
         #generate wCertVk and constant
-        mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
-        vk = mcTest.generate_params("sc1")
+        certMcTest = CertTestUtils(self.options.tmpdir, self.options.srcdir)
+        cswMcTest  = CSWTestUtils(self.options.tmpdir, self.options.srcdir)
+        vk = certMcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
         sc_creating_height = self.nodes[0].getblockcount()+1
@@ -151,7 +122,7 @@ class sbh_rpc_cmds(BitcoinTestFramework):
 
         try:
             #----------------------------------------------------------------------------------------------
-            res = self.nodes[1].create_sidechain(cmdInput)
+            res = self.nodes[1].sc_create(cmdInput)
             tx =   res['txid']
             scid = res['scid']
             txs_node1.append(tx)
@@ -185,13 +156,14 @@ class sbh_rpc_cmds(BitcoinTestFramework):
         assert_equal(ud['unconfirmedTxApperances'], 1) 
 
         #--------------------------------------------------------------------------------------
-        outputs = [{'toaddress': sc_toaddress, 'amount': sc_fwd_amount, "scid":scid}]
+        mc_return_address = self.nodes[1].getnewaddress()
+        outputs = [{'toaddress': sc_toaddress, 'amount': sc_fwd_amount, "scid": scid, "mcReturnAddress": mc_return_address}]
         # if changeaddress is not specified but fromtaddress is, they are the same
         # with minconf == 0 we can use also change from the previous tx, which is still in mempool 
         cmdParms = { 'fromaddress': taddr_1, "minconf": 0, "fee": fee}
 
         try:
-            tx = self.nodes[1].send_to_sidechain(outputs, cmdParms)
+            tx = self.nodes[1].sc_send(outputs, cmdParms)
             self.sync_all()
             txs_node1.append(tx)
             mark_logs("\n===> Node 1 sent {} coins to fund the sc".format(sc_fwd_amount), self.nodes, DEBUG_MODE)
@@ -221,24 +193,25 @@ class sbh_rpc_cmds(BitcoinTestFramework):
         self.nodes[0].generate(5)
         self.sync_all()
 
-        epoch_block_hash, epoch_number, prev_epoch_block_hash = get_epoch_data(scid, self.nodes[0], EPOCH_LENGTH)
-        mark_logs("\nepoch_number = {}, epoch_block_hash = {}".format(epoch_number, epoch_block_hash), self.nodes, DEBUG_MODE)
+        epoch_number, epoch_cum_tree_hash = get_epoch_data(scid, self.nodes[0], EPOCH_LENGTH)
+        mark_logs("\nepoch_number = {}, epoch_cum_tree_hash = {}".format(epoch_number, epoch_cum_tree_hash), self.nodes, DEBUG_MODE)
 
         # node0 create a cert_1 for funding node1 
         bwt_address = self.nodes[1].getnewaddress()
-        pkh_node1 = self.nodes[1].validateaddress(bwt_address)['pubkeyhash']
 
-        amounts = [{"pubkeyhash": pkh_node1, "amount": bwt_amount1}]
+        amounts = [{"address": bwt_address, "amount": bwt_amount1}]
         try:
             #Create proof for WCert
             quality = 1
-            proof = mcTest.create_test_proof(
-                "sc1", epoch_number, epoch_block_hash, prev_epoch_block_hash,
-                quality, constant, [pkh_node1], [bwt_amount1])
+            scid_swapped = str(swap_bytes(scid))
+            
+            proof = certMcTest.create_test_proof(
+                "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [bwt_address], [bwt_amount1])
 
             #----------------------------------------------------------------------------------------------
-            cert_1 = self.nodes[0].send_certificate(scid, epoch_number, quality, epoch_block_hash, proof, amounts, CERT_FEE)
-            mark_logs("\n===> Node 0 sent a cert for scid {} with bwd transfer of {} coins to Node1 pkh (addr {})".format(scid, bwt_amount1, bwt_address), self.nodes, DEBUG_MODE)
+            cert_1 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
+                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+            mark_logs("\n===> Node 0 sent a cert for scid {} with bwd transfer of {} coins to Node1 address {})".format(scid, bwt_amount1, bwt_address), self.nodes, DEBUG_MODE)
             #mark_logs("==> certificate is {}".format(cert_1), self.nodes, DEBUG_MODE)
             self.sync_all()
         except JSONRPCException, e:
@@ -250,7 +223,7 @@ class sbh_rpc_cmds(BitcoinTestFramework):
         ud1 = self.nodes[1].getunconfirmedtxdata(bwt_address, True)
         ud2 = self.nodes[1].getunconfirmedtxdata(bwt_address, False)
         assert_equal(ud1, ud2) 
-        assert_equal(ud1['bwtImmatureOutput'], bwt_amount1) 
+        assert_equal(ud1['bwtImmatureOutput'], Decimal("0.0")) # Certs in mempool have bwts voided
         assert_equal(ud1['unconfirmedInput'], Decimal("0.0")) 
         assert_equal(ud1['unconfirmedOutput'], Decimal("0.0")) 
         assert_equal(ud1['unconfirmedTxApperances'], 0) 
@@ -261,7 +234,10 @@ class sbh_rpc_cmds(BitcoinTestFramework):
 
         mark_logs("\nChecking Node1 unconfirmed data for addr {}".format(bwt_address), self.nodes, DEBUG_MODE)
         ud3 = self.nodes[1].getunconfirmedtxdata(bwt_address, True)
-        assert_equal(ud1, ud3) 
+        assert_equal(ud3['bwtImmatureOutput'], bwt_amount1) # Once confirmed, certs in mempool have bwts available
+        assert_equal(ud3['unconfirmedInput'], Decimal("0.0")) 
+        assert_equal(ud3['unconfirmedOutput'], Decimal("0.0")) 
+        assert_equal(ud3['unconfirmedTxApperances'], 0)
 
         mark_logs("\nNode0 generates 1 more block", self.nodes, DEBUG_MODE)
         self.nodes[0].generate(1)

@@ -1,4 +1,4 @@
-Zen 2.1.0-beta4
+Zen 3.0.0-beta1
 ================
 What is Horizen?
 ----------------
@@ -130,12 +130,12 @@ Running Regression Tests
     sudo apt-get install \
           python python-dev python-pip python-setuptools \
           python-wheel python-wheel-common python-zmq
-    sudo pip install --upgrade pyblake2
+    sudo pip install --upgrade pyblake2 websocket-client
     ```
     2. MacOS
     ```{r, engine='bash'}
     brew install python@2
-    sudo pip install --upgrade pyblake2 pyzmq
+    sudo pip install --upgrade pyblake2 pyzmq websocket-client
     ```
 2. Start test suite
     ```{r, engine='bash'}

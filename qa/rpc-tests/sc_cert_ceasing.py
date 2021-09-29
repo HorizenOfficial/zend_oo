@@ -8,7 +8,8 @@ from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_equal, initialize_chain_clean, \
     start_nodes, stop_nodes, get_epoch_data, \
     sync_blocks, sync_mempools, connect_nodes_bi, wait_bitcoinds, mark_logs, \
-    assert_false, assert_true
+    assert_false, assert_true, swap_bytes
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.mc_test.mc_test import *
 import os
 import pprint
@@ -19,6 +20,8 @@ from collections import namedtuple
 DEBUG_MODE = 1
 NUMB_OF_NODES = 2
 EPOCH_LENGTH = 5
+FT_SC_FEE = Decimal('0')
+MBTR_SC_FEE = Decimal('0')
 CERT_FEE = Decimal('0.00015')
 
 
@@ -37,7 +40,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
         self.nodes = []
 
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir, extra_args=
-            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-logtimemicros=1']] * NUMB_OF_NODES)
+            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert','-scproofqueuesize=0', '-logtimemicros=1', '-rescan']] * NUMB_OF_NODES)
 
         for k in range(0, NUMB_OF_NODES-1):
             connect_nodes_bi(self.nodes, k, k+1)
@@ -73,26 +76,28 @@ class sc_cert_ceasing(BitcoinTestFramework):
         bwt_amount.append(Decimal("0.0"))
         bwt_amount.append(Decimal("0.0"))
 
-        mark_logs("Node 0 generates 220 block", self.nodes, DEBUG_MODE)
-        self.nodes[0].generate(220)
+        mark_logs("Node 0 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
         prev_epoch_hash = self.nodes[0].getbestblockhash()
 
         #generate wCertVk and constant
-        mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
+        mcTest = CertTestUtils(self.options.tmpdir, self.options.srcdir)
 
         constant = generate_random_field_element_hex()
 
         scids = []
+        scids_swapped = []
         # SCs creation
         for i in range(0, 3):
             tag = "sc"+str(i+1)
             vk = mcTest.generate_params(tag)
-            ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount[i], vk, "abcdef", constant)
+            ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount[i], vk, "abcdef", constant)
             creating_tx = ret['txid']
             mark_logs("Node 0 created SC spending {} coins via tx1 {}.".format(creation_amount[i], creating_tx), self.nodes, DEBUG_MODE)
             self.sync_all()
             scids.append(self.nodes[0].getrawtransaction(creating_tx, 1)['vsc_ccout'][0]['scid'])
+            scids_swapped.append(str(swap_bytes(scids[i])))
             mark_logs("==> created SC ids {}".format(scids[-1]), self.nodes, DEBUG_MODE)
             
 
@@ -104,8 +109,8 @@ class sc_cert_ceasing(BitcoinTestFramework):
         assert_equal(get_epoch_data(scids[0], self.nodes[0], EPOCH_LENGTH), get_epoch_data(scids[1], self.nodes[0], EPOCH_LENGTH))
         assert_equal(get_epoch_data(scids[0], self.nodes[0], EPOCH_LENGTH), get_epoch_data(scids[2], self.nodes[0], EPOCH_LENGTH))
 
-        epoch_block_hash, epoch_number = get_epoch_data(scids[0], self.nodes[0], EPOCH_LENGTH)
-        mark_logs("epoch_number = {}, epoch_block_hash = {}".format(epoch_number, epoch_block_hash), self.nodes, DEBUG_MODE)
+        epoch_number, epoch_cum_tree_hash = get_epoch_data(scids[0], self.nodes[0], EPOCH_LENGTH)
+        mark_logs("epoch_number = {}, epoch_cum_tree_hash = {}".format(epoch_number, epoch_cum_tree_hash), self.nodes, DEBUG_MODE)
 
         last_cert_epochs = []
         last_cert_epochs.append(epoch_number)
@@ -113,33 +118,33 @@ class sc_cert_ceasing(BitcoinTestFramework):
         last_cert_epochs.append(-1)
 
         # node0 create a cert_1 for funding node1 
-        pkh_node1 = self.nodes[1].getnewaddress("", True)
-        amounts = [{"pubkeyhash": pkh_node1, "amount": bwt_amount[0]}]
-        mark_logs("Node 0 sends a cert for scid_1 {} with a bwd transfer of {} coins to Node1 pkh".format(scids[0], bwt_amount[0], pkh_node1), self.nodes, DEBUG_MODE)
+        addr_node1 = self.nodes[1].getnewaddress()
+        amounts = [{"address": addr_node1, "amount": bwt_amount[0]}]
+        mark_logs("Node 0 sends a cert for scid_1 {} with a bwd transfer of {} coins to Node1 address".format(scids[0], bwt_amount[0], addr_node1), self.nodes, DEBUG_MODE)
         try:
             #Create proof for WCert
             quality = 1
-            proof = mcTest.create_test_proof(
-                "sc1", epoch_number, epoch_block_hash, prev_epoch_hash,
-                quality, constant, [pkh_node1], [bwt_amount[0]])
+            proof = mcTest.create_test_proof("sc1", scids_swapped[0], epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [addr_node1], [bwt_amount[0]])
 
-            cert_1 = self.nodes[0].send_certificate(scids[0], epoch_number, quality, epoch_block_hash, proof, amounts, CERT_FEE)
+            cert_1 = self.nodes[0].sc_send_certificate(scids[0], epoch_number, quality,
+                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_1), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs("Send certificate failed with reason {}".format(errorString), self.nodes, DEBUG_MODE)
             assert(False)
 
+        self.sync_all()
+
         # node0 create an empty cert_2 
         mark_logs("Node 0 sends an empty cert for scid_2 {}".format(scids[1]), self.nodes, DEBUG_MODE)
         try:
             #Create proof for WCert
             quality = 1
-            proof = mcTest.create_test_proof(
-                "sc2", epoch_number, epoch_block_hash, prev_epoch_hash,
-                quality, constant, [], [])
+            proof = mcTest.create_test_proof("sc2", scids_swapped[1], epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [], [])
 
-            cert_2 = self.nodes[0].send_certificate(scids[1], epoch_number, quality, epoch_block_hash, proof, [], CERT_FEE)
+            cert_2 = self.nodes[0].sc_send_certificate(scids[1], epoch_number, quality,
+                epoch_cum_tree_hash, proof, [], FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_2), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -157,7 +162,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
         for k in range(len(scids)):
             for idx, node in enumerate(self.nodes):
                 print "idx = {}, k = {}".format(idx, k)
-                sc_info = node.getscinfo(scids[k])
+                sc_info = node.getscinfo(scids[k])['items'][0]
                 if (k == 2):
                     assert_equal(sc_info["state"], "CEASED")
                 else:
@@ -197,10 +202,20 @@ class sc_cert_ceasing(BitcoinTestFramework):
         for k in range(len(scids)):
             for idx, node in enumerate(self.nodes):
                 print "idx = {}, k = {}".format(idx, k)
-                sc_info = node.getscinfo(scids[k])
+                sc_info = node.getscinfo(scids[k])['items'][0]
                 assert_equal(sc_info["state"], "CEASED")
                 assert_equal(sc_info["last certificate epoch"], last_cert_epochs[k])
                 assert_equal(sc_info["balance"], creation_amount[k] - bwt_amount[k])
+
+        mark_logs("Node 0 tries to fwd coins to ceased sc {}...".format(scids[-1]), self.nodes, DEBUG_MODE)
+        fwt_amount = Decimal("0.5")
+        mc_return_address = self.nodes[0].getnewaddress()
+        try:
+            fwd_tx = self.nodes[0].dep_sc_send("abcd", fwt_amount, scids[-1], mc_return_address)
+            assert(False)
+        except JSONRPCException, e:
+            errorString = e.error['message']
+            mark_logs(errorString, self.nodes, DEBUG_MODE)
 
         mark_logs("Checking certificates persistance stopping and restarting nodes", self.nodes, DEBUG_MODE)
         stop_nodes(self.nodes)
@@ -210,7 +225,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
         for k in range(len(scids)):
             for idx, node in enumerate(self.nodes):
                 mark_logs("Checking Node{} after restart".format(idx), self.nodes, DEBUG_MODE)
-                sc_post_regeneration = node.getscinfo(scids[k])
+                sc_post_regeneration = node.getscinfo(scids[k])['items'][0]
                 assert_equal(sc_post_regeneration["state"], "CEASED")
                 assert_equal(sc_post_regeneration["last certificate epoch"], last_cert_epochs[k])
                 assert_equal(sc_post_regeneration["balance"], creation_amount[k] - bwt_amount[k])
@@ -229,7 +244,6 @@ class sc_cert_ceasing(BitcoinTestFramework):
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs(errorString, self.nodes, DEBUG_MODE)
-
 
 
 if __name__ == '__main__':

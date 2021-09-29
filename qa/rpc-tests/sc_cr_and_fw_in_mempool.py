@@ -4,6 +4,7 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_true, assert_equal, initialize_chain_clean, \
     start_nodes, stop_nodes, wait_bitcoinds, sync_blocks, sync_mempools, connect_nodes_bi, mark_logs, dump_ordered_tips
@@ -45,7 +46,7 @@ class sc_cr_fw(BitcoinTestFramework):
 
     def run_test(self):
         '''
-        Test the situation when bot a fw transfer and a certificate for the same scid are in the mempool and a block is mined"
+        Test the situation when both a fw transfer and a certificate for the same scid are in the mempool and a block is mined"
         '''
 
         def get_epoch_data(node, sc_creating_height, epoch_length):
@@ -55,7 +56,7 @@ class sc_cr_fw(BitcoinTestFramework):
             return epoch_number, epoch_block_hash
 
         # forward transfer amounts
-        creation_amount = Decimal("1000")
+        creation_amount = Decimal(MINER_REWARD_POST_H200*(MINIMAL_SC_HEIGHT-100)) #Most of mature coins owned by Node
         fwt_amount = Decimal("3.0")
 
         # node 1 earns some coins, they would be available after 100 blocks
@@ -63,8 +64,8 @@ class sc_cr_fw(BitcoinTestFramework):
         self.nodes[1].generate(1)
         self.sync_all()
 
-        mark_logs("Node 0 generates 220 block", self.nodes, DEBUG_MODE)
-        self.nodes[0].generate(220)
+        mark_logs("Node 0 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
 
         # generate a tx in mempool whose coins will be used by the tx creating the sc as input. This will make the creation tx orphan
@@ -78,11 +79,11 @@ class sc_cr_fw(BitcoinTestFramework):
         # sidechain creation
         #-------------------
         # generate wCertVk and constant
-        mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
+        mcTest = CertTestUtils(self.options.tmpdir, self.options.srcdir)
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
         creating_tx = ret['txid']
         scid = ret['scid']
         self.sync_all()
@@ -91,6 +92,7 @@ class sc_cr_fw(BitcoinTestFramework):
         totScAmount += creation_amount
 
         mark_logs("Node 0 sends to sidechain ", self.nodes, DEBUG_MODE)
+        mc_return_address = self.nodes[0].getnewaddress()
         txes = []
         for i in range(1, BUNCH_SIZE+1):
             amounts = []
@@ -99,7 +101,7 @@ class sc_cr_fw(BitcoinTestFramework):
                 scaddr = str(hex(j*i)) 
                 amount = j*i*Decimal('0.01')
                 interm_amount += amount
-                amounts.append({"address": scaddr, "amount": amount, "scid": scid})
+                amounts.append({"address": scaddr, "amount": amount, "scid": scid, "mcReturnAddress": mc_return_address})
             txes.append(self.nodes[0].sc_sendmany(amounts))
             mark_logs("Node 0 send many amounts (tot={}) to sidechain via {}".format(interm_amount, txes[-1]), self.nodes, DEBUG_MODE)
             self.sync_all()
@@ -201,7 +203,7 @@ class sc_cr_fw(BitcoinTestFramework):
 
         mark_logs("Check that sc balance is as expected", self.nodes, DEBUG_MODE)
         pprint.pprint(self.nodes[1].getscinfo(scid))
-        assert_equal(totScAmount, self.nodes[1].getscinfo(scid)['balance'])
+        assert_equal(totScAmount, self.nodes[1].getscinfo(scid)['items'][0]['balance'])
         mark_logs("Check that both nodes share the same view of sc info", self.nodes, DEBUG_MODE)
         assert_equal(self.nodes[0].getscinfo(scid), self.nodes[1].getscinfo(scid))
 

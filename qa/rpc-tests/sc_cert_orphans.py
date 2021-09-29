@@ -4,9 +4,11 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
+from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_true, assert_equal, initialize_chain_clean, get_epoch_data, \
-    start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, mark_logs, dump_ordered_tips
+    start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, mark_logs, dump_ordered_tips, \
+    swap_bytes
 from test_framework.mc_test.mc_test import *
 import os
 from decimal import Decimal
@@ -16,6 +18,8 @@ import time
 DEBUG_MODE = 1
 NUMB_OF_NODES = 4
 EPOCH_LENGTH = 5
+FT_SC_FEE = Decimal('0')
+MBTR_SC_FEE = Decimal('0')
 CERT_FEE = Decimal('0.00015')
 
 
@@ -34,7 +38,7 @@ class sc_cert_orphans(BitcoinTestFramework):
         self.nodes = []
 
         self.nodes = start_nodes(NUMB_OF_NODES, self.options.tmpdir, extra_args=
-            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-debug=zendoo_mc_cryptolib', '-logtimemicros=1']] * NUMB_OF_NODES)
+            [['-debug=py', '-debug=sc', '-debug=mempool', '-debug=net', '-debug=cert', '-debug=zendoo_mc_cryptolib', '-scproofqueuesize=0', '-logtimemicros=1']] * NUMB_OF_NODES)
 
         for k in range(0, NUMB_OF_NODES-1):
             connect_nodes_bi(self.nodes, k, k+1)
@@ -70,12 +74,12 @@ class sc_cert_orphans(BitcoinTestFramework):
         # cross chain transfer amounts
         creation_amount = Decimal("10.0")
 
-        mark_logs("Node0 generates 220 block", self.nodes, DEBUG_MODE)
-        self.nodes[0].generate(220)
+        mark_logs("Node0 generates {} block".format(MINIMAL_SC_HEIGHT), self.nodes, DEBUG_MODE)
+        self.nodes[0].generate(MINIMAL_SC_HEIGHT)
         self.sync_all()
 
         # (1) node0 create sidechains with 10.0 coins each
-        mcTest = MCTestUtils(self.options.tmpdir, self.options.srcdir)
+        mcTest = CertTestUtils(self.options.tmpdir, self.options.srcdir)
 
         vk_1 = mcTest.generate_params("sc1")
         constant_1 = generate_random_field_element_hex()
@@ -83,13 +87,13 @@ class sc_cert_orphans(BitcoinTestFramework):
         vk_2 = mcTest.generate_params("sc2")
         constant_2 = generate_random_field_element_hex()
 
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "dada", creation_amount, vk_1, "", constant_1)
+        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk_1, "", constant_1)
         creating_tx_1 = ret['txid']
         scid_1 = ret['scid']
         mark_logs("Node0 created SC id: {}".format(scid_1), self.nodes, DEBUG_MODE)
         self.sync_all()
 
-        ret = self.nodes[0].sc_create(EPOCH_LENGTH, "baba", creation_amount, vk_2, "", constant_2)
+        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "baba", creation_amount, vk_2, "", constant_2)
         creating_tx_2 = ret['txid']
         scid_2 = ret['scid']
         mark_logs("Node0 created SC id: {}".format(scid_2), self.nodes, DEBUG_MODE)
@@ -99,7 +103,7 @@ class sc_cert_orphans(BitcoinTestFramework):
         prev_epoch_block_hash = self.nodes[0].getblockhash(self.nodes[0].getblockcount())
         self.nodes[0].generate(5)
         self.sync_all()
-        epoch_block_hash, epoch_number = get_epoch_data(scid_1, self.nodes[0], EPOCH_LENGTH)
+        epoch_number, epoch_cum_tree_hash = get_epoch_data(scid_1, self.nodes[0], EPOCH_LENGTH)
 
         # (2) node0 sends fund to node1, the resulting tx1 is in mempool
         taddr1 = self.nodes[1].getnewaddress()
@@ -110,19 +114,19 @@ class sc_cert_orphans(BitcoinTestFramework):
         self.sync_all()
 
         # (3) node1 create cert1 using the unconfirmed coins in mempool 
-        pkh_node2 = self.nodes[2].getnewaddress("", True)
+        addr_node2 = self.nodes[2].getnewaddress()
         bwt_amount = Decimal("1.0")
-        amounts = [{"pubkeyhash": pkh_node2, "amount": bwt_amount}]
+        amounts = [{"address": addr_node2, "amount": bwt_amount}]
 
         #Create proof for WCert
         quality = 0
-        proof = mcTest.create_test_proof(
-            "sc1", epoch_number, epoch_block_hash, prev_epoch_block_hash,
-            quality, constant_1, [pkh_node2], [bwt_amount])
+        scid1_swapped = str(swap_bytes(scid_1))
+        proof = mcTest.create_test_proof("sc1", scid1_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant_1, [addr_node2], [bwt_amount])
 
         mark_logs("Node1 sends a certificate for SC {} using unconfirmed UTXO from tx1".format(scid_1), self.nodes, DEBUG_MODE)
         try:
-            cert1 = self.nodes[1].send_certificate(scid_1, epoch_number, quality, epoch_block_hash, proof, amounts, CERT_FEE)
+            cert1 = self.nodes[1].sc_send_certificate(scid_1, epoch_number, quality,
+                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             mark_logs("======> cert1 = {}".format(cert1), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -172,13 +176,13 @@ class sc_cert_orphans(BitcoinTestFramework):
 
         #Create proof for WCert
         quality = 0
-        proof = mcTest.create_test_proof(
-            "sc2", epoch_number, epoch_block_hash, prev_epoch_block_hash,
-            quality, constant_2, [], [])
+        scid2_swapped = str(swap_bytes(scid_2))
+        proof = mcTest.create_test_proof("sc2", scid2_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant_2, [], [])
 
         mark_logs("Node1 tries to sends a certificate for SC {} using unconfirmed change from cert1".format(scid_2), self.nodes, DEBUG_MODE)
         try:
-            cert2 = self.nodes[1].send_certificate(scid_2, epoch_number, quality, epoch_block_hash, proof, amounts, CERT_FEE)
+            cert2 = self.nodes[1].sc_send_certificate(scid_2, epoch_number, quality,
+                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             mark_logs("======> cert2 = {}".format(cert2), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -192,12 +196,12 @@ class sc_cert_orphans(BitcoinTestFramework):
         inputs  = [{'txid' : cert1, 'vout' : 0}]
         change_dum = amount1 - CERT_FEE
         outputs = { self.nodes[1].getnewaddress() : change_dum }
-        params = {"scid": scid_2, "quality": quality, "endEpochBlockHash": epoch_block_hash, "scProof": proof, "withdrawalEpochNumber": epoch_number}
+        params = {"scid": scid_2, "quality": quality, "endEpochCumScTxCommTreeRoot": epoch_cum_tree_hash, "scProof": proof, "withdrawalEpochNumber": epoch_number}
         try:
             rawcert    = self.nodes[1].createrawcertificate(inputs, outputs, {}, params)
-            signed_cert = self.nodes[1].signrawcertificate(rawcert)
+            signed_cert = self.nodes[1].signrawtransaction(rawcert)
             #pprint.pprint(self.nodes[1].decoderawcertificate(signed_cert['hex']))
-            rawcert = self.nodes[1].sendrawcertificate(signed_cert['hex'])
+            rawcert = self.nodes[1].sendrawtransaction(signed_cert['hex'])
             assert_true(False)
         except JSONRPCException, e:
             mark_logs("Send certificate failed as expected", self.nodes, DEBUG_MODE)
@@ -296,7 +300,7 @@ class sc_cert_orphans(BitcoinTestFramework):
 
         # verify network is aligned
         mark_logs("verifying that network is realigned", self.nodes, DEBUG_MODE)
-        assert_equal(self.nodes[0].getscinfo(),        self.nodes[3].getscinfo())
+        assert_equal(self.nodes[0].getscinfo("*"),     self.nodes[3].getscinfo("*"))
         assert_equal(self.nodes[0].getrawmempool(),    self.nodes[3].getrawmempool())
         assert_equal(self.nodes[0].getblockcount(),    self.nodes[3].getblockcount())
         assert_equal(self.nodes[0].getbestblockhash(), self.nodes[3].getbestblockhash())

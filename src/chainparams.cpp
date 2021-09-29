@@ -102,7 +102,7 @@ public:
         vSeeds.push_back(CDNSSeedData("dnsseed.horizen.global", "dnsseed.horizen.global")); // dns seeder
         vSeeds.push_back(CDNSSeedData("dnsseed.zensystem.io", "dnsseed.zensystem.io")); // dns seeder
         vSeeds.push_back(CDNSSeedData("mainnet.horizen.global", "mainnet.horizen.global")); // fixed seed
-        vSeeds.push_back(CDNSSeedData("mainnet.zensytem.io", "mainnet.zensystem.io")); // fixed seed
+        vSeeds.push_back(CDNSSeedData("mainnet.zensystem.io", "mainnet.zensystem.io")); // fixed seed
         vSeeds.push_back(CDNSSeedData("node1.zenchain.info", "node1.zenchain.info")); // fixed seed
 
         // guarantees the first 2 characters, when base58 encoded, are "zn"
@@ -134,7 +134,10 @@ public:
         nCbhMinimumAge = 99;
         nCbhSafeDepth = 52596;
         nScCoinsMaturity = 10;
+        nScNumBlocksForScFeeCheck = 200;
         nScMinWithdrawalEpochLength = 100;
+        nScMaxWithdrawalEpochLength = 4032; // one week at 1 block/2.5 min rate
+        nScMaxNumberOfCswInputsInMempool = 100;
 
         checkpointData = (Checkpoints::CCheckpointData) {
             boost::assign::map_list_of
@@ -149,11 +152,13 @@ public:
             ( 543000, uint256S("0x00000000111469e247ecb152e57c371147775b56173260950075dcb471614fed"))
             ( 596000, uint256S("0x000000000656846513b2d3faf3a70f59dc22fffcb8e14401ec5a17eec8994410"))
             ( 671000, uint256S("0x00000000097174dacaf850075917d1a24145fce88a800881ece709bb8f8746cf"))
-            ( 724100, uint256S("0x000000000ab34fd9c61be9f10a11a97f63a0f26c8f530e67a6397fb9934709dc")),
-            1589319810,     // * UNIX timestamp of last checkpoint block
-            14588555,       // * total number of transactions between genesis and last checkpoint
+            ( 724100, uint256S("0x000000000ab34fd9c61be9f10a11a97f63a0f26c8f530e67a6397fb9934709dc"))
+            ( 812000, uint256S("0x0000000000bccf70e0d2caa0473279decddb798f456d5a4bb399898e00eb4ce9"))
+            ( 902500, uint256S("0x0000000001258f2009278d042ed42dfd825de9a2bc31e410c0463bc8d6371ee4")),
+            1616416937,     // * UNIX timestamp of last checkpoint block
+            20635475,       // * total number of transactions between genesis and last checkpoint
                             //   (the tx=... number in the SetBestChain debug.log lines)
-            11604           // * estimated number of transactions per day after checkpoint
+            13170           // * estimated number of transactions per day after checkpoint
                             //   total number of tx / (checkpoint block height / (24 * 24))
         };
 
@@ -184,7 +189,7 @@ public:
         pchMessageStart[2] = 0xcd;
         pchMessageStart[3] = 0xe6;
         vAlertPubKey = ParseHex("048679fb891b15d0cada9692047fd0ae26ad8bfb83fabddbb50334ee5bc0683294deb410be20513c5af6e7b9cec717ade82b27080ee6ef9a245c36a795ab044bb3");
-        nDefaultPort = 20033;
+        nDefaultPort = 19033;
 //        nMinerThreads = 0;
         nPruneAfterHeight = 1000;
 
@@ -197,9 +202,11 @@ public:
 
         vFixedSeeds.clear();
         vSeeds.clear();
-
-        vSeeds.push_back(CDNSSeedData("sidechains-testnet.horizen.global", "dnsseed.sidechains-testnet.horizen.global")); //dns seeder
-        vSeeds.push_back(CDNSSeedData("horizen.global", "sidechains-testnet.horizen.global")); //fixed seeds, 4 nodes
+        vSeeds.push_back(CDNSSeedData("dnsseed.testnet.horizen.global", "dnsseed.testnet.horizen.global")); // dns seeder
+        vSeeds.push_back(CDNSSeedData("dnsseed.testnet.zensystem.io", "dnsseed.testnet.zensystem.io")); // dns seeder
+        vSeeds.push_back(CDNSSeedData("testnet.horizen.global", "testnet.horizen.global")); // fixed seed
+        vSeeds.push_back(CDNSSeedData("testnet.zensystem.io", "testnet.zensystem.io")); // fixed seed
+        vSeeds.push_back(CDNSSeedData("node1.zenchain.info", "node1.zenchain.info")); // fixed seed
 
         // guarantees the first 2 characters, when base58 encoded, are "zt"
         // guarantees the first 2 characters, when base58 encoded, are "tm"
@@ -232,7 +239,10 @@ public:
         nCbhMinimumAge = 99;
         nCbhSafeDepth = 52596;
         nScCoinsMaturity = 10;
+        nScNumBlocksForScFeeCheck = 200;
         nScMinWithdrawalEpochLength = 100;
+        nScMaxWithdrawalEpochLength = 4032;
+        nScMaxNumberOfCswInputsInMempool = 100;
 
         checkpointData = (Checkpoints::CCheckpointData) {
             boost::assign::map_list_of
@@ -244,12 +254,14 @@ public:
             (520000, uint256S("0x00052e65426a0ffbb90893208a6c89a82816abbed328fa2be5a647828609e61a"))
             (595000, uint256S("0x0000da85ddc79fdd297e996d6b6b887fc5b345619b7a6726c496941dcf830966"))
             (643000, uint256S("0x0000cabf39e3ac435d54b95c32e6173d6bb1b060066ecb7453d2146a0dd40947"))
-            (655826, uint256S("0x00036f9e25a28763e6b5385988b2d36aec99a051854ab32bc0efff4ff65aa2f4")) // split from normal testnet
-            (657000, uint256S("0x013bbc2e60182c16479f082f9a0470183544fe11c572609c71a39e2588dd157d")), // sidechain testnet HF activation block
-            1592223871,     // * UNIX timestamp of last checkpoint block
-            1356092,        // * total number of transactions between genesis and last checkpoint
+            (729000, uint256S("0x00013f6d5315f29094287bf0981b177098c5d467422bc4ab7764f88f11333f5f"))
+            (816500, uint256S("0x0004c69745c68058fb35b2a8e090887500f71f7e107f0fd6f3e57d21afa5fe76"))
+            (869828, uint256S("0x0009d4d6d27f523b76ef9ed76b4a4c5044d30b3a6248b0a7296bdc58a5524c05"))
+            (924840, uint256S("0x0007e7525b8958d387aedbfbc622feed4a82d7ecb1033a080af75dcb8933a453")), // TODO pre + post fork checkpoints after zendoo fork execution
+            1632734842,     // * UNIX timestamp of last checkpoint block
+            1754342,        // * total number of transactions between genesis and last checkpoint
                             //   (the tx=... number in the SetBestChain debug.log lines)
-            1189            //   total number of tx / (checkpoint block height / (24 * 24))
+            1093            //   total number of tx / (checkpoint block height / (24 * 24))
         };
 
 //  commented out - seems to make no sense but kept around for reference just in case
@@ -312,7 +324,10 @@ public:
         nCbhMinimumAge = 99;
         nCbhSafeDepth = 320;
         nScCoinsMaturity = 3;
+        nScNumBlocksForScFeeCheck = 10;
         nScMinWithdrawalEpochLength = 2;
+        nScMaxWithdrawalEpochLength = 4032;
+        nScMaxNumberOfCswInputsInMempool = 5;
 
         checkpointData = (Checkpoints::CCheckpointData){
             boost::assign::map_list_of

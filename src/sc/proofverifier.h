@@ -1,122 +1,142 @@
 #ifndef _SC_PROOF_VERIFIER_H
 #define _SC_PROOF_VERIFIER_H
 
-#include <zendoo/error.h>
-#include <zendoo/zendoo_mc.h>
-#include "uint256.h"
+#include <map>
 
-#include <string>
-#include <boost/foreach.hpp>
 #include <boost/variant.hpp>
-#include <boost/filesystem.hpp>
+
+#include "amount.h"
+#include "primitives/certificate.h"
+#include "primitives/transaction.h"
+#include "sc/sidechaintypes.h"
 
 class CSidechain;
 class CScCertificate;
+class uint256;
+class CCoinsViewCache;
 
-namespace libzendoomc{
+/**
+ * The enumeration of possible results of the proof verifier for any proof processed.
+ */
+enum class ProofVerificationResult
+{
+    Unknown,    /**< The result of the batch verification is unknown. */
+    Failed,     /**< The proof verification failed. */
+    Passed      /**< The proof verification passed. */
+};
 
-    typedef base_blob<SC_PROOF_SIZE * 8> ScProof;
+std::string ProofVerificationResultToString(ProofVerificationResult res);
 
-    /* Check if scProof is a valid zendoo-mc-cryptolib's sc_proof */
-    bool IsValidScProof(const ScProof& scProof);
+/**
+ * @brief A base structure for generic inputs of the proof verifier.
+ */
+struct CBaseProofVerifierInput
+{
+    uint32_t proofId;                               /**< A unique number identifying the proof. */
+    CScProof proof;                                 /**< The proof to be verified. */
+    CScVKey verificationKey;                        /**< The key to be used for the verification. */
+    uint256 scId;                                   /**< The ID of the sidechain referred by the certificate or CSW. */
+    CFieldElement constant;
+};
 
-    typedef base_blob<SC_VK_SIZE * 8> ScVk;
-    
-    /* Check if scVk is a valid zendoo-mc-cryptolib's sc_vk */
-    bool IsValidScVk(const ScVk& scVk);
+/**
+ * @brief A structure that includes all the arguments needed for verifying the proof of a CSW input.
+ */
+struct CCswProofVerifierInput : CBaseProofVerifierInput
+{
+    CFieldElement ceasingCumScTxCommTree;
+    CFieldElement certDataHash;
+    CAmount nValue;
+    CFieldElement nullifier;
+    uint160 pubKeyHash;
+};
 
-    typedef std::vector<unsigned char> ScConstant;
-    
-    /* Check if scConstant is a valid zendoo-mc-cryptolib's field */
-    bool IsValidScConstant(const ScConstant& scConstant);
+/**
+ * @brief A structure that includes all the arguments needed for verifying the proof of a certificate.
+ */
+struct CCertProofVerifierInput : CBaseProofVerifierInput
+{
+    uint256 certHash;
+    uint32_t epochNumber;
+    uint64_t quality;
+    std::vector<backward_transfer_t> bt_list;
+    std::vector<CFieldElement> vCustomFields;
+    CFieldElement endEpochCumScTxCommTreeRoot;
+    uint64_t mainchainBackwardTransferRequestScFee;
+    uint64_t forwardTransferScFee;
+};
 
-    /* Convert to std::string a zendoo-mc-cryptolib Error. Useful for logging */
-    std::string ToString(Error err);
+/**
+ * @brief The base structure for items added to the queue of the proof verifier.
+ */
+struct CProofVerifierItem
+{
+    uint256 txHash;                                                                                 /**< The hash of the transaction/certificate whose proof(s) have to be verified. */
+    std::shared_ptr<CTransactionBase> parentPtr;                                                    /**< The parent (Transaction or Certificate) that owns the item (CSW input or certificate itself). */
+    CNode* node;                                                                                    /**< The node that sent the parent (Transaction or Certiticate). */
+    ProofVerificationResult result;                                                                 /**< The overall result of the proof(s) verification for the transaction/certificate. */
+    boost::variant<CCertProofVerifierInput, std::vector<CCswProofVerifierInput>> proofInput;        /**< The proof input data, it can be a (single) certificate input or a list of CSW inputs. */
+};
 
-    /* Write scVk to file in vkPath. Returns true if operation succeeds, false otherwise. */
-    bool SaveScVkToFile(const boost::filesystem::path& vkPath, const ScVk& scVk);
+/* A verifier that is able to verify different kind of ScProof(s) */
+class CScProofVerifier
+{
+public:
 
-    /* Support class for WCert SNARK proof verification. */
-    class CScWCertProofVerification {
-        public:
-            CScWCertProofVerification(){ };
-
-            // Returns false if proof verification has failed or deserialization of certificate's elements
-            // into libzendoomc's elements has failed.
-            bool verifyScCert(
-                const ScConstant& constant,
-                const ScVk& wCertVk,
-                const uint256& prev_end_epoch_block_hash,
-                const CScCertificate& scCert
-            ) const;
-
-        protected:
-        
-            /* 
-             * Wrappers for function calls to zendoo-mc-cryptolib. Useful for testing purposes,
-             * enabling to mock the behaviour of each function.
-             */
-            virtual field_t* deserialize_field(const unsigned char* field_bytes) const {
-                return zendoo_deserialize_field(field_bytes);
-            }
-
-            virtual sc_proof_t* deserialize_sc_proof(const unsigned char* sc_proof_bytes) const {
-                return zendoo_deserialize_sc_proof(sc_proof_bytes);
-            }
-
-            virtual sc_vk_t* deserialize_sc_vk(const unsigned char* sc_vk_bytes) const {
-                return zendoo_deserialize_sc_vk(sc_vk_bytes);
-            }
-
-            virtual bool verify_sc_proof(
-                const unsigned char* end_epoch_mc_b_hash,
-                const unsigned char* prev_end_epoch_mc_b_hash,
-                const backward_transfer_t* bt_list,
-                size_t bt_list_len,
-                uint64_t quality,
-                const field_t* constant,
-                const field_t* proofdata,
-                const sc_proof_t* sc_proof,
-                const sc_vk_t* sc_vk
-            ) const
-            {
-                return zendoo_verify_sc_proof(
-                    end_epoch_mc_b_hash, prev_end_epoch_mc_b_hash, bt_list,
-                    bt_list_len, quality, constant, proofdata, sc_proof, sc_vk
-                );
-            }
+    /**
+     * @brief The types of verification that can be requested to the proof verifier.
+     */
+    enum class Verification
+    {
+        Strict,     /**< Perform normal verification. */
+        Loose       /**< Skip verification. */
     };
 
-    /* Class for instantiating a verifier able to verify different kind of ScProof for different kind of ScProof(s) */
-    class CScProofVerifier {
-        protected:
-            bool perform_verification;
-
-            CScProofVerifier(bool perform_verification): perform_verification(perform_verification) {}
-
-        public:
-            // CScProofVerifier should never be copied
-            CScProofVerifier(const CScProofVerifier&) = delete;
-            CScProofVerifier& operator=(const CScProofVerifier&) = delete;
-            CScProofVerifier(CScProofVerifier&&);
-            CScProofVerifier& operator=(CScProofVerifier&&);
-
-            // Creates a verification context that strictly verifies all proofs using zendoo-mc-cryptolib's API.
-            static CScProofVerifier Strict(){ return CScProofVerifier(true); }
-
-            // Creates a verifier that performs no verification, used when avoiding duplicate effort
-            // such as during reindexing.
-            static CScProofVerifier Disabled() { return CScProofVerifier(false); }
-
-            // Returns false if proof verification has failed or deserialization of certificate's elements
-            // into libzendoomc's elements has failed.
-            bool verifyCScCertificate(
-                const ScConstant& constant,
-                const ScVk& wCertVk,
-                const uint256& prev_end_epoch_block_hash,
-                const CScCertificate& scCert
-            ) const;
+    /**
+     * @brief Proof verification priority.
+     */
+    enum class Priority
+    {
+        Low,       /**< Low priority. Verification may be paused by a high priority verification task. */
+        High       /**< High priority. Verification will pause low priority verification threads if running. */
     };
-}
+
+    static CCertProofVerifierInput CertificateToVerifierItem(const CScCertificate& certificate, const Sidechain::ScFixedParameters& scFixedParams, CNode* pfrom);
+    static CCswProofVerifierInput CswInputToVerifierItem(const CTxCeasedSidechainWithdrawalInput& cswInput, const CTransaction* cswTransaction, const Sidechain::ScFixedParameters& scFixedParams, CNode* pfrom);
+
+    CScProofVerifier(Verification mode, Priority priority) :
+    verificationMode(mode), verificationPriority(priority)
+    {
+    }
+    virtual ~CScProofVerifier() = default;
+
+    // CScProofVerifier should never be copied
+    CScProofVerifier(const CScProofVerifier&) = delete;
+    CScProofVerifier& operator=(const CScProofVerifier&) = delete;
+
+    virtual void LoadDataForCertVerification(const CCoinsViewCache& view, const CScCertificate& scCert, CNode* pfrom = nullptr);
+
+    virtual void LoadDataForCswVerification(const CCoinsViewCache& view, const CTransaction& scTx, CNode* pfrom = nullptr);
+    bool BatchVerify();
+
+protected:
+
+    bool BatchVerifyInternal(std::map</* Cert or Tx hash */ uint256, CProofVerifierItem>& proofs);
+    void NormalVerify(std::map</* Cert or Tx hash */ uint256, CProofVerifierItem>& proofs);
+    ProofVerificationResult NormalVerifyCertificate(CCertProofVerifierInput input) const;
+    ProofVerificationResult NormalVerifyCsw(std::vector<CCswProofVerifierInput> cswInputs) const;
+
+    std::map</* Cert or Tx hash */ uint256, CProofVerifierItem> proofQueue;   /**< The queue of proofs to be verified. */
+
+private:
+
+    static std::atomic<uint32_t> proofIdCounter;   /**< The counter used to get a unique ID for proofs. */
+
+    const Verification verificationMode;    /**< The type of verification to be performed by this instance of proof verifier. */
+
+    const Priority verificationPriority;    /**< Proof verification priority.
+                                              If True => during BatchVerify() will pause low priority verification threads if exist.
+                                              If False => BatchVerify() will run with low priority and may be paused by high priority operations.*/
+};
 
 #endif // _SC_PROOF_VERIFIER_H

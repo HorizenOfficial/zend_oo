@@ -52,76 +52,117 @@ using namespace zen;
 // BitcoinMiner
 //
 
-//
-// Unconfirmed transactions in the memory pool often depend on other
-// transactions in the memory pool. When we select transactions from the
-// pool, we select by highest priority or fee rate, so we might consider
-// transactions that depend on transactions that aren't yet in the block.
-// The COrphan class keeps track of these 'temporary orphans' while
-// CreateBlock is figuring out which transactions to include.
-//
-class COrphan
-{
-public:
-    const CTransactionBase* ptx;
-    set<uint256> setDependsOn;
-    CFeeRate feeRate;
-    double dPriority;
-
-    COrphan(const CTransactionBase* ptxIn) : ptx(ptxIn), feeRate(0), dPriority(0)
-    {
-    }
-};
-
 uint64_t nLastBlockTx = 0;
+uint64_t nLastBlockCert = 0;
 uint64_t nLastBlockSize = 0;
+uint64_t nLastBlockTxPartitionSize = 0;
 
-// We want to sort transactions by priority and fee rate, so:
-class TxPriorityCompare
+bool TxPriorityCompare::operator()(const TxPriority& a, const TxPriority& b)
 {
-    bool byFee;
-
-public:
-    TxPriorityCompare(bool _byFee) : byFee(_byFee) { }
-
-    bool operator()(const TxPriority& a, const TxPriority& b)
+    // first of all, if we are comparing two certs, we must be sure they are ordered by
+    // quality if they refer to the same scid and epoch; this criterion is a consensus rule
+    // and overrides the others two
+    if (a.get<2>()->IsCertificate() && b.get<2>()->IsCertificate() )
     {
-        if (byFee)
-        {
-            if (a.get<1>() == b.get<1>())
-                return a.get<0>() < b.get<0>();
-            return a.get<1>() < b.get<1>();
-        }
-        else
-        {
-            if (a.get<0>() == b.get<0>())
-                return a.get<1>() < b.get<1>();
-            return a.get<0>() < b.get<0>();
+        // dynamic casting throws an exception upon failure
+        try {
+            const CScCertificate& aCert = dynamic_cast<const CScCertificate&>(*a.get<2>());
+            const CScCertificate& bCert = dynamic_cast<const CScCertificate&>(*b.get<2>());
+
+            if (aCert.GetScId() == bCert.GetScId() )
+            {
+                return aCert.quality > bCert.quality;
+            }
+        } catch (...) {
+            LogPrintf("%s():%d - ERROR: cast error\n", __func__, __LINE__ );
+            assert("could not cast txbase obj" == 0);
         }
     }
-};
+
+    if (byFee)
+    {
+        if (a.get<1>() == b.get<1>())
+            return a.get<0>() < b.get<0>();
+        return a.get<1>() < b.get<1>();
+    }
+    else
+    {
+        // note: as of now all certificates have MAXIMUM_PRIORITY, therefore are sorted always by fee
+        if (a.get<0>() == b.get<0>())
+            return a.get<1>() < b.get<1>();
+        return a.get<0>() < b.get<0>();
+    }
+}
 
 void UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
    auto medianTimePast = pindexPrev->GetMedianTimePast();
    auto nTime = std::max(medianTimePast + 1, GetTime());
 
-   if ( ForkManager::getInstance().isFutureMiningTimeStampActive(pindexPrev->nHeight))  {
-	   nTime = std::min(nTime, medianTimePast + MAX_FUTURE_BLOCK_TIME_MTP);
+   if ( ForkManager::getInstance().isFutureMiningTimeStampActive(pindexPrev->nHeight))
+   {
+      nTime = std::min(nTime, medianTimePast + MAX_FUTURE_BLOCK_TIME_MTP);
    }
    pblock->nTime = nTime;
 
 }
 
-bool VerifyForwardTransfersDependencies(const CTransaction& tx, const CCoinsViewCache& view, list<COrphan>& vOrphan, map<uint256, vector<COrphan*> >& mapDependers, COrphan*& porphan)
+bool VerifyCertificatesDependencies(const CScCertificate& cert)
 {
     // detect dependencies from the sidechain point of view
-    for (const auto& ft: tx.GetVftCcOut())
+    if (mempool.mapSidechains.count(cert.GetScId()) == 0)
     {
-        if (view.HaveSidechain(ft.scId) )
+        if (fDebug) assert("cert in mempool has not corresponding entry in mapSidechains" == 0);
+        return false;
+    }
+
+    if (mempool.mapSidechains.at(cert.GetScId()).mBackwardCertificates.count(cert.quality) == 0)
+    {
+        if (fDebug) assert("cert is in mempool but not duly registered  in mapSidechains." == 0);
+        return false;
+    }
+
+    if (mempool.mapSidechains.at(cert.GetScId()).mBackwardCertificates.at(cert.quality) != cert.GetHash())
+    {
+        if (fDebug) assert("a different cert with the same scId and quality is in mempool" == 0);
+        return false;
+    }
+
+    std::vector<uint256> txesHashesSpentByCert = mempool.mempoolDependenciesFrom(cert);
+    for(const uint256& dep: txesHashesSpentByCert)
+    {
+        if (mempool.mapCertificate.count(dep)==0)
+            continue; //tx won't conflict with cert on quality
+
+        const CScCertificate& depCert = mempool.mapCertificate.at(dep).GetCertificate();
+        if (depCert.GetScId() != cert.GetScId())
             continue;
-        else if (mempool.hasSidechainCreationTx(ft.scId)) {
-            const uint256& scCreationHash = mempool.mapSidechains.at(ft.scId).scCreationTxHash; 
+        if (depCert.quality >= cert.quality)
+        {
+            if (fDebug) assert("cert spends outputs of an higher quality cert of same scId" == 0);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool VerifySidechainTxDependencies(const CTransaction& tx, const CCoinsViewCache& view, list<COrphan>& vOrphan, map<uint256, vector<COrphan*> >& mapDependers, COrphan*& porphan)
+{
+    // detect dependencies from the sidechain point of view
+    std::set<uint256> targetScIds;
+    for (const auto& ft: tx.GetVftCcOut())
+        targetScIds.insert(ft.scId);
+
+    for (const auto& btr: tx.GetVBwtRequestOut())
+        targetScIds.insert(btr.scId);
+
+    for (const uint256& scId: targetScIds)
+    {
+        if (view.HaveSidechain(scId) )
+            continue;
+        else if (mempool.hasSidechainCreationTx(scId)) {
+            const uint256& scCreationHash = mempool.mapSidechains.at(scId).scCreationTxHash;
             assert(!scCreationHash.IsNull());
             assert(mempool.exists(scCreationHash));
 
@@ -129,11 +170,11 @@ bool VerifyForwardTransfersDependencies(const CTransaction& tx, const CCoinsView
             if (scCreationHash == tx.GetHash())
                 continue;
 
-            if (!porphan)
-            {
+            if (!porphan) {
                 vOrphan.push_back(COrphan(&tx));
                 porphan = &vOrphan.back();
             }
+
             mapDependers[scCreationHash].push_back(porphan);
             porphan->setDependsOn.insert(scCreationHash);
             LogPrint("sc", "%s():%d - tx[%s] depends on tx[%s] for sc creation\n",
@@ -147,16 +188,17 @@ bool VerifyForwardTransfersDependencies(const CTransaction& tx, const CCoinsView
             return false;
         }
     }
+
     return true;
 }
 
-bool GetTxInputsDependencies(const CTransactionBase& txBase, CAmount& nTotalIn, int nHeight, list<COrphan>& vOrphan,
+bool GetInputsDependencies(const CTransactionBase& txBase, CAmount& nTotalIn, list<COrphan>& vOrphan,
                              map<uint256, vector<COrphan*> >& mapDependers, COrphan*& porphan)
 {
     const uint256& hash = txBase.GetHash();
 
     // Detect orphan transaction and its dependencies
-    BOOST_FOREACH(const CTxIn& txin, txBase.GetVin())
+    for(const CTxIn& txin: txBase.GetVin())
     {
         if (mempool.mapCertificate.count(txin.prevout.hash))
         {
@@ -164,8 +206,8 @@ bool GetTxInputsDependencies(const CTransactionBase& txBase, CAmount& nTotalIn, 
             // - certificate can only spend change outputs of another certificate in mempool, while backward transfers must mature first
             const CScCertificate & inputCert = mempool.mapCertificate[txin.prevout.hash].GetCertificate();
 
-            if (!txBase.IsCertificate() || // this is a tx
-                inputCert.IsBackwardTransfer(txin.prevout.n)) // out is a backward transfer
+            if (!txBase.IsCertificate() ||                    // this is a tx ...
+                inputCert.IsBackwardTransfer(txin.prevout.n)) // ... spending a cert bwt
             {
                 // This should never happen
                 LogPrintf("%s():%d - ERROR: [%s] has unspendable input that is an unconfirmed certificate [%s] output %d\n",
@@ -186,8 +228,7 @@ bool GetTxInputsDependencies(const CTransactionBase& txBase, CAmount& nTotalIn, 
             LogPrint("sc", "%s():%d - [%s] depends on [%s] for input\n",
                 __func__, __LINE__, txBase.GetHash().ToString(), txin.prevout.hash.ToString());
         }
-        else
-        if (mempool.mapTx.count(txin.prevout.hash))
+        else if (mempool.mapTx.count(txin.prevout.hash))
         {
             if (!porphan)
             {
@@ -205,7 +246,7 @@ bool GetTxInputsDependencies(const CTransactionBase& txBase, CAmount& nTotalIn, 
     return true;
 }
 
-bool AddTxToPriorities(const CTransactionBase& txBase, const CCoinsViewCache& view, CAmount& nTotalIn,
+bool AddToPriorities(const CTransactionBase& txBase, const CCoinsViewCache& view, CAmount& nTotalIn,
                        int nHeight, const CMemPoolEntry& mpEntry, vector<TxPriority>& vecPriority, COrphan* porphan)
 {
     const uint256& hash = txBase.GetHash();
@@ -216,7 +257,7 @@ bool AddTxToPriorities(const CTransactionBase& txBase, const CCoinsViewCache& vi
     // Has to wait for dependencies
     if (!porphan)
     {
-        dPriority = mpEntry.GetPriority(nHeight);
+        dPriority = mpEntry.GetPriority(nHeight); // Csw inputs contributes to this
         nFee = mpEntry.GetFee();
         mempool.ApplyDeltas(hash, dPriority, nFee);
 
@@ -229,7 +270,7 @@ bool AddTxToPriorities(const CTransactionBase& txBase, const CCoinsViewCache& vi
     }
     else
     {
-        BOOST_FOREACH(const CTxIn& txin, txBase.GetVin())
+        for(const CTxIn& txin: txBase.GetVin())
         {
             // Read prev transaction
             // Skip transactions in mempool
@@ -256,7 +297,9 @@ bool AddTxToPriorities(const CTransactionBase& txBase, const CCoinsViewCache& vi
 
             dPriority += (double)nValueIn * nConf;
         }
-        nTotalIn += txBase.GetJoinSplitValueIn();
+        nTotalIn += txBase.GetJoinSplitValueIn() + txBase.GetCSWValueIn();
+
+        // Csw contribute zero to initial priority
 
         // Priority is sum(valuein * age) / modified_txsize
         dPriority = txBase.ComputePriority(dPriority, nTxSize);
@@ -272,18 +315,24 @@ bool AddTxToPriorities(const CTransactionBase& txBase, const CCoinsViewCache& vi
     return true;
 }
 
-void GetBlockCertPriorityData(const CBlock *pblock, int nHeight, const CCoinsViewCache& view, 
+void GetBlockCertPriorityData(const CCoinsViewCache& view, int nHeight,
                                vector<TxPriority>& vecPriority, list<COrphan>& vOrphan, map<uint256, vector<COrphan*> >& mapDependers)
 {
-    for (auto mi = mempool.mapCertificate.begin();
-         mi != mempool.mapCertificate.end(); ++mi)
+    for (auto mi = mempool.mapCertificate.begin(); mi != mempool.mapCertificate.end(); ++mi)
     {
         const CScCertificate& cert = mi->second.GetCertificate();
 
         CAmount nTotalIn = 0;
         COrphan* porphan = nullptr;
 
-        if (!GetTxInputsDependencies(cert, nTotalIn, nHeight, vOrphan, mapDependers, porphan) )
+        if (!GetInputsDependencies(cert, nTotalIn, vOrphan, mapDependers, porphan) )
+        {
+            if (porphan)
+                vOrphan.pop_back();
+            continue;
+        }
+
+        if (!VerifyCertificatesDependencies(cert) )
         {
             if (porphan)
                 vOrphan.pop_back();
@@ -291,7 +340,7 @@ void GetBlockCertPriorityData(const CBlock *pblock, int nHeight, const CCoinsVie
         }
 
         const CMemPoolEntry& mpEntry = mi->second;
-        if (!AddTxToPriorities(cert, view, nTotalIn, nHeight, mpEntry, vecPriority, porphan) )
+        if (!AddToPriorities(cert, view, nTotalIn, nHeight, mpEntry, vecPriority, porphan) )
         {
             if (porphan)
                 vOrphan.pop_back();
@@ -300,17 +349,12 @@ void GetBlockCertPriorityData(const CBlock *pblock, int nHeight, const CCoinsVie
     }
 }
 
-void GetBlockTxPriorityData(const CBlock *pblock, int nHeight, int64_t nMedianTimePast, const CCoinsViewCache& view,
+void GetBlockTxPriorityData(const CCoinsViewCache& view, int nHeight, int64_t nLockTimeCutoff,
                                vector<TxPriority>& vecPriority, list<COrphan>& vOrphan, map<uint256, vector<COrphan*> >& mapDependers)
 {
-    for (map<uint256, CTxMemPoolEntry>::iterator mi = mempool.mapTx.begin();
-         mi != mempool.mapTx.end(); ++mi)
+    for (map<uint256, CTxMemPoolEntry>::iterator mi = mempool.mapTx.begin(); mi != mempool.mapTx.end(); ++mi)
     {
         const CTransaction& tx = mi->second.GetTx();
-
-        int64_t nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)
-                ? nMedianTimePast
-                : pblock->GetBlockTime();
 
         if (tx.IsCoinBase() || !IsFinalTx(tx, nHeight, nLockTimeCutoff))
             continue;
@@ -318,14 +362,14 @@ void GetBlockTxPriorityData(const CBlock *pblock, int nHeight, int64_t nMedianTi
         CAmount nTotalIn = 0;
         COrphan* porphan = nullptr;
 
-        if (!GetTxInputsDependencies(tx, nTotalIn, nHeight, vOrphan, mapDependers, porphan) )
+        if (!GetInputsDependencies(tx, nTotalIn, vOrphan, mapDependers, porphan) )
         {
             if (porphan)
                 vOrphan.pop_back();
             continue;
         }
 
-        if (!VerifyForwardTransfersDependencies(tx, view, vOrphan, mapDependers, porphan) )
+        if (!VerifySidechainTxDependencies(tx, view, vOrphan, mapDependers, porphan) )
         {
             if (porphan)
                 vOrphan.pop_back();
@@ -333,7 +377,7 @@ void GetBlockTxPriorityData(const CBlock *pblock, int nHeight, int64_t nMedianTi
         }
 
         const CMemPoolEntry& mpEntry = mi->second;
-        if (!AddTxToPriorities(tx, view, nTotalIn, nHeight, mpEntry, vecPriority, porphan) )
+        if (!AddToPriorities(tx, view, nTotalIn, nHeight, mpEntry, vecPriority, porphan) )
         {
             if (porphan)
                 vOrphan.pop_back();
@@ -342,19 +386,14 @@ void GetBlockTxPriorityData(const CBlock *pblock, int nHeight, int64_t nMedianTi
     }
 }
 
-void GetBlockTxPriorityDataOld(const CBlock *pblock, int nHeight, int64_t nMedianTimePast, const CCoinsViewCache& view,
+void GetBlockTxPriorityDataOld(const CCoinsViewCache& view, int nHeight, int64_t nLockTimeCutoff,
                                vector<TxPriority>& vecPriority, list<COrphan>& vOrphan, map<uint256, vector<COrphan*> >& mapDependers)
 {
     LogPrint("cert", "%s():%d - called\n", __func__, __LINE__);
 
-    for (map<uint256, CTxMemPoolEntry>::iterator mi = mempool.mapTx.begin();
-         mi != mempool.mapTx.end(); ++mi)
+    for (map<uint256, CTxMemPoolEntry>::iterator mi = mempool.mapTx.begin(); mi != mempool.mapTx.end(); ++mi)
     {
         const CTransaction& tx = mi->second.GetTx();
-
-        int64_t nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)
-                ? nMedianTimePast
-                : pblock->GetBlockTime();
 
         if (tx.IsCoinBase() || !IsFinalTx(tx, nHeight, nLockTimeCutoff))
             continue;
@@ -363,7 +402,7 @@ void GetBlockTxPriorityDataOld(const CBlock *pblock, int nHeight, int64_t nMedia
         double dPriority = 0;
         CAmount nTotalIn = 0;
         bool fMissingInputs = false;
-        BOOST_FOREACH(const CTxIn& txin, tx.GetVin())
+        for(const CTxIn& txin: tx.GetVin())
         {
             // Read prev transaction
             if (!view.HaveCoins(txin.prevout.hash))
@@ -404,11 +443,11 @@ void GetBlockTxPriorityDataOld(const CBlock *pblock, int nHeight, int64_t nMedia
 
             dPriority += (double)nValueIn * nConf;
         }
-        nTotalIn += tx.GetJoinSplitValueIn();
+        nTotalIn += tx.GetJoinSplitValueIn() + tx.GetCSWValueIn();
 
         if (fMissingInputs) continue;
 
-        if (!VerifyForwardTransfersDependencies(tx, view, vOrphan, mapDependers, porphan))
+        if (!VerifySidechainTxDependencies(tx, view, vOrphan, mapDependers, porphan))
         {
             // should never happen because that means inconsistency in mempool, but this tx must not be
             // added to vecPriority nor in the vOrphan
@@ -444,6 +483,41 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn)
     return  CreateNewBlock(scriptPubKeyIn,  nBlockMaxComplexitySize);
 }
 
+CMutableTransaction createCoinbase(const CScript &scriptPubKeyIn, CAmount fees, const int nHeight)
+{
+    const CChainParams& chainparams = Params();
+    CMutableTransaction txNew;
+
+    txNew.vin.resize(1);
+    txNew.vin[0].prevout.SetNull();
+    txNew.vin[0].scriptSig = CScript() << nHeight << OP_0;
+
+    std::vector<CTxOut> coinbaseOutputList(1);
+    coinbaseOutputList.at(0).scriptPubKey = scriptPubKeyIn;
+    CAmount reward = GetBlockSubsidy(nHeight, chainparams.GetConsensus());
+    coinbaseOutputList.at(0).nValue = reward;
+
+    for (Fork::CommunityFundType cfType = Fork::CommunityFundType::FOUNDATION;
+            cfType < Fork::CommunityFundType::ENDTYPE; cfType = Fork::CommunityFundType(cfType + 1))
+    {
+        CAmount vCommunityFund = ForkManager::getInstance().getCommunityFundReward(nHeight, reward, cfType);
+        if (vCommunityFund > 0)
+        {
+            // Take some reward away from miners
+            coinbaseOutputList.at(0).nValue -= vCommunityFund;
+            // And give it to the community
+            coinbaseOutputList.push_back(CTxOut(vCommunityFund, chainparams.GetCommunityFundScriptAtHeight(nHeight, cfType)));
+        }
+    }
+
+    coinbaseOutputList.at(0).nValue += fees;
+
+    for(const CTxOut& coinbaseOut: coinbaseOutputList)
+        txNew.addOut(coinbaseOut);
+
+    return txNew;
+}
+
 CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlockMaxComplexitySize)
 {
     const CChainParams& chainparams = Params();
@@ -453,30 +527,10 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
         return NULL;
     CBlock *pblock = &pblocktemplate->block; // pointer for convenience
 
-    // -regtest only: allow overriding block.nVersion with
-    // -blockversion=N to test forking scenarios
-    if (Params().MineBlocksOnDemand())
-        pblock->nVersion = GetArg("-blockversion", pblock->nVersion);
-
     // Add dummy coinbase tx as first transaction
     pblock->vtx.push_back(CTransaction());
     pblocktemplate->vTxFees.push_back(-1); // updated at end
     pblocktemplate->vTxSigOps.push_back(-1); // updated at end
-
-    // Largest block you're willing to create:
-    unsigned int nBlockMaxSize = GetArg("-blockmaxsize", DEFAULT_BLOCK_MAX_SIZE);
-    // Limit to betweeen 1K and MAX_BLOCK_SIZE-1K for sanity:
-    nBlockMaxSize = std::max((unsigned int)1000, std::min((unsigned int)(MAX_BLOCK_SIZE-1000), nBlockMaxSize));
-
-    // How much of the block should be dedicated to high-priority transactions,
-    // included regardless of the fees they pay
-    unsigned int nBlockPrioritySize = GetArg("-blockprioritysize", DEFAULT_BLOCK_PRIORITY_SIZE);
-    nBlockPrioritySize = std::min(nBlockMaxSize, nBlockPrioritySize);
-
-    // Minimum block size you want to create; block will be filled with free transactions
-    // until there are no more or the block reaches this size:
-    unsigned int nBlockMinSize = GetArg("-blockminsize", DEFAULT_BLOCK_MIN_SIZE);
-    nBlockMinSize = std::min(nBlockMaxSize, nBlockMinSize);
 
     int nBlockComplexity = 0;
 
@@ -496,6 +550,42 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
         if (chainparams.MineBlocksOnDemand())
             pblock->nVersion = GetArg("-blockversion", pblock->nVersion);
 
+        // - From the sidechains fork point on, the block size has been increased 
+        unsigned int block_size_limit          = MAX_BLOCK_SIZE;
+        unsigned int block_priority_size_limit = DEFAULT_BLOCK_PRIORITY_SIZE;
+        if (pblock->nVersion != BLOCK_VERSION_SC_SUPPORT)
+        {
+            block_size_limit          = MAX_BLOCK_SIZE_BEFORE_SC;
+            block_priority_size_limit = DEFAULT_BLOCK_PRIORITY_SIZE_BEFORE_SC;
+        }
+ 
+        // Largest block you're willing to create:
+        unsigned int nBlockMaxSize = GetArg("-blockmaxsize", DEFAULT_BLOCK_MAX_SIZE);
+        // Limit to betweeen 1K and MAX_BLOCK_SIZE-1K for sanity:
+        nBlockMaxSize = std::max((unsigned int)1000, std::min((unsigned int)(block_size_limit-1000), nBlockMaxSize));
+  
+        // Minimum block size you want to create; block will be filled with free transactions
+        // until there are no more or the block reaches this size:
+        unsigned int nBlockMinSize = GetArg("-blockminsize", DEFAULT_BLOCK_MIN_SIZE);
+        nBlockMinSize = std::min(nBlockMaxSize, nBlockMinSize);
+
+        // Largest block tx partition allowed:
+        unsigned int nBlockTxPartitionMaxSize = DEFAULT_BLOCK_TX_PART_MAX_SIZE;
+
+        // -regtest only: allow overriding 
+        if (chainparams.MineBlocksOnDemand())
+        {
+            nBlockTxPartitionMaxSize = GetArg("-blocktxpartitionmaxsize", DEFAULT_BLOCK_TX_PART_MAX_SIZE);
+        }
+
+        // Limit to betweeen 1K and MAX-1K for sanity:
+        nBlockTxPartitionMaxSize = std::max((unsigned int)1000, std::min((unsigned int)(DEFAULT_BLOCK_TX_PART_MAX_SIZE-1000), nBlockTxPartitionMaxSize));
+ 
+        // How much of the tx block partition should be dedicated to high-priority transactions,
+        // included regardless of the fees they pay
+        unsigned int nBlockPrioritySize = GetArg("-blockprioritysize", block_priority_size_limit);
+        nBlockPrioritySize = std::min(nBlockMaxSize, nBlockPrioritySize);
+
         CCoinsViewCache view(pcoinsTip);
 
         // Priority order to process transactions
@@ -507,30 +597,29 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
         vector<TxPriority> vecPriority;
         vecPriority.reserve(mempool.size()); // both tx and cert
 
+        int64_t nLockTimeCutoff = (STANDARD_LOCKTIME_VERIFY_FLAGS & LOCKTIME_MEDIAN_TIME_PAST)
+                ? nMedianTimePast
+                : pblock->GetBlockTime();
+
         bool fDeprecatedGetBlockTemplate = GetBoolArg("-deprecatedgetblocktemplate", false);
         if (fDeprecatedGetBlockTemplate)
-            GetBlockTxPriorityDataOld(pblock, nHeight, nMedianTimePast, view, vecPriority, vOrphan, mapDependers);
+            GetBlockTxPriorityDataOld(view, nHeight, nLockTimeCutoff, vecPriority, vOrphan, mapDependers);
         else
-            GetBlockTxPriorityData(pblock, nHeight, nMedianTimePast, view, vecPriority, vOrphan, mapDependers);
+            GetBlockTxPriorityData(view, nHeight, nLockTimeCutoff, vecPriority, vOrphan, mapDependers);
 
-        GetBlockCertPriorityData(pblock, nHeight, view, vecPriority, vOrphan, mapDependers);
+        GetBlockCertPriorityData(view, nHeight, vecPriority, vOrphan, mapDependers);
 
         // Collect transactions into block
         uint64_t nBlockSize = 1000;
+        uint64_t nBlockTxPartitionSize = 0;
+
         uint64_t nBlockTx = 0;
+        uint64_t nBlockCert = 0;
         int nBlockSigOps = 100;
         bool fSortedByFee = (nBlockPrioritySize <= 0);
 
         TxPriorityCompare comparer(fSortedByFee);
         std::make_heap(vecPriority.begin(), vecPriority.end(), comparer);
-
-#if 0
-        for (auto entry : vecPriority)
-        {
-            LogPrint("sc", "%s():%d - tx[%s] prio[%f], feerate[%s]\n",
-                __func__, __LINE__, (entry.get<2>())->GetHash().ToString(), entry.get<0>(), entry.get<1>().ToString());
-        }
-#endif
 
         // considering certs having a higher priority than any possible tx.
         // An algorithm for managing tx/cert priorities could be devised
@@ -545,9 +634,25 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
             vecPriority.pop_back();
 
             // Size limits
-            unsigned int nTxSize = tx.GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
-            if (nBlockSize + nTxSize >= nBlockMaxSize)
+            unsigned int nTxBaseSize = tx.GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
+
+            if (!tx.IsCertificate())
+            {
+                // only a portion of the block can have ordinary transactions, we can not exceed this size
+                if (nBlockTxPartitionSize + nTxBaseSize >= nBlockTxPartitionMaxSize)
+                {
+                    LogPrint("sc", "%s():%d - Skipping tx[%s] because nBlockTxPartitionMaxSize %d would be exceeded (partSize=%d / txSize=%d)\n",
+                        __func__, __LINE__, tx.GetHash().ToString(), nBlockTxPartitionMaxSize, nBlockTxPartitionSize, nTxBaseSize );
+                    continue;
+                }
+            }
+
+            if (nBlockSize + nTxBaseSize >= nBlockMaxSize)
+            {
+                LogPrint("sc", "%s():%d - Skipping %s[%s] because nBlockMaxSize %d would be exceeded (blSize=%d / txBaseSize=%d)\n",
+                    __func__, __LINE__, tx.IsCertificate()?"cert":"tx", tx.GetHash().ToString(), nBlockMaxSize, nBlockSize, nTxBaseSize );
                 continue;
+            }
 
             // Legacy limits on sigOps:
             unsigned int nTxSigOps = GetLegacySigOpCount(tx);
@@ -560,17 +665,17 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
             double dPriorityDelta = 0;
             CAmount nFeeDelta = 0;
             mempool.ApplyDeltas(hash, dPriorityDelta, nFeeDelta);
-            if (fSortedByFee && (dPriorityDelta <= 0) && (nFeeDelta <= 0) && (feeRate < ::minRelayTxFee) && (nBlockSize + nTxSize >= nBlockMinSize))
+            if (fSortedByFee && (dPriorityDelta <= 0) && (nFeeDelta <= 0) && (feeRate < ::minRelayTxFee) && (nBlockSize + nTxBaseSize >= nBlockMinSize))
             {
                 LogPrint("sc", "%s():%d - Skipping [%s] because it is free (feeDelta=%lld/feeRate=%s, blsz=%u/txsz=%u/blminsz=%u)\n",
-                    __func__, __LINE__, tx.GetHash().ToString(), nFeeDelta, feeRate.ToString(), nBlockSize, nTxSize, nBlockMinSize );
+                    __func__, __LINE__, tx.GetHash().ToString(), nFeeDelta, feeRate.ToString(), nBlockSize, nTxBaseSize, nBlockMinSize );
                 continue;
             }
 
             // Prioritise by fee once past the priority size or we run out of high-priority
             // transactions:
             if (!fSortedByFee &&
-                ((nBlockSize + nTxSize >= nBlockPrioritySize) || !AllowFree(dPriority)))
+                ((nBlockSize + nTxBaseSize >= nBlockPrioritySize) || !AllowFree(dPriority)))
             {
                 fSortedByFee = true;
                 comparer = TxPriorityCompare(fSortedByFee);
@@ -578,7 +683,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
             }
 
             // Skip transaction if max block complexity reached.
-            int nTxComplexity = tx.GetVin().size() * tx.GetVin().size();
+            int nTxComplexity = tx.GetComplexity();
             if (!fDeprecatedGetBlockTemplate && nBlockMaxComplexitySize > 0 && nBlockComplexity + nTxComplexity >= nBlockMaxComplexitySize)
                 continue;
 
@@ -590,14 +695,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
             }
 
             CAmount nTxFees = tx.GetFeeAmount(view.GetValueIn(tx));
-#if 0
-            if (nTxFees < 0) {
-                LogPrintf("%s():%d - tx=%s has a negative fee (fee=%s)\n",
-                    __func__, __LINE__, tx.GetHash().ToString(), FormatMoney(nTxFees));
-                continue;
-            }
-#endif
-
             nTxSigOps += GetP2SHSigOpCount(tx, view);
             if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
             {
@@ -606,45 +703,56 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
                 continue;
             }
 
-            // Note that flags: we don't want to set mempool/IsStandard()
-            // policy here, but we still have to ensure that the block we
-            // create only contains transactions that are valid in new blocks.
-            CValidationState state;
-            if (!tx.ContextualCheckInputs(state, view, true, chainActive, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_CHECKBLOCKATHEIGHT, true, Params().GetConsensus()))
-                continue;
-
-            CTxUndo dummyUndo;
             try {
+                // Note that flags: we don't want to set mempool/IsStandard()
+                // policy here, but we still have to ensure that the block we
+                // create only contains transactions that are valid in new blocks.
+                CValidationState dummyState;
+                CTxUndo dummyUndo;
+
                 if (tx.IsCertificate())
-                    UpdateCoins(dynamic_cast<const CScCertificate&>(tx), view, dummyUndo, nHeight);
-                else
-                    UpdateCoins(dynamic_cast<const CTransaction&>(tx), view, dummyUndo, nHeight);
+                {
+                    const CScCertificate& castedCert = dynamic_cast<const CScCertificate&>(tx);
+                    if(!ContextualCheckCertInputs(castedCert, dummyState, view, true, chainActive, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_CHECKBLOCKATHEIGHT, true, Params().GetConsensus()))
+                        continue;
+
+                    UpdateCoins(castedCert, view, dummyUndo, nHeight, /*isBlockTopQualityCert*/true);
+                    pblock->vcert.push_back(castedCert);
+                    pblocktemplate.get()->vCertFees.push_back(nTxFees);
+                    pblocktemplate.get()->vCertSigOps.push_back(nTxSigOps);
+                    ++nBlockCert;
+                } else
+                {
+                    const CTransaction& castedTx = dynamic_cast<const CTransaction&>(tx);
+                    if (!ContextualCheckTxInputs(castedTx, dummyState, view, true, chainActive, MANDATORY_SCRIPT_VERIFY_FLAGS | SCRIPT_VERIFY_CHECKBLOCKATHEIGHT, true, Params().GetConsensus()))
+                        continue;
+
+                    UpdateCoins(castedTx, view, dummyUndo, nHeight);
+                    pblock->vtx.push_back(castedTx);
+                    pblocktemplate.get()->vTxFees.push_back(nTxFees);
+                    pblocktemplate.get()->vTxSigOps.push_back(nTxSigOps);
+                    ++nBlockTx;
+                    nBlockTxPartitionSize += nTxBaseSize;
+                }
+
+                nBlockSize += nTxBaseSize;
+                LogPrint("sc", "%s():%d ======> current block size                = %7d\n", __func__, __LINE__, nBlockSize);
+                LogPrint("sc", "%s():%d ======> current block tx partition size   = %7d\n", __func__, __LINE__, nBlockTxPartitionSize);
+
+                nBlockSigOps += nTxSigOps;
+                nFees += nTxFees;
+                nBlockComplexity += nTxComplexity;
+
+                if (fPrintPriority)
+                {
+                    LogPrintf("priority %.1f fee %d feeRate %s txid %s\n",
+                        dPriority, nTxFees, feeRate.ToString(), tx.GetHash().ToString());
+                }
+
             } catch (...) {
                 LogPrintf("%s():%d - ERROR: tx [%s] cast error\n",
                     __func__, __LINE__, hash.ToString());
                 assert("could not cast txbase obj" == 0);
-            }
-
-
-            // Added
-#if 0
-            pblock->vtx.push_back(tx);
-            pblocktemplate->vTxFees.push_back(nTxFees);
-            pblocktemplate->vTxSigOps.push_back(nTxSigOps);
-#else
-            tx.AddToBlock(pblock);
-            tx.AddToBlockTemplate(pblocktemplate.get(), nTxFees, nTxSigOps);
-#endif
-            nBlockSize += nTxSize;
-            ++nBlockTx;
-            nBlockSigOps += nTxSigOps;
-            nFees += nTxFees;
-            nBlockComplexity += nTxComplexity;
-
-            if (fPrintPriority)
-            {
-                LogPrintf("priority %.1f fee %d feeRate %s txid %s\n",
-                    dPriority, nTxFees, feeRate.ToString(), tx.GetHash().ToString());
             }
 
             // Add transactions that depend on this one to the priority queue
@@ -652,25 +760,19 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
             {
                 LogPrint("sc", "%s():%d - tx[%s] has %d orphans\n",
                     __func__, __LINE__, hash.ToString(), mapDependers[hash].size());
-                BOOST_FOREACH(COrphan* porphan, mapDependers[hash])
+                for(COrphan* porphan: mapDependers[hash])
                 {
                     if (!porphan->setDependsOn.empty())
                     {
                         porphan->setDependsOn.erase(hash);
-                        LogPrint("sc", "%s():%d - erasing tx[%s] frim orphan %p\n", __func__, __LINE__, hash.ToString(), porphan);
+                        LogPrint("sc", "%s():%d - erasing tx[%s] from orphan %p\n", __func__, __LINE__, hash.ToString(), porphan);
                         if (porphan->setDependsOn.empty())
                         {
-                            LogPrint("sc", "%s():%d - tx[%s] resolved all dependencies, adding to prio vec\n",
-                                __func__, __LINE__, porphan->ptx->GetHash().ToString());
+                            LogPrint("sc", "%s():%d - tx[%s] resolved all dependencies, adding to prio vec, prio=%f, feeRate=%s\n",
+                                __func__, __LINE__, porphan->ptx->GetHash().ToString(), porphan->dPriority, porphan->feeRate.ToString());
+                            
                             vecPriority.push_back(TxPriority(porphan->dPriority, porphan->feeRate, porphan->ptx));
                             std::push_heap(vecPriority.begin(), vecPriority.end(), comparer);
-#if 0
-        for (auto entry : vecPriority)
-        {
-            LogPrint("sc", "%s():%d - tx[%s] prio[%20.6f], feerate[%12s]\n",
-                __func__, __LINE__, (entry.get<2>())->GetHash().ToString(), entry.get<0>(), entry.get<1>().ToString());
-        }
-#endif
                         }
                     }
                     else
@@ -682,31 +784,15 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
         }
 
         nLastBlockTx = nBlockTx;
+        nLastBlockCert = nBlockCert;
+
         nLastBlockSize = nBlockSize;
-        LogPrintf("CreateNewBlock(): total size %u, tx/certs fee=%d\n", nBlockSize, nFees);
+        nLastBlockTxPartitionSize = nBlockTxPartitionSize;
 
-        // Create coinbase tx
-        CMutableTransaction txNew;
-        txNew.vin.resize(1);
-        txNew.vin[0].prevout.SetNull();
+        LogPrintf("%s():%d - total size %u, tx part size %u, tx[%d]/certs[%d], fee=%d\n",
+            __func__, __LINE__, nBlockSize, nBlockTxPartitionSize, nBlockTx, nBlockCert, nFees);
 
-        CAmount reward = GetBlockSubsidy(nHeight, chainparams.GetConsensus());
-        CTxOut out(reward, scriptPubKeyIn);
-        txNew.addOut(out);
-
-        for (Fork::CommunityFundType cfType=Fork::CommunityFundType::FOUNDATION; cfType < Fork::CommunityFundType::ENDTYPE; cfType = Fork::CommunityFundType(cfType + 1)) {
-            CAmount vCommunityFund = ForkManager::getInstance().getCommunityFundReward(nHeight, reward, cfType);
-            if (vCommunityFund > 0) {
-                // Take some reward away from miners
-                txNew.getOut(0).nValue -= vCommunityFund;
-                // And give it to the community
-                txNew.addOut(CTxOut(vCommunityFund, chainparams.GetCommunityFundScriptAtHeight(nHeight, cfType)));
-            }
-        }
-        // Add fees
-        txNew.getOut(0).nValue += nFees;
-        txNew.vin[0].scriptSig = CScript() << nHeight << OP_0;        
-        pblock->vtx[0] = txNew;
+        pblock->vtx[0] = createCoinbase(scriptPubKeyIn, nFees, nHeight);
         pblocktemplate->vTxFees[0] = -nFees;
 
         // Randomise nonce
@@ -718,14 +804,19 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn,  unsigned int nBlo
 
         // Fill in header
         pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
-        pblock->hashScTxsCommitment = pblock->BuildScTxsCommitment();
+
+        if (pblock->nVersion == BLOCK_VERSION_SC_SUPPORT )
+        {
+            pblock->hashScTxsCommitment = pblock->BuildScTxsCommitment(view);
+        }
+
         UpdateTime(pblock, Params().GetConsensus(), pindexPrev);
         pblock->nBits          = GetNextWorkRequired(pindexPrev, pblock, Params().GetConsensus());
         pblock->nSolution.clear();
         pblocktemplate->vTxSigOps[0] = GetLegacySigOpCount(pblock->vtx[0]);
 
         CValidationState state;
-        if (!TestBlockValidity(state, *pblock, pindexPrev, false, false, false))
+        if (!TestBlockValidity(state, *pblock, pindexPrev, flagCheckPow::OFF, flagCheckMerkleRoot::OFF, flagScRelatedChecks::OFF))
             throw std::runtime_error("CreateNewBlock(): TestBlockValidity failed");
     }
 
@@ -805,7 +896,7 @@ void IncrementExtraNonce(CBlock* pblock, CBlockIndex* pindexPrev, unsigned int& 
 }
 
 #ifdef ENABLE_WALLET
-static bool ProcessBlockFound(CBlock* pblock, CWallet& wallet, CReserveKey& reservekey)
+static bool ProcessBlockFound(CBlock* pblock, CWallet* wallet, CReserveKey& reservekey)
 #else
 static bool ProcessBlockFound(CBlock* pblock)
 #endif // ENABLE_WALLET
@@ -827,9 +918,10 @@ static bool ProcessBlockFound(CBlock* pblock)
     }
 
     // Track how many getdata requests this block gets
+    if (wallet)
     {
-        LOCK(wallet.cs_wallet);
-        wallet.mapRequestCount[pblock->GetHash()] = 0;
+        LOCK(wallet->cs_wallet);
+        wallet->mapRequestCount[pblock->GetHash()] = 0;
     }
 #endif
 
@@ -851,7 +943,8 @@ void static BitcoinMiner()
 {
     LogPrintf("HorizenMiner started\n");
     SetThreadPriority(THREAD_PRIORITY_LOWEST);
-    RenameThread("zen-miner");
+    RenameThread("horizen-miner");
+
     const CChainParams& chainparams = Params();
 
 #ifdef ENABLE_WALLET
@@ -956,7 +1049,7 @@ void static BitcoinMiner()
 
                 std::function<bool(std::vector<unsigned char>)> validBlock =
 #ifdef ENABLE_WALLET
-                        [&pblock, &hashTarget, &pwallet, &reservekey, &m_cs, &cancelSolver, &chainparams]
+                        [&pblock, &hashTarget, pwallet, &reservekey, &m_cs, &cancelSolver, &chainparams]
 #else
                         [&pblock, &hashTarget, &m_cs, &cancelSolver, &chainparams]
 #endif
@@ -975,7 +1068,7 @@ void static BitcoinMiner()
                     LogPrintf("HorizenMiner:\n");
                     LogPrintf("proof-of-work found  \n  hash: %s  \ntarget: %s\n", pblock->GetHash().GetHex(), hashTarget.GetHex());
 #ifdef ENABLE_WALLET
-                    if (ProcessBlockFound(pblock, *pwallet, reservekey)) {
+                    if (ProcessBlockFound(pblock, pwallet, reservekey)) {
 #else
                     if (ProcessBlockFound(pblock)) {
 #endif

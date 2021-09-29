@@ -32,7 +32,9 @@ static const char DB_BEST_BLOCK = 'B';
 static const char DB_BEST_ANCHOR = 'a';
 static const char DB_FLAG = 'F';
 static const char DB_REINDEX_FLAG = 'R';
+static const char DB_FAST_REINDEX_FLAG = 'S';
 static const char DB_LAST_BLOCK = 'l';
+static const char DB_CSW_NULLIFIER = 'n';
 
 
 void static BatchWriteAnchor(CLevelDBBatch &batch,
@@ -65,7 +67,7 @@ void static BatchSidechains(CLevelDBBatch &batch, const uint256 &scId, const CSi
     switch (sidechain.flag) {
         case CSidechainsCacheEntry::Flags::FRESH:
         case CSidechainsCacheEntry::Flags::DIRTY:
-            batch.Write(make_pair(DB_SIDECHAINS, scId), sidechain.scInfo);
+            batch.Write(make_pair(DB_SIDECHAINS, scId), sidechain.sidechain);
             break;
         case CSidechainsCacheEntry::Flags::ERASED:
             batch.Erase(make_pair(DB_SIDECHAINS, scId));
@@ -99,6 +101,22 @@ void static BatchWriteHashBestChain(CLevelDBBatch &batch, const uint256 &hash) {
 
 void static BatchWriteHashBestAnchor(CLevelDBBatch &batch, const uint256 &hash) {
     batch.Write(DB_BEST_ANCHOR, hash);
+}
+
+void static BatchWriteCswNullifier(CLevelDBBatch &batch, const uint256 &scId, const CFieldElement &nullifier, CCswNullifiersCacheEntry state) {
+    std::pair<uint256, CFieldElement> position = std::make_pair(scId, nullifier);
+
+    switch(state.flag) {
+        case CCswNullifiersCacheEntry::Flags::FRESH:
+            batch.Write(make_pair(DB_CSW_NULLIFIER, position), true);
+            break;
+        case CCswNullifiersCacheEntry::Flags::ERASED:
+            batch.Erase(make_pair(DB_CSW_NULLIFIER, position));
+            break;
+        case CCswNullifiersCacheEntry::Flags::DEFAULT:
+        default:
+            break;
+    }
 }
 
 CCoinsViewDB::CCoinsViewDB(std::string dbName, size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / dbName, nCacheSize, fMemory, fWipe) {
@@ -158,21 +176,18 @@ bool CCoinsViewDB::GetSidechainEvents(int height, CSidechainEvents& ceasingScs) 
 void CCoinsViewDB::GetScIds(std::set<uint256>& scIdsList) const
 {
     std::unique_ptr<leveldb::Iterator> it(const_cast<CLevelDBWrapper*>(&db)->NewIterator());
-    for (it->SeekToFirst(); it->Valid(); it->Next())
+    static const std::string scIdsPrefix = std::string(1,DB_SIDECHAINS);
+
+    for(it->Seek(scIdsPrefix); it->Valid() && it->key().starts_with(scIdsPrefix); it->Next())
     {
         boost::this_thread::interruption_point();
 
         leveldb::Slice slKey = it->key();
-        CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
-        char chType;
-        ssKey >> chType;
-        if (chType == DB_SIDECHAINS)
-        {
-            uint256 keyScId;
-            ssKey >> keyScId;
-            scIdsList.insert(keyScId);
-            LogPrint("sc", "%s():%d - scId[%s] added in map\n", __func__, __LINE__, keyScId.ToString() );
-        }
+        // serialize key, skipping prefix
+        CDataStream ssKey(slKey.data() + sizeof(char), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
+        uint256 keyScId;
+        ssKey >> keyScId;
+        scIdsList.insert(keyScId);
     }
 
     return;
@@ -192,13 +207,19 @@ uint256 CCoinsViewDB::GetBestAnchor() const {
     return hashBestAnchor;
 }
 
+bool CCoinsViewDB::HaveCswNullifier(const uint256& scId, const CFieldElement &nullifier) const {
+    std::pair<uint256, CFieldElement> position = std::make_pair(scId, nullifier);
+    return db.Exists(make_pair(DB_CSW_NULLIFIER, position));
+}
+
 bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins,
                               const uint256 &hashBlock,
                               const uint256 &hashAnchor,
                               CAnchorsMap &mapAnchors,
                               CNullifiersMap &mapNullifiers,
                               CSidechainsMap& mapSidechains,
-                              CSidechainEventsMap& mapSidechainEvents) {
+                              CSidechainEventsMap& mapSidechainEvents,
+                              CCswNullifiersMap& cswNullifies) {
     CLevelDBBatch batch;
     size_t count = 0;
     size_t changed = 0;
@@ -241,6 +262,13 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap &mapCoins,
         CSidechainEventsMap::iterator itOld = it++;
         mapSidechainEvents.erase(itOld);
     }
+    
+    for (CCswNullifiersMap::iterator it = cswNullifies.begin(); it != cswNullifies.end();) {
+        const std::pair<uint256, CFieldElement>& position = it->first;
+        BatchWriteCswNullifier(batch, position.first, position.second, it->second);
+        CCswNullifiersMap::iterator itOld = it++;
+        cswNullifies.erase(itOld);
+    }
 
     if (!hashBlock.IsNull())
         BatchWriteHashBestChain(batch, hashBlock);
@@ -267,6 +295,17 @@ bool CBlockTreeDB::WriteReindexing(bool fReindexing) {
 
 bool CBlockTreeDB::ReadReindexing(bool &fReindexing) {
     fReindexing = Exists(DB_REINDEX_FLAG);
+    return true;
+}
+
+bool CBlockTreeDB::WriteFastReindexing(bool fReindexFast) {
+    if (fReindexFast)
+        return Write(DB_FAST_REINDEX_FLAG, '1');
+    else
+        return Erase(DB_FAST_REINDEX_FLAG);
+}
+bool CBlockTreeDB::ReadFastReindexing(bool &fReindexFast) {
+	fReindexFast = Exists(DB_FAST_REINDEX_FLAG);
     return true;
 }
 
@@ -303,6 +342,18 @@ bool CCoinsViewDB::GetStats(CCoinsStats &stats) const {
                 ss << VARINT(coins.nVersion);
                 ss << (coins.fCoinBase ? 'c' : 'n');
                 ss << VARINT(coins.nHeight);
+
+                // add cert attribute to the hash writer obj, such values are meaningful only in this case 
+                // the size of the hash writer obj buffer is different anyway (larger) from the actual serialized size
+                // because the coin serialization is compressed 
+                if (coins.IsFromCert()) {
+                    ss << coins.nFirstBwtPos;
+                    ss << coins.nBwtMaturityHeight;
+                }
+
+                // - transactions and certificates are lumped together 
+                // - nTotalAmount includes certificate valid bwt amounts (not-null, as for low-quality certs)
+                //   even if not yet matured, as it is done currently with coinbase vouts
                 stats.nTransactions++;
                 for (unsigned int i=0; i<coins.vout.size(); i++) {
                     const CTxOut &out = coins.vout[i];
@@ -313,11 +364,7 @@ bool CCoinsViewDB::GetStats(CCoinsStats &stats) const {
                         nTotalAmount += out.nValue;
                     }
                 }
-
-                if (coins.IsFromCert()) {
-                    ss << coins.nBwtMaturityHeight;
-                    ss << coins.nBwtMaturityHeight;;
-                }
+                
                 stats.nSerializedSize += 32 + slValue.size();
                 ss << VARINT(0);
             }
@@ -358,11 +405,10 @@ void CCoinsViewDB::Dump_info()  const
             std::cout
                 << "scId[" << keyScId.ToString() << "]" << std::endl
                 << "  ==> balance: " << FormatMoney(info.balance) << std::endl
-                << "  creating block hash: " << info.creationBlockHash.ToString() <<
-                   " (height: " << info.creationBlockHeight << ")" << std::endl
+                << "  creating block height: " << info.creationBlockHeight  << std::endl
                 << "  creating tx hash: " << info.creationTxHash.ToString() << std::endl
                 // creation parameters
-                << "  withdrawalEpochLength: " << info.creationData.withdrawalEpochLength << std::endl;
+                << "  withdrawalEpochLength: " << info.fixedParams.withdrawalEpochLength << std::endl;
         }
         else
         {
@@ -446,6 +492,7 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 pindexNew->nTx            = diskindex.nTx;
                 pindexNew->nSproutValue   = diskindex.nSproutValue;
                 pindexNew->hashScTxsCommitment = diskindex.hashScTxsCommitment;
+                pindexNew->scCumTreeHash  = diskindex.scCumTreeHash;
 
                 if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits, Params().GetConsensus()))
                     return error("LoadBlockIndex(): CheckProofOfWork failed: %s", pindexNew->ToString());
@@ -461,3 +508,4 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
 
     return true;
 }
+

@@ -85,8 +85,10 @@ UniValue getlocalsolps(const UniValue& params, bool fHelp)
             "getlocalsolps\n"
             "\nReturns the average local solutions per second since this node was started.\n"
             "This is the same information shown on the metrics screen (if enabled).\n"
+            
             "\nResult:\n"
-            "xxx.xxxxx     (numeric) Solutions per second average\n"
+            "xxxx     (numeric) solutions per second average\n"
+            
             "\nExamples:\n"
             + HelpExampleCli("getlocalsolps", "")
             + HelpExampleRpc("getlocalsolps", "")
@@ -104,11 +106,14 @@ UniValue getnetworksolps(const UniValue& params, bool fHelp)
             "\nReturns the estimated network solutions per second based on the last n blocks.\n"
             "Pass in [blocks] to override # of blocks, -1 specifies over difficulty averaging window.\n"
             "Pass in [height] to estimate the network speed at the time when a certain block was found.\n"
+            
             "\nArguments:\n"
-            "1. blocks     (numeric, optional, default=120) The number of blocks, or -1 for blocks over difficulty averaging window.\n"
-            "2. height     (numeric, optional, default=-1) To estimate at the time of the given height.\n"
+            "1. blocks     (numeric, optional, default=120) the number of blocks, or -1 for blocks over difficulty averaging window\n"
+            "2. height     (numeric, optional, default=-1) to estimate at the time of the given height\n"
+            
             "\nResult:\n"
-            "x             (numeric) Solutions per second estimated\n"
+            "x             (numeric) solutions per second estimated\n"
+            
             "\nExamples:\n"
             + HelpExampleCli("getnetworksolps", "")
             + HelpExampleRpc("getnetworksolps", "")
@@ -127,11 +132,14 @@ UniValue getnetworkhashps(const UniValue& params, bool fHelp)
             "\nReturns the estimated network solutions per second based on the last n blocks.\n"
             "Pass in [blocks] to override # of blocks, -1 specifies over difficulty averaging window.\n"
             "Pass in [height] to estimate the network speed at the time when a certain block was found.\n"
+            
             "\nArguments:\n"
-            "1. blocks     (numeric, optional, default=120) The number of blocks, or -1 for blocks over difficulty averaging window.\n"
-            "2. height     (numeric, optional, default=-1) To estimate at the time of the given height.\n"
+            "1. blocks     (numeric, optional, default=120) the number of blocks, or -1 for blocks over difficulty averaging window\n"
+            "2. height     (numeric, optional, default=-1) to estimate at the time of the given height\n"
+            
             "\nResult:\n"
-            "x             (numeric) Solutions per second estimated\n"
+            "x             (numeric) solutions per second estimated\n"
+            
             "\nExamples:\n"
             + HelpExampleCli("getnetworkhashps", "")
             + HelpExampleRpc("getnetworkhashps", "")
@@ -150,8 +158,10 @@ UniValue getgenerate(const UniValue& params, bool fHelp)
             "\nReturn if the server is set to generate coins or not. The default is false.\n"
             "It is set with the command line argument -gen (or zen.conf setting gen)\n"
             "It can also be set with the setgenerate call.\n"
+            
             "\nResult\n"
-            "true|false      (boolean) If the server is set to generate coins or not\n"
+            "true|false      (boolean) if the server is set to generate coins or not\n"
+            
             "\nExamples:\n"
             + HelpExampleCli("getgenerate", "")
             + HelpExampleRpc("getgenerate", "")
@@ -165,15 +175,22 @@ UniValue generate(const UniValue& params, bool fHelp)
     if (fHelp || params.size() < 1 || params.size() > 1)
         throw runtime_error(
             "generate numblocks\n"
-            "\nMine blocks immediately (before the RPC call returns)\n"
-            "\nNote: this function can only be used on the regtest network\n"
+            "\nMine blocks immediately (before the RPC call returns).\n"
+            "\nNote: this function can only be used on the regtest network.\n"
+            
             "\nArguments:\n"
-            "1. numblocks    (numeric) How many blocks are generated immediately.\n"
+            "1. numblocks        (numeric) how many blocks are generated immediately\n"
+            
             "\nResult\n"
-            "[ blockhashes ]     (array) hashes of blocks generated\n"
+            "[                   (array) hashes of blocks generated\n"
+                "\"hash\":       (string) hash of the block\n"
+                ",...\n"
+            "]\n"     
+            
             "\nExamples:\n"
             "\nGenerate 11 blocks\n"
             + HelpExampleCli("generate", "11")
+            + HelpExampleRpc("generate", "11")
         );
 
     if (GetArg("-mineraddress", "").empty()) {
@@ -204,8 +221,6 @@ UniValue generate(const UniValue& params, bool fHelp)
     }
     unsigned int nExtraNonce = 0;
     UniValue blockHashes(UniValue::VARR);
-    unsigned int n = Params().EquihashN();
-    unsigned int k = Params().EquihashK();
     while (nHeight < nHeightEnd)
     {
 #ifdef ENABLE_WALLET
@@ -221,44 +236,8 @@ UniValue generate(const UniValue& params, bool fHelp)
             IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
         }
 
-        // Hash state
-        crypto_generichash_blake2b_state eh_state;
-        EhInitialiseState(n, k, eh_state);
+        generateEquihash(*pblock);
 
-        // I = the block header minus nonce and solution.
-        CEquihashInput I{*pblock};
-        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-        ss << I;
-
-        // H(I||...
-        crypto_generichash_blake2b_update(&eh_state, (unsigned char*)&ss[0], ss.size());
-
-        while (true) {
-            // Yes, there is a chance every nonce could fail to satisfy the -regtest
-            // target -- 1 in 2^(2^256). That ain't gonna happen
-            pblock->nNonce = ArithToUint256(UintToArith256(pblock->nNonce) + 1);
-
-            // H(I||V||...
-            crypto_generichash_blake2b_state curr_state;
-            curr_state = eh_state;
-            crypto_generichash_blake2b_update(&curr_state,
-                                              pblock->nNonce.begin(),
-                                              pblock->nNonce.size());
-
-            // (x_1, x_2, ...) = A(I, V, n, k)
-            std::function<bool(std::vector<unsigned char>)> validBlock =
-                    [&pblock](std::vector<unsigned char> soln) {
-                pblock->nSolution = soln;
-                solutionTargetChecks.increment();
-                return CheckProofOfWork(pblock->GetHash(), pblock->nBits, Params().GetConsensus());
-            };
-            bool found = EhBasicSolveUncancellable(n, k, curr_state, validBlock);
-            ehSolverRuns.increment();
-            if (found) {
-                goto endloop;
-            }
-        }
-endloop:
         CValidationState state;
         if (!ProcessNewBlock(state, NULL, pblock, true, NULL))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
@@ -277,9 +256,13 @@ UniValue setgenerate(const UniValue& params, bool fHelp)
             "\nSet 'generate' true or false to turn generation on or off.\n"
             "Generation is limited to 'genproclimit' processors, -1 is unlimited.\n"
             "See the getgenerate call for the current setting.\n"
+            
             "\nArguments:\n"
-            "1. generate         (boolean, required) Set to true to turn on generation, off to turn off.\n"
-            "2. genproclimit     (numeric, optional) Set the processor limit for when generation is on. Can be -1 for unlimited.\n"
+            "1. generate         (boolean, required) set to true to turn on generation, off to turn off\n"
+            "2. genproclimit     (numeric, optional) set the processor limit for when generation is on. Can be -1 for unlimited\n"
+            "\nResult:\n"
+            "Nothing\n"
+            
             "\nExamples:\n"
             "\nSet the generation on with a limit of one processor\n"
             + HelpExampleCli("setgenerate", "true 1") +
@@ -334,21 +317,25 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
         throw runtime_error(
             "getmininginfo\n"
             "\nReturns a json object containing mining-related information."
+            
             "\nResult:\n"
             "{\n"
-            "  \"blocks\": nnn,             (numeric) The current block\n"
-            "  \"currentblocksize\": nnn,   (numeric) The last block size\n"
-            "  \"currentblocktx\": nnn,     (numeric) The last block transaction\n"
-            "  \"difficulty\": xxx.xxxxx    (numeric) The current difficulty\n"
-            "  \"errors\": \"...\"          (string) Current errors\n"
-            "  \"generate\": true|false     (boolean) If the generation is on or off (see getgenerate or setgenerate calls)\n"
-            "  \"genproclimit\": n          (numeric) The processor limit for generation. -1 if no generation. (see getgenerate or setgenerate calls)\n"
-            "  \"localsolps\": xxx.xxxxx    (numeric) The average local solution rate in Sol/s since this node was started\n"
-            "  \"networksolps\": x          (numeric) The estimated network solution rate in Sol/s\n"
-            "  \"pooledtx\": n              (numeric) The size of the mem pool\n"
-            "  \"testnet\": true|false      (boolean) If using testnet or not\n"
-            "  \"chain\": \"xxxx\",         (string) current network name as defined in BIP70 (main, test, regtest)\n"
+            "  \"blocks\": nnn,                  (numeric) the current block\n"
+            "  \"currentblocksize\": nnn,        (numeric) the last block size\n"
+            "  \"currentblocktx\": nnn,          (numeric) number of transactions in the last block\n"
+            "  \"currentblockcert\": nnn,        (numeric) number of certificates in the last block\n"
+            "  \"difficulty\": xxxxxxxx,         (numeric) the current difficulty\n"
+            "  \"errors\": \"...\",              (string) current errors\n"
+            "  \"generate\": true|false,         (boolean) if the generation is on or off (see getgenerate or setgenerate calls)\n"
+            "  \"genproclimit\": n,              (numeric) the processor limit for generation. -1 if no generation. (see getgenerate or setgenerate calls)\n"
+            "  \"localsolps\": xxxxxxxx,         (numeric) the average local solution rate in Sol/s since this node was started\n"
+            "  \"networksolps\": x,              (numeric) the estimated network solution rate in Sol/s\n"
+            "  \"pooledtx\": n,                  (numeric) the number of txes in the mem pool\n"
+            "  \"pooledcert\": n,                (numeric) the number of certs in the mem pool\n"
+            "  \"testnet\": true|false,          (boolean) if using testnet or not\n"
+            "  \"chain\": \"xxxx\"               (string) current network name as defined in BIP70 (main, test, regtest)\n"
             "}\n"
+            
             "\nExamples:\n"
             + HelpExampleCli("getmininginfo", "")
             + HelpExampleRpc("getmininginfo", "")
@@ -358,20 +345,22 @@ UniValue getmininginfo(const UniValue& params, bool fHelp)
     LOCK(cs_main);
 
     UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("blocks",           (int)chainActive.Height()));
-    obj.push_back(Pair("currentblocksize", (uint64_t)nLastBlockSize));
-    obj.push_back(Pair("currentblocktx",   (uint64_t)nLastBlockTx));
-    obj.push_back(Pair("difficulty",       (double)GetNetworkDifficulty()));
-    obj.push_back(Pair("errors",           GetWarnings("statusbar")));
-    obj.push_back(Pair("genproclimit",     (int)GetArg("-genproclimit", -1)));
-    obj.push_back(Pair("localsolps"  ,     getlocalsolps(params, false)));
-    obj.push_back(Pair("networksolps",     getnetworksolps(params, false)));
-    obj.push_back(Pair("networkhashps",    getnetworksolps(params, false)));
-    obj.push_back(Pair("pooledtx",         (uint64_t)mempool.size()));
-    obj.push_back(Pair("testnet",          Params().TestnetToBeDeprecatedFieldRPC()));
-    obj.push_back(Pair("chain",            Params().NetworkIDString()));
+    obj.pushKV("blocks",           (int)chainActive.Height());
+    obj.pushKV("currentblocksize", (uint64_t)nLastBlockSize);
+    obj.pushKV("currentblocktx",   (uint64_t)nLastBlockTx);
+    obj.pushKV("currentblockcert", (uint64_t)nLastBlockCert);
+    obj.pushKV("difficulty",       (double)GetNetworkDifficulty());
+    obj.pushKV("errors",           GetWarnings("statusbar"));
+    obj.pushKV("genproclimit",     (int)GetArg("-genproclimit", -1));
+    obj.pushKV("localsolps"  ,     getlocalsolps(params, false));
+    obj.pushKV("networksolps",     getnetworksolps(params, false));
+    obj.pushKV("networkhashps",    getnetworksolps(params, false));
+    obj.pushKV("pooledtx",         (uint64_t)mempool.sizeTx());
+    obj.pushKV("pooledcert",       (uint64_t)mempool.sizeCert());
+    obj.pushKV("testnet",          Params().TestnetToBeDeprecatedFieldRPC());
+    obj.pushKV("chain",            Params().NetworkIDString());
 #ifdef ENABLE_MINING
-    obj.push_back(Pair("generate",         getgenerate(params, false)));
+    obj.pushKV("generate",         getgenerate(params, false));
 #endif
     return obj;
 }
@@ -384,16 +373,19 @@ UniValue prioritisetransaction(const UniValue& params, bool fHelp)
         throw runtime_error(
             "prioritisetransaction <txid> <priority delta> <fee delta>\n"
             "Accepts the transaction into mined blocks at a higher (or lower) priority\n"
+            
             "\nArguments:\n"
-            "1. \"txid\"       (string, required) The transaction id.\n"
-            "2. priority delta (numeric, required) The priority to add or subtract.\n"
-            "                  The transaction selection algorithm considers the tx as it would have a higher priority.\n"
+            "1. \"txid\"       (string, required) the transaction id\n"
+            "2. priority delta (numeric, required) the priority to add or subtract\n"
+            "                   the transaction selection algorithm considers the tx as it would have a higher priority\n"
             "                  (priority of a transaction is calculated: coinage * value_in_satoshis / txsize) \n"
-            "3. fee delta      (numeric, required) The fee value (in satoshis) to add (or subtract, if negative).\n"
-            "                  The fee is not actually paid, only the algorithm for selecting transactions into a block\n"
-            "                  considers the transaction as it would have paid a higher (or lower) fee.\n"
+            "3. fee delta      (numeric, required) the fee value (in satoshis) to add (or subtract, if negative)\n"
+            "                   the fee is not actually paid, only the algorithm for selecting transactions into a block\n"
+            "                   considers the transaction as it would have paid a higher (or lower) fee\n"
+            
             "\nResult\n"
-            "true              (boolean) Returns true\n"
+            "true              (boolean) returns true\n"
+            
             "\nExamples:\n"
             + HelpExampleCli("prioritisetransaction", "\"txid\" 0.0 10000")
             + HelpExampleRpc("prioritisetransaction", "\"txid\", 0.0, 10000")
@@ -438,11 +430,11 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
             "See https://en.bitcoin.it/wiki/BIP_0022 for full specification.\n"
 
             "\nArguments:\n"
-            "1. \"jsonrequestobject\"       (string, optional) A json object in the following spec\n"
+            "1. \"jsonrequestobject\"                   (string, optional) a json object in the following spec\n"
             "     {\n"
-            "       \"mode\":\"template\"    (string, optional) This must be set to \"template\" or omitted\n"
-            "       \"capabilities\":[       (array, optional) A list of strings\n"
-            "           \"support\"           (string) client side supported feature, 'longpoll', 'coinbasetxn', 'coinbasevalue', 'proposal', 'serverlist', 'workid'\n"
+            "       \"mode\":\"template\"               (string, optional) this must be set to \"template\" or omitted\n"
+            "       \"capabilities\":[                  (array, optional) a list of strings\n"
+            "           \"support\"                     (string) client side supported feature, 'longpoll', 'coinbasetxn', 'coinbasevalue', 'proposal', 'serverlist', 'workid'\n"
             "           ,...\n"
             "         ]\n"
             "     }\n"
@@ -450,39 +442,40 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
 
             "\nResult:\n"
             "{\n"
-            "  \"version\" : n,                    (numeric) The block version\n"
-            "  \"previousblockhash\" : \"xxxx\",    (string) The hash of current highest block\n"
-            "  \"transactions\" : [                (array) contents of non-coinbase transactions that should be included in the next block\n"
+            "  \"version\" : n,                         (numeric) the block version\n"
+            "  \"previousblockhash\" : \"xxxx\",        (string) the hash of current highest block\n"
+            "  \"transactions\" : [                     (array) contents of non-coinbase transactions that should be included in the next block\n"
             "      {\n"
-            "         \"data\" : \"xxxx\",          (string) transaction data encoded in hexadecimal (byte-for-byte)\n"
-            "         \"hash\" : \"xxxx\",          (string) hash/id encoded in little-endian hexadecimal\n"
-            "         \"depends\" : [              (array) array of numbers \n"
-            "             n                        (numeric) transactions before this one (by 1-based index in 'transactions' list) that must be present in the final block if this one is\n"
+            "         \"data\" : \"xxxx\",              (string) transaction data encoded in hexadecimal (byte-for-byte)\n"
+            "         \"hash\" : \"xxxx\",              (string) hash/id encoded in little-endian hexadecimal\n"
+            "         \"depends\" : [                   (array) array of numbers \n"
+            "             n                             (numeric) transactions before this one (by 1-based index in 'transactions' list) that must be present in the final block if this one is\n"
             "             ,...\n"
             "         ],\n"
-            "         \"fee\": n,                   (numeric) difference in value between transaction inputs and outputs (in Satoshis); for coinbase transactions, this is a negative Number of the total collected block fees (ie, not including the block subsidy); if key is not present, fee is unknown and clients MUST NOT assume there isn't one\n"
-            "         \"sigops\" : n,               (numeric) total number of SigOps, as counted for purposes of block limits; if key is not present, sigop count is unknown and clients MUST NOT assume there aren't any\n"
-            "         \"required\" : true|false     (boolean) if provided and true, this transaction must be in the final block\n"
+            "         \"fee\": n,                       (numeric) difference in value between transaction inputs and outputs (in Satoshis); for coinbase transactions, this is a negative Number of the total collected block fees (ie, not including the block subsidy); if key is not present, fee is unknown and clients MUST NOT assume there isn't one\n"
+            "         \"sigops\" : n,                   (numeric) total number of SigOps, as counted for purposes of block limits; if key is not present, sigop count is unknown and clients MUST NOT assume there aren't any\n"
+            "         \"required\" : true|false         (boolean) if provided and true, this transaction must be in the final block\n"
             "      }\n"
             "      ,...\n"
             "  ],\n"
-//            "  \"coinbaseaux\" : {                  (json object) data that should be included in the coinbase's scriptSig content\n"
-//            "      \"flags\" : \"flags\"            (string) \n"
+//            "  \"coinbaseaux\" : {                    (json object) data that should be included in the coinbase's scriptSig content\n"
+//            "      \"flags\" : \"flags\"              (string) \n"
 //            "  },\n"
-//            "  \"coinbasevalue\" : n,               (numeric) maximum allowable input to coinbase transaction, including the generation award and transaction fees (in Satoshis)\n"
-            "  \"coinbasetxn\" : { ... },           (json object) information for coinbase transaction\n"
-            "  \"target\" : \"xxxx\",               (string) The hash target\n"
-            "  \"mintime\" : xxx,                   (numeric) The minimum timestamp appropriate for next block time in seconds since epoch (Jan 1 1970 GMT)\n"
-            "  \"mutable\" : [                      (array of string) list of ways the block template may be changed \n"
-            "     \"value\"                         (string) A way the block template may be changed, e.g. 'time', 'transactions', 'prevblock'\n"
+//            "  \"coinbasevalue\" : n,                 (numeric) maximum allowable input to coinbase transaction, including the generation award and transaction fees (in Satoshis)\n"
+            "  \"coinbasetxn\" : { ... },               (json object) information for coinbase transaction\n"
+            "  \"longpollid\": \"xxxx\"                 (string) id to wait for"
+            "  \"target\" : \"xxxx\",                   (string) the hash target\n"
+            "  \"mintime\" : xxx,                       (numeric) the minimum timestamp appropriate for next block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"mutable\" : [                          (array of string) list of ways the block template may be changed \n"
+            "     \"value\"                             (string) a way the block template may be changed, e.g. 'time', 'transactions', 'prevblock'\n"
             "     ,...\n"
             "  ],\n"
-            "  \"noncerange\" : \"00000000ffffffff\",   (string) A range of valid nonces\n"
-            "  \"sigoplimit\" : n,                 (numeric) limit of sigops in blocks\n"
-            "  \"sizelimit\" : n,                  (numeric) limit of block size\n"
-            "  \"curtime\" : ttt,                  (numeric) current timestamp in seconds since epoch (Jan 1 1970 GMT)\n"
-            "  \"bits\" : \"xxx\",                 (string) compressed target of next block\n"
-            "  \"height\" : n                      (numeric) The height of the next block\n"
+            "  \"noncerange\" : \"00000000ffffffff\",   (string) a range of valid nonces\n"
+            "  \"sigoplimit\" : n,                      (numeric) limit of sigops in blocks\n"
+            "  \"sizelimit\" : n,                       (numeric) limit of block size\n"
+            "  \"curtime\" : ttt,                       (numeric) current timestamp in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"bits\" : \"xxx\",                      (string) compressed target of next block\n"
+            "  \"height\" : n                           (numeric) the height of the next block\n"
             "}\n"
 
             "\nExamples:\n"
@@ -550,7 +543,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
             if (block.hashPrevBlock != pindexPrev->GetBlockHash())
                 return "inconclusive-not-best-prevblk";
             CValidationState state;
-            TestBlockValidity(state, block, pindexPrev, false, true/*checkMklRoot*/, true/*checkScTxesCommitment*/);
+            TestBlockValidity(state, block, pindexPrev, flagCheckPow::OFF, flagCheckMerkleRoot::ON, flagScRelatedChecks::ON);
             return BIP22ValidationResult(state);
         }
     }
@@ -667,9 +660,9 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
 
         UniValue entry(UniValue::VOBJ);
 
-        entry.push_back(Pair("data", EncodeHexTx(tx)));
+        entry.pushKV("data", EncodeHexTx(tx));
 
-        entry.push_back(Pair("hash", txHash.GetHex()));
+        entry.pushKV("hash", txHash.GetHex());
 
         UniValue deps(UniValue::VARR);
         BOOST_FOREACH (const CTxIn &in, tx.GetVin())
@@ -677,23 +670,23 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
             if (setTxIndex.count(in.prevout.hash))
                 deps.push_back(setTxIndex[in.prevout.hash]);
         }
-        entry.push_back(Pair("depends", deps));
+        entry.pushKV("depends", deps);
 
         int index_in_template = i - 1;
-        entry.push_back(Pair("fee", pblocktemplate->vTxFees[index_in_template]));
-        entry.push_back(Pair("sigops", pblocktemplate->vTxSigOps[index_in_template]));
+        entry.pushKV("fee", pblocktemplate->vTxFees[index_in_template]);
+        entry.pushKV("sigops", pblocktemplate->vTxSigOps[index_in_template]);
 
         if (tx.IsCoinBase()) {
             // Show community reward if it is required
             if (pblock->vtx[0].GetVout().size() > 1) {
                 // Correct this if GetBlockTemplate changes the order
-                entry.push_back(Pair("communityfund", (int64_t)tx.GetVout()[1].nValue));
+                entry.pushKV("communityfund", (int64_t)tx.GetVout()[1].nValue);
                 if (pblock->vtx[0].GetVout().size() > 3) {
-                    entry.push_back(Pair("securenodes", (int64_t)tx.GetVout()[2].nValue));
-                    entry.push_back(Pair("supernodes", (int64_t)tx.GetVout()[3].nValue));
+                    entry.pushKV("securenodes", (int64_t)tx.GetVout()[2].nValue);
+                    entry.pushKV("supernodes", (int64_t)tx.GetVout()[3].nValue);
                 }
             }
-            entry.push_back(Pair("required", true));
+            entry.pushKV("required", true);
             txCoinbase = entry;
         } else {
             transactions.push_back(entry);
@@ -701,7 +694,7 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
     }
 
     UniValue aux(UniValue::VOBJ);
-    aux.push_back(Pair("flags", HexStr(COINBASE_FLAGS.begin(), COINBASE_FLAGS.end())));
+    aux.pushKV("flags", HexStr(COINBASE_FLAGS.begin(), COINBASE_FLAGS.end()));
 
     arith_uint256 hashTarget = arith_uint256().SetCompact(pblock->nBits);
 
@@ -718,11 +711,10 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
     }
 
     UniValue result(UniValue::VOBJ);
-    result.push_back(Pair("capabilities", aCaps));
-    result.push_back(Pair("version", pblock->nVersion));
-    result.push_back(Pair("previousblockhash", pblock->hashPrevBlock.GetHex()));
-    result.push_back(Pair("transactions", transactions));
-
+    result.pushKV("capabilities", aCaps);
+    result.pushKV("version", pblock->nVersion);
+    result.pushKV("previousblockhash", pblock->hashPrevBlock.GetHex());
+    result.pushKV("transactions", transactions);
     if (certSupported)
     {
         UniValue certificates(UniValue::VARR);
@@ -731,34 +723,40 @@ UniValue getblocktemplate(const UniValue& params, bool fHelp)
             uint256 certHash = cert.GetHash();
             UniValue entry(UniValue::VOBJ);
  
-            entry.push_back(Pair("data", EncodeHexCert(cert)));
-            entry.push_back(Pair("hash", certHash.GetHex()));
+            entry.pushKV("data", EncodeHexCert(cert));
+            entry.pushKV("hash", certHash.GetHex());
             // no depends for cert since there are no inputs
-            entry.push_back(Pair("fee", pblocktemplate->vCertFees[cert_idx_in_template]));
-            entry.push_back(Pair("sigops", pblocktemplate->vCertSigOps[cert_idx_in_template]));
+            entry.pushKV("fee", pblocktemplate->vCertFees[cert_idx_in_template]);
+            entry.pushKV("sigops", pblocktemplate->vCertSigOps[cert_idx_in_template]);
             certificates.push_back(entry);
  
             cert_idx_in_template++;
         }
-        result.push_back(Pair("certificates", certificates));
+        result.pushKV("certificates", certificates);
     }
+
     if (coinbasetxn) {
         assert(txCoinbase.isObject());
-        result.push_back(Pair("coinbasetxn", txCoinbase));
+        result.pushKV("coinbasetxn", txCoinbase);
     } else {
-        result.push_back(Pair("coinbaseaux", aux));
-        result.push_back(Pair("coinbasevalue", (int64_t)pblock->vtx[0].GetVout()[0].nValue));
+        result.pushKV("coinbaseaux", aux);
+        result.pushKV("coinbasevalue", (int64_t)pblock->vtx[0].GetVout()[0].nValue);
     }
-    result.push_back(Pair("longpollid", chainActive.Tip()->GetBlockHash().GetHex() + i64tostr(nTransactionsUpdatedLast)));
-    result.push_back(Pair("target", hashTarget.GetHex()));
-    result.push_back(Pair("mintime", (int64_t)pindexPrev->GetMedianTimePast()+1));
-    result.push_back(Pair("mutable", aMutable));
-    result.push_back(Pair("noncerange", "00000000ffffffff"));
-    result.push_back(Pair("sigoplimit", (int64_t)MAX_BLOCK_SIGOPS));
-    result.push_back(Pair("sizelimit", (int64_t)MAX_BLOCK_SIZE));
-    result.push_back(Pair("curtime", pblock->GetBlockTime()));
-    result.push_back(Pair("bits", strprintf("%08x", pblock->nBits)));
-    result.push_back(Pair("height", (int64_t)(pindexPrev->nHeight+1)));
+
+    unsigned int block_size_limit = MAX_BLOCK_SIZE;
+    if (pblock->nVersion != BLOCK_VERSION_SC_SUPPORT)
+        block_size_limit = MAX_BLOCK_SIZE_BEFORE_SC;
+
+    result.pushKV("longpollid", chainActive.Tip()->GetBlockHash().GetHex() + i64tostr(nTransactionsUpdatedLast));
+    result.pushKV("target", hashTarget.GetHex());
+    result.pushKV("mintime", (int64_t)pindexPrev->GetMedianTimePast()+1);
+    result.pushKV("mutable", aMutable);
+    result.pushKV("noncerange", "00000000ffffffff");
+    result.pushKV("sigoplimit", (int64_t)MAX_BLOCK_SIGOPS);
+    result.pushKV("sizelimit", (int64_t)block_size_limit);
+    result.pushKV("curtime", pblock->GetBlockTime());
+    result.pushKV("bits", strprintf("%08x", pblock->nBits));
+    result.pushKV("height", (int64_t)(pindexPrev->nHeight+1));
 
     return result;
 }
@@ -791,18 +789,21 @@ UniValue submitblock(const UniValue& params, bool fHelp)
             "See https://en.bitcoin.it/wiki/BIP_0022 for full specification.\n"
 
             "\nArguments\n"
-            "1. \"hexdata\"    (string, required) the hex-encoded block data to submit\n"
+            "1. \"hexdata\"                  (string, required) the hex-encoded block data to submit\n"
             "2. \"jsonparametersobject\"     (string, optional) object of optional parameters\n"
             "    {\n"
-            "      \"workid\" : \"id\"    (string, optional) if the server provided a workid, it MUST be included with submissions\n"
+            "      \"workid\" : \"id\"       (string, optional) if the server provided a workid, it MUST be included with submissions\n"
             "    }\n"
+            
             "\nResult:\n"
+            "Nothing if success\n"
             "\"duplicate\" - node already has valid copy of block\n"
             "\"duplicate-invalid\" - node already has block, but it is invalid\n"
             "\"duplicate-inconclusive\" - node already has block but has not validated it\n"
             "\"inconclusive\" - node has not validated the block, it may not be on the node's current best chain\n"
             "\"rejected\" - block was rejected as invalid\n"
             "For more information on submitblock parameters and results, see: https://github.com/bitcoin/bips/blob/master/bip-0022.mediawiki#block-submission\n"
+            
             "\nExamples:\n"
             + HelpExampleCli("submitblock", "\"mydata\"")
             + HelpExampleRpc("submitblock", "\"mydata\"")
@@ -856,16 +857,20 @@ UniValue estimatefee(const UniValue& params, bool fHelp)
             "\nEstimates the approximate fee per kilobyte\n"
             "needed for a transaction to begin confirmation\n"
             "within nblocks blocks.\n"
+
             "\nArguments:\n"
-            "1. nblocks     (numeric)\n"
+            "1. nblocks     (numeric) number of blocks\n"
+
             "\nResult:\n"
-            "n :    (numeric) estimated fee-per-kilobyte\n"
+            "n :            (numeric) estimated fee-per-kilobyte\n"
             "\n"
             "-1.0 is returned if not enough transactions and\n"
             "blocks have been observed to make an estimate.\n"
+
             "\nExample:\n"
             + HelpExampleCli("estimatefee", "6")
-            );
+            + HelpExampleRpc("estimatefee", "6")
+        );
 
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VNUM));
 
@@ -888,15 +893,19 @@ UniValue estimatepriority(const UniValue& params, bool fHelp)
             "\nEstimates the approximate priority\n"
             "a zero-fee transaction needs to begin confirmation\n"
             "within nblocks blocks.\n"
+
             "\nArguments:\n"
-            "1. nblocks     (numeric)\n"
+            "1. nblocks     (numeric) number of blocks\n"
+            
             "\nResult:\n"
-            "n :    (numeric) estimated priority\n"
+            "n :            (numeric) estimated priority\n"
             "\n"
             "-1.0 is returned if not enough transactions and\n"
             "blocks have been observed to make an estimate.\n"
+
             "\nExample:\n"
             + HelpExampleCli("estimatepriority", "6")
+            + HelpExampleRpc("estimatepriority", "6")
             );
 
     RPCTypeCheck(params, boost::assign::list_of(UniValue::VNUM));
@@ -914,18 +923,22 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp)
         throw runtime_error(
             "getblocksubsidy height\n"
             "\nReturns block subsidy reward, taking into account the mining slow start and the community fund, of block at index provided.\n"
+            
             "\nArguments:\n"
-            "1. height         (numeric, optional) The block height.  If not provided, defaults to the current height of the chain.\n"
+            "1. height                    (numeric, optional) the block height\n"
+            "                              if not provided, defaults to the current height of the chain\n"
+            
             "\nResult:\n"
             "{\n"
-            "  \"miner\" : x.xxx           (numeric) The mining reward amount in ZEN.\n"
-            "  \"community\" : x.xxx        (numeric) The community fund amount in ZEN.\n"
-            "  \"securenodes\" : x.xxx        (numeric) The securenodes fund amount in ZEN (only if securenode HF fund is available).\n"
-            "  \"supernodes\" : x.xxx        (numeric) The supernodes fund amount in ZEN (only if supernode HF fund is available).\n"
+            "  \"miner\": xxxx,           (numeric) the mining reward amount in " + CURRENCY_UNIT + "\n"
+            "  \"community\": xxxx,       (numeric) the community fund amount in " + CURRENCY_UNIT + "\n"
+            "  \"securenodes\": xxxx,     (numeric) the securenodes fund amount in " + CURRENCY_UNIT + "\n"
+            "  \"supernodes\": xxxx       (numeric) the supernodes fund amount in " + CURRENCY_UNIT + "\n"
             "}\n"
+            
             "\nExamples:\n"
             + HelpExampleCli("getblocksubsidy", "1000")
-            + HelpExampleRpc("getblockubsidy", "1000")
+            + HelpExampleRpc("getblocksubsidy", "1000")
         );
 
     LOCK(cs_main);
@@ -950,14 +963,78 @@ UniValue getblocksubsidy(const UniValue& params, bool fHelp)
 
 
     UniValue result(UniValue::VOBJ);
-    result.push_back(Pair("miner", ValueFromAmount(minerReward)));
-    result.push_back(Pair("community", ValueFromAmount(nCommunityFund)));
+    result.pushKV("miner", ValueFromAmount(minerReward));
+    result.pushKV("community", ValueFromAmount(nCommunityFund));
     if (secureNodeFund > 0) {
-        result.push_back(Pair("securenodes", ValueFromAmount(secureNodeFund)));
+        result.pushKV("securenodes", ValueFromAmount(secureNodeFund));
     }
     if (superNodeFund > 0) {
-        result.push_back(Pair("supernodes", ValueFromAmount(superNodeFund)));
+        result.pushKV("supernodes", ValueFromAmount(superNodeFund));
     }
+
+    return result;
+}
+
+UniValue getblockmerkleroots(const UniValue& params, bool fHelp) {
+    if (fHelp || params.size() != 2)
+        throw runtime_error(
+                "getblockmerkleroots transactions certificates\n"
+                "\nReturns Merkleroot and ScTxsCommitment for the next block.\n"
+                "\nArguments:\n"
+                "1. transactions         (array) Array of raw transactions (HEX format).\n"
+                "2. certificates         (array) Array of raw certificates (HEX format).\n"
+                "\nResult:\n"
+                "{\n"
+                "  \"merkleTree\" : \"xxx\"           (string) Merkleroot calculated on transactions and certificates.\n"
+                "  \"scTxsCommitment\" : \"xxxx\"      (string) scTxsCommitment calculated on certificates.\n"
+                "}\n"
+                "\nExamples:\n"
+                + HelpExampleCli("getblockmerkleroots", "'[\"0100000001000000...\", ...]', '[\"0100000001000000...\", ...]'")
+                + HelpExampleRpc("getblockmerkleroots", "'[\"0100000001000000...\", ...]', '[\"0100000001000000...\", ...]'")
+        );
+    LOCK(cs_main);
+
+    int nHeight = chainActive.Height() + 1;
+    bool certSupported = ForkManager::getInstance().areSidechainsSupported(nHeight);
+
+    UniValue txsStr =  params[0].get_array();
+    std::vector<CTransaction> txs;
+
+    for (const UniValue & tx : txsStr.getValues()) {
+    	CTransaction transaction;
+        if (!DecodeHexTx(transaction, tx.get_str()))
+            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
+        txs.push_back(transaction);
+    }
+
+    UniValue certsStr =  params[1].get_array();
+    std::vector<CScCertificate> certs;
+
+    for (const UniValue & cert : certsStr.getValues()) {
+    	CScCertificate certificate;
+        if (!DecodeHexCert(certificate, cert.get_str()))
+            throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "Certificate decode failed");
+        certs.push_back(certificate);
+    }
+
+    // Create new block
+    std::unique_ptr<CBlockTemplate> pblocktemplate(new CBlockTemplate());
+    CBlock *pblock = &pblocktemplate->block; // pointer for convenience
+
+    pblock->vtx = txs;
+    pblock->vcert = certs;
+    CCoinsViewCache view(pcoinsTip);
+
+    uint256 merkleTree = pblock->BuildMerkleTree();
+    uint256 scTxsCommitment;
+    scTxsCommitment.SetNull();
+    if (certSupported) {
+        scTxsCommitment = pblock->BuildScTxsCommitment(view);
+    }
+
+    UniValue result(UniValue::VOBJ);
+    result.pushKV("merkleTree", merkleTree.ToString());
+    result.pushKV("scTxsCommitment", scTxsCommitment.ToString());
 
     return result;
 }

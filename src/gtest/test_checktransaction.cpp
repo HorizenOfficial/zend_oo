@@ -1,10 +1,13 @@
 #include <gtest/gtest.h>
-#include <gmock/gmock.h>
 #include <sodium.h>
 
 #include "main.h"
 #include "primitives/transaction.h"
 #include "consensus/validation.h"
+#include <streams.h>
+#include <clientversion.h>
+
+#include <gtest/libzendoo_test_files.h>
 
 TEST(checktransaction_tests, check_vpub_not_both_nonzero) {
     CMutableTransaction tx;
@@ -26,27 +29,9 @@ TEST(checktransaction_tests, check_vpub_not_both_nonzero) {
     }
 }
 
-class MockCValidationState : public CValidationState {
-public:
-    MOCK_METHOD5(DoS, bool(int level, bool ret,
-             unsigned char chRejectCodeIn, std::string strRejectReasonIn,
-             bool corruptionIn));
-    MOCK_METHOD3(Invalid, bool(bool ret,
-                 unsigned char _chRejectCode, std::string _strRejectReason));
-    MOCK_METHOD1(Error, bool(std::string strRejectReasonIn));
-    MOCK_CONST_METHOD0(IsValid, bool());
-    MOCK_CONST_METHOD0(IsInvalid, bool());
-    MOCK_CONST_METHOD0(IsError, bool());
-    MOCK_CONST_METHOD1(IsInvalid, bool(int &nDoSOut));
-    MOCK_CONST_METHOD0(CorruptionPossible, bool());
-    MOCK_CONST_METHOD0(GetRejectCode, unsigned char());
-    MOCK_CONST_METHOD0(GetRejectReason, std::string());
-};
-
-
 CMutableTransaction GetValidTransaction(int txVersion) {
     CMutableTransaction mtx;
-	mtx.nVersion = txVersion;
+    mtx.nVersion = txVersion;
     mtx.vin.resize(2);
     mtx.vin[0].prevout.hash = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
     mtx.vin[0].prevout.n = 0;
@@ -57,71 +42,85 @@ CMutableTransaction GetValidTransaction(int txVersion) {
 
     if (txVersion == SC_TX_VERSION)
     {     
-	    mtx.vjoinsplit.clear();
+        mtx.vjoinsplit.clear();
+
+        CTxCeasedSidechainWithdrawalInput csw_ccin;
+        csw_ccin.nValue = 2.0 * COIN;
+        csw_ccin.scId = GetRandHash();
+        std::vector<unsigned char> nullifierStr(CFieldElement::ByteSize(), 0x0);
+        GetRandBytes((unsigned char*)&nullifierStr[0], CFieldElement::ByteSize()-2);
+        csw_ccin.nullifier.SetByteArray(nullifierStr);
+        GetRandBytes((unsigned char*)&csw_ccin.pubKeyHash, csw_ccin.pubKeyHash.size());
+        std::vector<unsigned char> proofStr(CScProof::MaxByteSize(), 0x0);
+        GetRandBytes((unsigned char*)&proofStr[0], CScProof::MaxByteSize());
+        csw_ccin.scProof.SetByteArray(proofStr);
+        csw_ccin.redeemScript = CScript();
+        mtx.vcsw_ccin.push_back(csw_ccin);
 
         CTxScCreationOut cr_ccout;
-        cr_ccout.nValue = 1.0;
+        cr_ccout.nValue = 1.0 * COIN;
         cr_ccout.withdrawalEpochLength = 111;
         mtx.vsc_ccout.push_back(cr_ccout);
 
         CTxForwardTransferOut ft_ccout;
-        ft_ccout.nValue = 10.0;
+        ft_ccout.nValue = 10.0 * COIN;
         ft_ccout.scId = GetRandHash();
         mtx.vft_ccout.push_back(ft_ccout);
     }
     else
     {
-		mtx.vjoinsplit.clear();
-		mtx.vjoinsplit.push_back(JSDescription::getNewInstance(txVersion == GROTH_TX_VERSION));
-		mtx.vjoinsplit.push_back(JSDescription::getNewInstance(txVersion == GROTH_TX_VERSION));
+        mtx.vjoinsplit.clear();
+        mtx.vjoinsplit.push_back(JSDescription::getNewInstance(txVersion == GROTH_TX_VERSION));
+        mtx.vjoinsplit.push_back(JSDescription::getNewInstance(txVersion == GROTH_TX_VERSION));
     
         mtx.vjoinsplit[0].nullifiers.at(0) = uint256S("0000000000000000000000000000000000000000000000000000000000000000");
         mtx.vjoinsplit[0].nullifiers.at(1) = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
         mtx.vjoinsplit[1].nullifiers.at(0) = uint256S("0000000000000000000000000000000000000000000000000000000000000002");
         mtx.vjoinsplit[1].nullifiers.at(1) = uint256S("0000000000000000000000000000000000000000000000000000000000000003");
-    }
-    
-    // Generate an ephemeral keypair.
-    uint256 joinSplitPubKey;
-    unsigned char joinSplitPrivKey[crypto_sign_SECRETKEYBYTES];
-    crypto_sign_keypair(joinSplitPubKey.begin(), joinSplitPrivKey);
-    mtx.joinSplitPubKey = joinSplitPubKey;
 
-    // Compute the correct hSig.
-    // TODO: #966.
-    static const uint256 one(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
-    // Empty output script.
-    CScript scriptCode;
-    CTransaction signTx(mtx);
-    uint256 dataToBeSigned = SignatureHash(scriptCode, signTx, NOT_AN_INPUT, SIGHASH_ALL);
-    if (dataToBeSigned == one) {
-        throw std::runtime_error("SignatureHash failed");
+        // Generate an ephemeral keypair.
+        uint256 joinSplitPubKey;
+        unsigned char joinSplitPrivKey[crypto_sign_SECRETKEYBYTES];
+        crypto_sign_keypair(joinSplitPubKey.begin(), joinSplitPrivKey);
+        mtx.joinSplitPubKey = joinSplitPubKey;
+
+        // Compute the correct hSig.
+        // TODO: #966.
+        static const uint256 one(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
+        // Empty output script.
+        CScript scriptCode;
+        CTransaction signTx(mtx);
+        uint256 dataToBeSigned = SignatureHash(scriptCode, signTx, NOT_AN_INPUT, SIGHASH_ALL);
+        if (dataToBeSigned == one) {
+            throw std::runtime_error("SignatureHash failed");
+        }
+
+        // Add the signature
+        assert(crypto_sign_detached(&mtx.joinSplitSig[0], NULL,
+                             dataToBeSigned.begin(), 32,
+                             joinSplitPrivKey
+                            ) == 0);
     }
 
-    // Add the signature
-    assert(crypto_sign_detached(&mtx.joinSplitSig[0], NULL,
-                         dataToBeSigned.begin(), 32,
-                         joinSplitPrivKey
-                        ) == 0);
     return mtx;
 }
 
 CMutableScCertificate GetValidCertificate() {
     CMutableScCertificate mcert;
-	mcert.nVersion = SC_CERT_VERSION;
+    mcert.nVersion = SC_CERT_VERSION;
 
-    mcert.addOut(CTxOut(0.5,CScript()));
-    mcert.addOut(CTxOut(1,CScript()));
+    mcert.addOut(CTxOut(0.5 * COIN,CScript())); //CAmount is measured in zatoshi
+    mcert.addOut(CTxOut(1 * COIN,CScript()));   //CAmount is measured in zatoshi
 
     mcert.scId = GetRandHash();
     mcert.epochNumber = 3;
-    mcert.endEpochBlockHash = GetRandHash();
+    mcert.endEpochCumScTxCommTreeRoot = CFieldElement{SAMPLE_FIELD};
 
     return mcert;
 }
 
 CMutableTransaction GetValidTransaction() {
-	return GetValidTransaction(PHGR_TX_VERSION);
+    return GetValidTransaction(PHGR_TX_VERSION);
 }
 
 TEST(checktransaction_tests, valid_transparent_transaction) {
@@ -129,14 +128,24 @@ TEST(checktransaction_tests, valid_transparent_transaction) {
     mtx.vjoinsplit.resize(0);
     mtx.nVersion = 1;
     CTransaction tx(mtx);
-    MockCValidationState state;
+    CValidationState state;
     EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
+}
+
+TEST(checktransaction_tests, invalid_transparent_transaction_with_certificate_version) {
+    CMutableTransaction mtx = GetValidTransaction();
+    mtx.vjoinsplit.resize(0);
+    mtx.nVersion = SC_CERT_VERSION;
+    CTransaction tx(mtx);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
 }
 
 TEST(checktransaction_tests, valid_sprout_transaction) {
     CMutableTransaction mtx = GetValidTransaction();
     CTransaction tx(mtx);
-    MockCValidationState state;
+    CValidationState state;
     EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
 }
 
@@ -145,9 +154,13 @@ TEST(checktransaction_tests, BadVersionTooLow) {
     mtx.nVersion = 0;
 
     CTransaction tx(mtx);
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-version-too-low", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-version-too-low"));
+    EXPECT_FALSE(state.CorruptionPossible());
+
 }
 
 TEST(checktransaction_tests, bad_txns_vin_empty) {
@@ -156,9 +169,12 @@ TEST(checktransaction_tests, bad_txns_vin_empty) {
     mtx.vin.resize(0);
 
     CTransaction tx(mtx);
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(10, false, REJECT_INVALID, "bad-txns-vin-empty", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 10);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-vin-empty"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_vout_empty) {
@@ -168,9 +184,12 @@ TEST(checktransaction_tests, bad_txns_vout_empty) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(10, false, REJECT_INVALID, "bad-txns-vout-empty", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 10);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-vout-empty"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_oversize) {
@@ -198,9 +217,12 @@ TEST(checktransaction_tests, bad_txns_oversize) {
         CTransaction tx(mtx);
         ASSERT_EQ(::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION), 100202);
     
-        MockCValidationState state;
-        EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-oversize", false)).Times(1);
-        CheckTransactionWithoutProofVerification(tx, state);
+        CValidationState state;
+        EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+        EXPECT_TRUE(state.GetDoS() == 100);
+        EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+        EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-oversize"));
+        EXPECT_FALSE(state.CorruptionPossible());
     }
 }
 
@@ -210,9 +232,12 @@ TEST(checktransaction_tests, bad_txns_vout_negative) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-vout-negative", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-vout-negative"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_vout_toolarge) {
@@ -221,9 +246,12 @@ TEST(checktransaction_tests, bad_txns_vout_toolarge) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-vout-toolarge", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-vout-toolarge"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_txouttotal_toolarge_outputs) {
@@ -233,9 +261,12 @@ TEST(checktransaction_tests, bad_txns_txouttotal_toolarge_outputs) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-txouttotal-toolarge", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-txouttotal-toolarge"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_txouttotal_toolarge_joinsplit) {
@@ -245,9 +276,12 @@ TEST(checktransaction_tests, bad_txns_txouttotal_toolarge_joinsplit) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-txouttotal-toolarge", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-txouttotal-toolarge"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_txintotal_toolarge_joinsplit) {
@@ -257,9 +291,12 @@ TEST(checktransaction_tests, bad_txns_txintotal_toolarge_joinsplit) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-txintotal-toolarge", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-txintotal-toolarge"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_vpub_old_negative) {
@@ -268,9 +305,12 @@ TEST(checktransaction_tests, bad_txns_vpub_old_negative) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-vpub_old-negative", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-vpub_old-negative"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_vpub_new_negative) {
@@ -279,9 +319,12 @@ TEST(checktransaction_tests, bad_txns_vpub_new_negative) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-vpub_new-negative", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-vpub_new-negative"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_vpub_old_toolarge) {
@@ -290,9 +333,12 @@ TEST(checktransaction_tests, bad_txns_vpub_old_toolarge) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-vpub_old-toolarge", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-vpub_old-toolarge"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_vpub_new_toolarge) {
@@ -301,9 +347,11 @@ TEST(checktransaction_tests, bad_txns_vpub_new_toolarge) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-vpub_new-toolarge", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-vpub_new-toolarge"));
 }
 
 TEST(checktransaction_tests, bad_txns_vpubs_both_nonzero) {
@@ -313,9 +361,12 @@ TEST(checktransaction_tests, bad_txns_vpubs_both_nonzero) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-vpubs-both-nonzero", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-vpubs-both-nonzero"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_inputs_duplicate) {
@@ -325,9 +376,12 @@ TEST(checktransaction_tests, bad_txns_inputs_duplicate) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-inputs-duplicate", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-inputs-duplicate"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_joinsplits_nullifiers_duplicate_same_joinsplit) {
@@ -337,9 +391,12 @@ TEST(checktransaction_tests, bad_joinsplits_nullifiers_duplicate_same_joinsplit)
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-joinsplits-nullifiers-duplicate", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-joinsplits-nullifiers-duplicate"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_joinsplits_nullifiers_duplicate_different_joinsplit) {
@@ -349,9 +406,12 @@ TEST(checktransaction_tests, bad_joinsplits_nullifiers_duplicate_different_joins
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-joinsplits-nullifiers-duplicate", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-joinsplits-nullifiers-duplicate"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_cb_has_joinsplits) {
@@ -365,9 +425,12 @@ TEST(checktransaction_tests, bad_cb_has_joinsplits) {
     CTransaction tx(mtx);
     EXPECT_TRUE(tx.IsCoinBase());
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-cb-has-joinsplits", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-cb-has-joinsplits"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_cb_empty_scriptsig) {
@@ -381,9 +444,12 @@ TEST(checktransaction_tests, bad_cb_empty_scriptsig) {
     CTransaction tx(mtx);
     EXPECT_TRUE(tx.IsCoinBase());
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-cb-length", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-cb-length"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_prevout_null) {
@@ -393,9 +459,12 @@ TEST(checktransaction_tests, bad_txns_prevout_null) {
     CTransaction tx(mtx);
     EXPECT_FALSE(tx.IsCoinBase());
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(10, false, REJECT_INVALID, "bad-txns-prevout-null", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 10);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-prevout-null"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, bad_txns_invalid_joinsplit_signature) {
@@ -403,9 +472,12 @@ TEST(checktransaction_tests, bad_txns_invalid_joinsplit_signature) {
     mtx.joinSplitSig[0] += 1;
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-invalid-joinsplit-signature", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-invalid-joinsplit-signature"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, non_canonical_ed25519_signature) {
@@ -414,7 +486,7 @@ TEST(checktransaction_tests, non_canonical_ed25519_signature) {
     // Check that the signature is valid before we add L
     {
         CTransaction tx(mtx);
-        MockCValidationState state;
+        CValidationState state;
         EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
     }
 
@@ -434,80 +506,179 @@ TEST(checktransaction_tests, non_canonical_ed25519_signature) {
 
     CTransaction tx(mtx);
 
-    MockCValidationState state;
-    EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-invalid-joinsplit-signature", false)).Times(1);
-    CheckTransactionWithoutProofVerification(tx, state);
+    CValidationState state;
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-invalid-joinsplit-signature"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 // Test that a Sprout tx with a negative version number is detected
 // given the new Overwinter logic
 TEST(checktransaction_tests, SproutTxVersionTooLow) {
-	SelectParams(CBaseChainParams::REGTEST);
+    SelectParams(CBaseChainParams::REGTEST);
     CMutableTransaction mtx = GetValidTransaction();
     mtx.vjoinsplit.resize(0);
     mtx.nVersion = -1;
 
     CTransaction tx(mtx);
-    MockCValidationState state;
+    CValidationState state;
 
-	EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-version-too-low", false)).Times(1);
-	CheckTransactionWithoutProofVerification(tx, state);
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-version-too-low"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, TransparentTxVersionWithJoinsplit) {
-	SelectParams(CBaseChainParams::REGTEST);
-	CMutableTransaction mtx = GetValidTransaction(TRANSPARENT_TX_VERSION);
-	CTransaction tx(mtx);
-	MockCValidationState state;
-	EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
-	EXPECT_TRUE(tx.ContextualCheck(state, 1, 100));
-	EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-txns-transparent-jsnotempty", false)).Times(1);
-	EXPECT_FALSE(tx.ContextualCheck(state, 200, 100));
+    SelectParams(CBaseChainParams::REGTEST);
+    CMutableTransaction mtx = GetValidTransaction(TRANSPARENT_TX_VERSION);
+    CTransaction tx(mtx);
+    CValidationState state;
+    EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(tx.ContextualCheck(state, 1, 100));
+
+    EXPECT_FALSE(tx.ContextualCheck(state, 200, 100));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-transparent-jsnotempty"));
 }
 
 TEST(checktransaction_tests, GrothTxVersion) {
-	SelectParams(CBaseChainParams::REGTEST);
-	CMutableTransaction mtx = GetValidTransaction(GROTH_TX_VERSION);
-	CTransaction tx(mtx);
-	MockCValidationState state;
-	EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
-	EXPECT_CALL(state, DoS(0, false, REJECT_INVALID, "bad-tx-version-unexpected", false)).Times(1);
-	EXPECT_FALSE(tx.ContextualCheck(state, 1, 100));
-	EXPECT_TRUE(tx.ContextualCheck(state, 200, 100));
+    SelectParams(CBaseChainParams::REGTEST);
+    CMutableTransaction mtx = GetValidTransaction(GROTH_TX_VERSION);
+    CTransaction tx(mtx);
+    CValidationState state;
+    EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
+
+    EXPECT_FALSE(tx.ContextualCheck(state, 1, 100));
+    EXPECT_TRUE(state.GetDoS() == 0);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-tx-version-unexpected"));
+    EXPECT_FALSE(state.CorruptionPossible());
+
+    EXPECT_TRUE(tx.ContextualCheck(state, 200, 100));
 }
 
 TEST(checktransaction_tests, PhgrTxVersion) {
-	SelectParams(CBaseChainParams::REGTEST);
-	CMutableTransaction mtx = GetValidTransaction(PHGR_TX_VERSION);
-	CTransaction tx(mtx);
-	MockCValidationState state;
-	EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
-	EXPECT_TRUE(tx.ContextualCheck(state, 1, 100));
-	EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-tx-version-unexpected", false)).Times(1);
-	EXPECT_FALSE(tx.ContextualCheck(state, 200, 100));
+    SelectParams(CBaseChainParams::REGTEST);
+    CMutableTransaction mtx = GetValidTransaction(PHGR_TX_VERSION);
+    CTransaction tx(mtx);
+    CValidationState state;
+    EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(tx.ContextualCheck(state, 1, 100));
+
+    EXPECT_FALSE(tx.ContextualCheck(state, 200, 100));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-tx-version-unexpected"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
 TEST(checktransaction_tests, ScTxVersion) {
-	SelectParams(CBaseChainParams::REGTEST);
-	CMutableTransaction mtx = GetValidTransaction(SC_TX_VERSION);
-	mtx.vjoinsplit.clear();
+    SelectParams(CBaseChainParams::REGTEST);
+    CMutableTransaction mtx = GetValidTransaction(SC_TX_VERSION);
+    mtx.vjoinsplit.clear();
 
-	CTransaction tx(mtx);
-	MockCValidationState state;
-	EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
-	EXPECT_TRUE(tx.ContextualCheck(state, 220, 100));
-	EXPECT_CALL(state, DoS(100, false, REJECT_INVALID, "bad-tx-version-unexpected", false)).Times(1);
-	EXPECT_FALSE(tx.ContextualCheck(state, 219, 100));
+    CTransaction tx(mtx);
+    CValidationState state;
+    EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(tx.ContextualCheck(state, 420, 100));
+    EXPECT_FALSE(tx.ContextualCheck(state, 419, 100));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-tx-version-unexpected"));
+    EXPECT_FALSE(state.CorruptionPossible());
 }
 
-TEST(checktransaction_tests, ScCertVersion) {
-	SelectParams(CBaseChainParams::REGTEST);
-	CMutableScCertificate mcert = GetValidCertificate();
+TEST(checktransaction_tests, ScTxVersionWithCrosschainDataOnly) {
+    SelectParams(CBaseChainParams::REGTEST);
+    CMutableTransaction mtx = GetValidTransaction(SC_TX_VERSION);
+    mtx.vin.resize(0);
+    mtx.resizeOut(0);
 
-	CScCertificate cert(mcert);
-	CValidationState state;
-	EXPECT_TRUE(cert.ContextualCheck(state, 220, 100));
-	EXPECT_FALSE(cert.ContextualCheck(state, 219, 100));
+    CTransaction tx(mtx);
+    CValidationState state;
+    EXPECT_TRUE(CheckTransactionWithoutProofVerification(tx, state));
+}
+
+TEST(checktransaction_tests, bad_txns_txcswin_toosmall) {
+    CMutableTransaction mtx = GetValidTransaction(SC_TX_VERSION);
+    mtx.vcsw_ccin[0].nValue = -1;
+
+    CTransaction tx(mtx);
+
+    CValidationState state;
+
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-txcswin-invalid"));
+    EXPECT_FALSE(state.CorruptionPossible());
+}
+
+TEST(checktransaction_tests, bad_txns_txcswin_toolarge) {
+    CMutableTransaction mtx = GetValidTransaction(SC_TX_VERSION);
+    mtx.vcsw_ccin[0].nValue = MAX_MONEY + 1;
+
+    CTransaction tx(mtx);
+
+    CValidationState state;
+
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-txcswin-invalid"));
+    EXPECT_FALSE(state.CorruptionPossible());
+}
+
+TEST(checktransaction_tests, bad_txns_txintotal_toolarge) {
+    CMutableTransaction mtx = GetValidTransaction(SC_TX_VERSION);
+    mtx.vcsw_ccin[0].nValue = MAX_MONEY;
+    CTxCeasedSidechainWithdrawalInput csw_in;
+    csw_in.nValue = 1;
+    mtx.vcsw_ccin.push_back(csw_in);
+
+    CTransaction tx(mtx);
+
+    CValidationState state;
+
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-txintotal-toolarge"));
+    EXPECT_FALSE(state.CorruptionPossible());
+}
+
+TEST(checktransaction_tests, bad_txns_csw_inputs_duplicate) {
+    CMutableTransaction mtx = GetValidTransaction(SC_TX_VERSION);
+    CTxCeasedSidechainWithdrawalInput csw_in;
+    csw_in.nullifier = mtx.vcsw_ccin[0].nullifier;
+    csw_in.nValue = 1.0;
+    mtx.vcsw_ccin.push_back(csw_in);
+
+    CTransaction tx(mtx);
+
+    CValidationState state;
+
+    EXPECT_FALSE(CheckTransactionWithoutProofVerification(tx, state));
+    EXPECT_TRUE(state.GetDoS() == 100);
+    EXPECT_TRUE(state.GetRejectCode() == CValidationState::Code::INVALID);
+    EXPECT_TRUE(state.GetRejectReason() == std::string("bad-txns-csw-inputs-duplicate"));
+    EXPECT_FALSE(state.CorruptionPossible());
+}
+
+
+TEST(checktransaction_tests, ScCertVersion) {
+    SelectParams(CBaseChainParams::REGTEST);
+    CMutableScCertificate mcert = GetValidCertificate();
+
+    CScCertificate cert(mcert);
+    CValidationState state;
+    EXPECT_TRUE(cert.ContextualCheck(state, 420, 100));
+    EXPECT_FALSE(cert.ContextualCheck(state, 419, 100));
 }
 
 TEST(TransactionManipulation, EmptyTxTransformationToMutableIsNotReversible) {
@@ -596,7 +767,7 @@ TEST(TransactionManipulation, ExtendingTransactionOuts) {
         EXPECT_FALSE(txBwtAttempt.IsBackwardTransfer(idx))<<"Output at pos "<<idx<<"wrongly marked as bwt";
 }
 
-TEST(CertificateManipulation, EmptyCertTransformationToMutableIsNotReversible) {
+TEST(SidechainsCertificateManipulation, EmptyCertTransformationToMutableIsNotReversible) {
     // CopyCtor -> CopyCtor
     CScCertificate        EmptyOriginalCert;
     CMutableScCertificate mutByCopyCtor(EmptyOriginalCert);
@@ -628,7 +799,8 @@ TEST(CertificateManipulation, EmptyCertTransformationToMutableIsNotReversible) {
     EXPECT_TRUE(revertedTxByAssignOp.nFirstBwtPos == 0);
 }
 
-TEST(CertificateManipulation, NonEmptyCertTransformationToMutableIsReversible) {
+TEST(SidechainsCertificateManipulation, NonEmptyCertTransformationToMutableIsReversible)
+{
     //create non-empty transaction
     CMutableScCertificate helperMutCert;
     unsigned int OutNum = 10;
@@ -668,7 +840,7 @@ TEST(CertificateManipulation, NonEmptyCertTransformationToMutableIsReversible) {
         <<" revertedTxByAssignOp.GetHash() "<<revertedCertByAssignOp.GetHash().ToString();
 }
 
-TEST(CertificateManipulation, ExtendingCertificateOutsAndBwts) {
+TEST(SidechainsCertificateManipulation, ExtendingCertificateOutsAndBwts) {
     CMutableScCertificate mutCert;
     EXPECT_TRUE(mutCert.getVout().size() == 0);
 
@@ -712,7 +884,7 @@ TEST(CertificateManipulation, ExtendingCertificateOutsAndBwts) {
         EXPECT_TRUE(ExtraOutAndBwtsCert.IsBackwardTransfer(idx))<<"Output at pos "<<idx<<" wrongly marked as output";
 }
 
-TEST(CertificateManipulation, ResizingCertificateChangeOutputs) {
+TEST(SidechainsCertificateManipulation, ResizingCertificateChangeOutputs) {
     CMutableScCertificate mutCert;
     EXPECT_TRUE(mutCert.getVout().size() == 0);
 
@@ -800,4 +972,238 @@ TEST(CertificateManipulation, ResizingCertificateChangeOutputs) {
         EXPECT_FALSE(noBwtsCert.IsBackwardTransfer(idx))<<"Output at pos "<<idx<<" wrongly marked as bwt";
     for(unsigned int idx = noOutNum; idx < noOutNum + noBwtNum; ++idx)
         EXPECT_TRUE(noBwtsCert.IsBackwardTransfer(idx))<<"Output at pos "<<idx<<" wrongly marked as output";
+}
+
+extern const CBlockIndex* makeMain(int trunk_size);
+extern void CleanUpAll();
+
+TEST(checktransaction_tests, isStandardTransaction) {
+
+//    fDebug = true;
+//    fPrintToConsole = true;
+//    mapMultiArgs["-debug"].push_back("cbh");
+//    mapArgs["-debug"] = "cbh";
+
+    SelectParams(CBaseChainParams::REGTEST);
+    CMutableTransaction mtx = GetValidTransaction(TRANSPARENT_TX_VERSION);
+    mtx.resizeOut(0);
+    mtx.resizeBwt(0);
+    CScript scriptPubKey;
+
+    // a -1 value for height, minimally encoded
+    scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ToByteVector(uint160()) << OP_EQUALVERIFY << OP_CHECKSIG
+        << ToByteVector(uint256()) << -1 << OP_CHECKBLOCKATHEIGHT;
+    mtx.insertAtPos(0, CTxOut(CAmount(1),scriptPubKey));
+
+    // height and hash are swapped
+    scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ToByteVector(uint160()) << OP_EQUALVERIFY << OP_CHECKSIG
+        << 2 << ToByteVector(uint256()) << OP_CHECKBLOCKATHEIGHT;
+    mtx.insertAtPos(1, CTxOut(CAmount(1),scriptPubKey));
+
+    // an invalid op (0xFF) where height is expected
+    std::vector<unsigned char> data1(ParseHex("76a914f85d211e4175cd4b0f53284af6ddab6bbb3c5f0288ac20bf309c2d04f3fdd3cb6f4ccddb3985211d360e08e4f790c3d780d5c3f912e704ffb4"));
+    CScript bad_script1(data1.begin(), data1.end());
+    mtx.insertAtPos(2, CTxOut(CAmount(1),bad_script1));
+
+    // an unknown op (0xBA) where height is expected
+    std::vector<unsigned char> data2(ParseHex("76a914f85d211e4175cd4b0f53284af6ddab6bbb3c5f0288ac20bf309c2d04f3fdd3cb6f4ccddb3985211d360e08e4f790c3d780d5c3f912e704bab4"));
+    CScript bad_script2(data2.begin(), data2.end());
+    mtx.insertAtPos(3, CTxOut(CAmount(1),bad_script2));
+
+    // a non minimal height, caught by CScriptNum
+    std::vector<unsigned char> hnm1(ParseHex("01000000"));
+    scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ToByteVector(uint160()) << OP_EQUALVERIFY << OP_CHECKSIG
+        << ToByteVector(uint256()) << hnm1 << OP_CHECKBLOCKATHEIGHT;
+    mtx.insertAtPos(4, CTxOut(CAmount(1), scriptPubKey));
+
+    // another non minimal height
+    std::vector<unsigned char> hnm2(ParseHex("00"));
+    scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ToByteVector(uint160()) << OP_EQUALVERIFY << OP_CHECKSIG
+        << ToByteVector(uint256()) << hnm2 << OP_CHECKBLOCKATHEIGHT;
+    mtx.insertAtPos(5, CTxOut(CAmount(1), scriptPubKey));
+
+    // another non minimal height, not caught by CScriptNum but checking minimal pushing
+    std::vector<unsigned char> hnm3(ParseHex("10"));
+    scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ToByteVector(uint160()) << OP_EQUALVERIFY << OP_CHECKSIG
+        << ToByteVector(uint256()) << hnm3 << OP_CHECKBLOCKATHEIGHT;
+    mtx.insertAtPos(6, CTxOut(CAmount(1), scriptPubKey));
+
+    // minimal height, ok in both forks
+    std::vector<unsigned char> hnm4(ParseHex("11"));
+    scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ToByteVector(uint160()) << OP_EQUALVERIFY << OP_CHECKSIG
+        << ToByteVector(uint256()) << hnm4 << OP_CHECKBLOCKATHEIGHT;
+    mtx.insertAtPos(7, CTxOut(CAmount(1), scriptPubKey));
+
+    // an OP_0 op (0x00) where height is expected
+    std::vector<unsigned char> good_data(ParseHex("76a914f85d211e4175cd4b0f53284af6ddab6bbb3c5f0288ac20bf309c2d04f3fdd3cb6f4ccddb3985211d360e08e4f790c3d780d5c3f912e70400b4"));
+    CScript good_script(good_data.begin(), good_data.end());
+    mtx.insertAtPos(8, CTxOut(CAmount(1), good_script));
+
+    CTransaction tx(mtx);
+
+    // these are expected to fail in both forks
+    CMutableTransaction mtx_bad_param = GetValidTransaction(TRANSPARENT_TX_VERSION);
+    mtx_bad_param.resizeOut(0);
+    mtx_bad_param.resizeBwt(0);
+
+    // a hash representation shorter than 32 bytes
+    std::vector<unsigned char> data31NullBytes;
+    data31NullBytes.resize(31);
+    scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ToByteVector(uint160()) << OP_EQUALVERIFY << OP_CHECKSIG
+        << data31NullBytes << 19 << OP_CHECKBLOCKATHEIGHT;
+    mtx_bad_param.insertAtPos(0, CTxOut(CAmount(1), scriptPubKey));
+
+    // a hash representation longer than 32 bytes
+    std::vector<unsigned char> data33NullBytes;
+    data33NullBytes.resize(33);
+    scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ToByteVector(uint160()) << OP_EQUALVERIFY << OP_CHECKSIG
+        << data33NullBytes << 19 << OP_CHECKBLOCKATHEIGHT;
+    mtx_bad_param.insertAtPos(1, CTxOut(CAmount(1), scriptPubKey));
+
+    // a -1 height not minimally encoded, caught in different places before an after the fork
+    std::vector<unsigned char> hnm5(ParseHex("81"));
+    scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ToByteVector(uint160()) << OP_EQUALVERIFY << OP_CHECKSIG
+        << ToByteVector(uint256()) << hnm5 << OP_CHECKBLOCKATHEIGHT;
+    mtx_bad_param.insertAtPos(2, CTxOut(CAmount(1), scriptPubKey));
+
+    // a height larger than 4 bytes
+    std::vector<unsigned char> hnm6(ParseHex("aabbccddee"));
+    scriptPubKey = CScript() << OP_DUP << OP_HASH160 << ToByteVector(uint160()) << OP_EQUALVERIFY << OP_CHECKSIG
+        << ToByteVector(uint256()) << hnm6 << OP_CHECKBLOCKATHEIGHT;
+    mtx_bad_param.insertAtPos(3, CTxOut(CAmount(1), scriptPubKey));
+
+    CTransaction tx_bad_param(mtx_bad_param);
+
+    ReplayProtectionAttributes rpAttributes;
+    txnouttype whichType;
+    std::string reason;
+
+
+    // ------------------ before rp fix
+    static const int H_PRE_FORK = 220;
+    CleanUpAll();
+    makeMain(H_PRE_FORK);
+
+    // This is useful only for the tests of pre-rp-fix fork.
+    // This is for avoiding checking blockheight against blockhash in scripts, because hashes are fake
+    // in this simple test environment, and it would always make IsStandard() return false even when scripts parse ok.
+    mapArgs["-cbhsafedepth"] = "10";
+
+    EXPECT_TRUE(IsStandardTx(tx, reason, H_PRE_FORK));
+
+    EXPECT_TRUE(IsStandard(tx.GetVout()[0].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+    EXPECT_TRUE(IsStandard(tx.GetVout()[1].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+    EXPECT_TRUE(IsStandard(tx.GetVout()[2].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+    EXPECT_TRUE(IsStandard(tx.GetVout()[3].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+    EXPECT_TRUE(IsStandard(tx.GetVout()[4].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+    EXPECT_TRUE(IsStandard(tx.GetVout()[5].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+    EXPECT_TRUE(IsStandard(tx.GetVout()[6].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+    EXPECT_TRUE(IsStandard(tx.GetVout()[7].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+    EXPECT_TRUE(IsStandard(tx.GetVout()[8].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+
+    // expecting to fail before and after the fork
+    EXPECT_FALSE(IsStandardTx(tx_bad_param, reason, H_PRE_FORK));
+    EXPECT_TRUE(reason == "scriptpubkey");
+
+    EXPECT_FALSE(IsStandard(tx_bad_param.GetVout()[0].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+    EXPECT_FALSE(IsStandard(tx_bad_param.GetVout()[1].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+    EXPECT_FALSE(IsStandard(tx_bad_param.GetVout()[2].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+    EXPECT_FALSE(IsStandard(tx_bad_param.GetVout()[3].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+
+
+
+    // ------------------ after rp fix
+    static const int H_POST_FORK = 500;
+    CleanUpAll();
+    makeMain(H_POST_FORK);
+
+    EXPECT_FALSE(IsStandardTx(tx, reason, H_POST_FORK));
+    EXPECT_TRUE(reason == "scriptpubkey");
+
+    EXPECT_FALSE(IsStandard(tx.GetVout()[0].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+    EXPECT_FALSE(IsStandard(tx.GetVout()[1].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+    EXPECT_FALSE(IsStandard(tx.GetVout()[2].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+    EXPECT_FALSE(IsStandard(tx.GetVout()[3].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+
+    // non minimal height encodings are not legal anymore
+    EXPECT_FALSE(IsStandard(tx.GetVout().at(4).scriptPubKey, whichType, rpAttributes));
+    EXPECT_FALSE(IsStandard(tx.GetVout().at(5).scriptPubKey, whichType, rpAttributes));
+    EXPECT_FALSE(IsStandard(tx.GetVout().at(6).scriptPubKey, whichType, rpAttributes));
+
+    // legal height encodings
+    EXPECT_TRUE(IsStandard(tx.GetVout().at(7).scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+
+    EXPECT_TRUE(IsStandard(tx.GetVout().at(8).scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_PUBKEYHASH_REPLAY);
+
+    // expecting to fail before and after the fork
+    EXPECT_FALSE(IsStandardTx(tx_bad_param, reason, H_PRE_FORK));
+    EXPECT_TRUE(reason == "scriptpubkey");
+
+    EXPECT_FALSE(IsStandard(tx_bad_param.GetVout()[0].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+    EXPECT_FALSE(IsStandard(tx_bad_param.GetVout()[1].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+    EXPECT_FALSE(IsStandard(tx_bad_param.GetVout()[2].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+    EXPECT_FALSE(IsStandard(tx_bad_param.GetVout()[3].scriptPubKey, whichType, rpAttributes));
+    EXPECT_TRUE(whichType == TX_NONSTANDARD);
+}
+
+TEST(SidechainsCertificateCustomFields, FieldElementCertificateFieldConfig_Validation)
+{
+    FieldElementCertificateFieldConfig zeroFieldConfig{0};
+    EXPECT_FALSE(zeroFieldConfig.IsValid());
+
+    FieldElementCertificateFieldConfig positiveFieldConfig{10};
+    EXPECT_TRUE(positiveFieldConfig.IsValid());
+    // FieldElementCertificateFieldConfig::nBits is an uint8_t, testing larger values or negative ones is not possible 
+}
+
+TEST(SidechainsCertificateCustomFields, BitVectorCertificateFieldConfig_Validation)
+{
+    BitVectorCertificateFieldConfig negativeSizeBitVector_BitVectorConfig{-1, 12};
+    EXPECT_FALSE(negativeSizeBitVector_BitVectorConfig.IsValid());
+
+    BitVectorCertificateFieldConfig negativeSizeCompressed_BitVectorConfig{1, -1};
+    EXPECT_FALSE(negativeSizeCompressed_BitVectorConfig.IsValid());
+
+    BitVectorCertificateFieldConfig zeroSizeBitVector_BitVectorConfig{0, 12};
+    EXPECT_FALSE(zeroSizeBitVector_BitVectorConfig.IsValid());
+
+    BitVectorCertificateFieldConfig zeroSizeCompressed_BitVectorConfig{1, 0};
+    EXPECT_FALSE(zeroSizeCompressed_BitVectorConfig.IsValid());
+
+    BitVectorCertificateFieldConfig offSizeBitVectorConfig_1{253*8, 12};
+    EXPECT_FALSE(offSizeBitVectorConfig_1.IsValid());
+
+    BitVectorCertificateFieldConfig offSizeBitVectorConfig_2{254*7, 12};
+    EXPECT_FALSE(offSizeBitVectorConfig_2.IsValid());
+
+    BitVectorCertificateFieldConfig positiveBitVectorConfig{254*8, 12};
+    EXPECT_TRUE(positiveBitVectorConfig.IsValid());
+
+    BitVectorCertificateFieldConfig tooBigBitVector_BitVectorConfig{BitVectorCertificateFieldConfig::MAX_BIT_VECTOR_SIZE_BITS+1, 12};
+    EXPECT_FALSE(tooBigBitVector_BitVectorConfig.IsValid());
+
+    BitVectorCertificateFieldConfig tooBigCompressed_BitVectorConfig{1, BitVectorCertificateFieldConfig::MAX_COMPRESSED_SIZE_BYTES+1};
+    EXPECT_FALSE(tooBigCompressed_BitVectorConfig.IsValid());
 }

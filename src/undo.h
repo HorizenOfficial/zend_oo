@@ -83,7 +83,7 @@ public:
         str += strprintf("txout(%s)\n", txout.ToString());
         str += strprintf("        fCoinBase         = %d\n", fCoinBase);
         str += strprintf("        nHeight           = %d\n", nHeight);
-        str += strprintf("        nVersion          = %d\n", nVersion);
+        str += strprintf("        nVersion          = %x\n", nVersion);
         str += strprintf("        nFirstBwtPos      = %d\n", nFirstBwtPos);
         str += strprintf("        nBwtMaturityHeight= %d\n", nBwtMaturityHeight);
         return str;
@@ -91,40 +91,12 @@ public:
 
 };
 
-class CVoidedCertUndo {
-public:
-    std::vector<CTxInUndo> voidedOuts;;
-    uint256 voidedCertScId;
-
-    CVoidedCertUndo(): voidedOuts(),voidedCertScId() {};
-
-    ADD_SERIALIZE_METHODS;
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(voidedOuts);
-        READWRITE(voidedCertScId);
-    }
-
-    std::string ToString() const
-    {
-        std::string str;
-        str += strprintf("    voidedOuts.size %u\n", voidedOuts.size());
-        for (unsigned int i = 0; i < voidedOuts.size(); i++)
-            str += "        " + voidedOuts[i].ToString() + "\n";
-        str += strprintf("    voidedCertScId       %s\n", voidedCertScId.ToString());
-        return str;
-    }
-};
-
 /** Undo information for a CTransaction */
 class CTxUndo
 {
 public:
     std::vector<CTxInUndo> vprevout; // undo information for all txins
-    int replacedLastCertEpoch;       //for cert only, to restore ScInfo
-    uint256 replacedLastCertHash;    //for cert only, to restore ScInfo
-    CTxUndo(): vprevout(), replacedLastCertEpoch(CScCertificate::EPOCH_NOT_INITIALIZED),
-            replacedLastCertHash() {}
+    CTxUndo(): vprevout() {}
 
     size_t GetSerializeSize(int nType, int nVersion) const
     {
@@ -136,98 +108,238 @@ public:
     template<typename Stream>
     void Serialize(Stream& s, int nType, int nVersion) const
     {
-        if (replacedLastCertEpoch != CScCertificate::EPOCH_NOT_INITIALIZED) {
-            WriteCompactSize(s, certAttributesMarker);
-            ::Serialize(s, vprevout,              nType, nVersion);
-            ::Serialize(s, replacedLastCertEpoch, nType, nVersion);
-            ::Serialize(s, replacedLastCertHash,  nType, nVersion);
-        }
-        else {
-            ::Serialize(s, vprevout, nType, nVersion);
-        }
+        ::Serialize(s, vprevout, nType, nVersion);
     };
 
     template<typename Stream>
     void Unserialize(Stream& s, int nType, int nVersion)
     {
-        // reading from data stream to memory
-        vprevout.clear();
-        replacedLastCertEpoch = CScCertificate::EPOCH_NOT_INITIALIZED;
-        replacedLastCertHash.SetNull();
-
-        unsigned int nSize = ReadCompactSize(s);
-        if (nSize == certAttributesMarker)
-        {
-            ::Unserialize(s, vprevout, nType, nVersion);
-            ::Unserialize(s, replacedLastCertEpoch, nType, nVersion);
-            ::Unserialize(s, replacedLastCertHash, nType, nVersion);
-        }
-        else
-            ::AddEntriesInVector(s, vprevout, nType, nVersion, nSize);
+        ::Unserialize(s, vprevout, nType, nVersion);
     };
 
     std::string ToString() const
     {
         std::string str;
+        str += strprintf("vprevout.size %u\n", vprevout.size());
         for(const CTxInUndo& in: vprevout)
-            str += strprintf("\n[%s]", in.ToString());
+            str += strprintf("\n  [%s]\n", in.ToString());
+
         return str;
     }
-
-private:
-    static const uint16_t certAttributesMarker = 0xffff;
 };
 
-struct ScUndoData
+struct CSidechainUndoData
 {
-    CAmount appliedMaturedAmount;
-    ScUndoData(): appliedMaturedAmount(0) {}
+    uint32_t sidechainUndoDataVersion;
+    enum AvailableSections : uint8_t
+    {
+        UNDEFINED               = 0,
+        MATURED_AMOUNTS         = 1,
+        CROSS_EPOCH_CERT_DATA   = 2,
+        ANY_EPOCH_CERT_DATA     = 4,
+        SUPERSEDED_CERT_DATA    = 8,
+        CEASED_CERT_DATA        = 16
+    };
+    uint8_t contentBitMask;
 
-    ADD_SERIALIZE_METHODS;
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(appliedMaturedAmount);
+    // MATURED_AMOUNTS section
+    CAmount appliedMaturedAmount;
+
+    // CROSS_EPOCH_CERT_DATA section
+    CScCertificateView pastEpochTopQualityCertView;
+    std::list<Sidechain::ScFeeData> scFees;
+
+    // ANY_EPOCH_CERT_DATA section
+    uint256 prevTopCommittedCertHash;
+    int32_t prevTopCommittedCertReferencedEpoch;
+    int64_t prevTopCommittedCertQuality;
+    CAmount prevTopCommittedCertBwtAmount;
+    CScCertificateView lastTopQualityCertView;
+
+    // LOW_QUALITY_CERT_DATA
+    std::vector<CTxInUndo> lowQualityBwts;
+
+    // CEASED_CERTIFICATE_DATA
+    std::vector<CTxInUndo> ceasedBwts;
+
+    CSidechainUndoData(): sidechainUndoDataVersion(0), contentBitMask(AvailableSections::UNDEFINED),
+        appliedMaturedAmount(0), pastEpochTopQualityCertView(), scFees(), 
+        prevTopCommittedCertHash(), prevTopCommittedCertReferencedEpoch(CScCertificate::EPOCH_NULL),
+        prevTopCommittedCertQuality(CScCertificate::QUALITY_NULL), prevTopCommittedCertBwtAmount(0),
+        lastTopQualityCertView(), lowQualityBwts(), ceasedBwts() {}
+
+    size_t GetSerializeSize(int nType, int nVersion) const
+    {
+        unsigned int totalSize = ::GetSerializeSize(sidechainUndoDataVersion, nType, nVersion);
+        totalSize += ::GetSerializeSize(contentBitMask, nType, nVersion);
+        if (contentBitMask & AvailableSections::MATURED_AMOUNTS)
+        {
+            totalSize += ::GetSerializeSize(appliedMaturedAmount, nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::CROSS_EPOCH_CERT_DATA)
+        {
+            totalSize += ::GetSerializeSize(pastEpochTopQualityCertView, nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::ANY_EPOCH_CERT_DATA)
+        {
+            totalSize += ::GetSerializeSize(prevTopCommittedCertHash,            nType, nVersion);
+            totalSize += ::GetSerializeSize(prevTopCommittedCertReferencedEpoch, nType, nVersion);
+            totalSize += ::GetSerializeSize(prevTopCommittedCertQuality,         nType, nVersion);
+            totalSize += ::GetSerializeSize(prevTopCommittedCertBwtAmount,       nType, nVersion);
+            totalSize += ::GetSerializeSize(lastTopQualityCertView,              nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::SUPERSEDED_CERT_DATA)
+        {
+            totalSize += ::GetSerializeSize(lowQualityBwts, nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::CEASED_CERT_DATA)
+        {
+            totalSize += ::GetSerializeSize(ceasedBwts, nType, nVersion);
+        }
+        return totalSize;
+    }
+
+    template<typename Stream>
+    void Serialize(Stream& s, int nType, int nVersion) const
+    {
+        ::Serialize(s, sidechainUndoDataVersion, nType, nVersion);
+        ::Serialize(s, contentBitMask, nType, nVersion);
+        if (contentBitMask & AvailableSections::MATURED_AMOUNTS)
+        {
+            ::Serialize(s, appliedMaturedAmount, nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::CROSS_EPOCH_CERT_DATA)
+        {
+            ::Serialize(s, pastEpochTopQualityCertView, nType, nVersion);
+            ::Serialize(s, scFees,                      nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::ANY_EPOCH_CERT_DATA)
+        {
+            ::Serialize(s, prevTopCommittedCertHash,            nType, nVersion);
+            ::Serialize(s, prevTopCommittedCertReferencedEpoch, nType, nVersion);
+            ::Serialize(s, prevTopCommittedCertQuality,         nType, nVersion);
+            ::Serialize(s, prevTopCommittedCertBwtAmount,       nType, nVersion);
+            ::Serialize(s, lastTopQualityCertView,              nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::SUPERSEDED_CERT_DATA)
+        {
+            ::Serialize(s, lowQualityBwts, nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::CEASED_CERT_DATA)
+        {
+            ::Serialize(s, ceasedBwts, nType, nVersion);
+        }
+        return;
+    }
+
+    template<typename Stream>
+    void Unserialize(Stream& s, int nType, int nVersion)
+    {
+        ::Unserialize(s, sidechainUndoDataVersion, nType, nVersion);
+        ::Unserialize(s, contentBitMask, nType, nVersion);
+        if (contentBitMask & AvailableSections::MATURED_AMOUNTS)
+        {
+            ::Unserialize(s, appliedMaturedAmount, nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::CROSS_EPOCH_CERT_DATA)
+        {
+            ::Unserialize(s, pastEpochTopQualityCertView, nType, nVersion);
+            ::Unserialize(s, scFees,                      nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::ANY_EPOCH_CERT_DATA)
+        {
+            ::Unserialize(s, prevTopCommittedCertHash,            nType, nVersion);
+            ::Unserialize(s, prevTopCommittedCertReferencedEpoch, nType, nVersion);
+            ::Unserialize(s, prevTopCommittedCertQuality,         nType, nVersion);
+            ::Unserialize(s, prevTopCommittedCertBwtAmount,       nType, nVersion);
+            ::Unserialize(s, lastTopQualityCertView,              nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::SUPERSEDED_CERT_DATA)
+        {
+            ::Unserialize(s, lowQualityBwts, nType, nVersion);
+        }
+        if (contentBitMask & AvailableSections::CEASED_CERT_DATA)
+        {
+            ::Unserialize(s, ceasedBwts, nType, nVersion);
+        }
+        return;
     }
 
     std::string ToString() const
     {
-        std::string str;
-        str += strprintf("  immAmount %d.%08d\n", appliedMaturedAmount / COIN, appliedMaturedAmount % COIN);
-        return str;
+        std::string res;
+        res += strprintf("contentBitMask=%u\n", contentBitMask);
+        if (contentBitMask & AvailableSections::MATURED_AMOUNTS)
+             res += strprintf("appliedMaturedAmount=%d.%08d\n", appliedMaturedAmount / COIN, appliedMaturedAmount % COIN);
+
+        if (contentBitMask & AvailableSections::CROSS_EPOCH_CERT_DATA)
+            res += strprintf("pastEpochTopQualityCertView=%s\n", pastEpochTopQualityCertView.ToString());
+
+        if (contentBitMask & AvailableSections::ANY_EPOCH_CERT_DATA)
+        {
+            res += strprintf("prevTopCommittedCertHash=%s\n", prevTopCommittedCertHash.ToString());
+            res += strprintf("prevTopCommittedCertReferencedEpoch=%d\n", prevTopCommittedCertReferencedEpoch);
+            res += strprintf("prevTopCommittedCertQuality=%d\n", prevTopCommittedCertQuality);
+            res += strprintf("prevTopCommittedCertBwtAmount=%d.%08d\n", prevTopCommittedCertBwtAmount / COIN, prevTopCommittedCertBwtAmount % COIN);
+            res += strprintf("lastTopQualityCertView=%s\n", lastTopQualityCertView.ToString());
+        }
+
+        res += strprintf("scFees.size()=%u\n", scFees.size());
+        for(const auto& entry: scFees)
+        {
+           res += strprintf("scFtFee=%d.%08d - ", entry.forwardTxScFee / COIN, entry.forwardTxScFee % COIN);
+           res += strprintf("scMbtrFee=%d.%08d\n", entry.mbtrTxScFee / COIN, entry.mbtrTxScFee % COIN);
+        }
+
+        res += strprintf("ceasedBwts.size()=%u\n", ceasedBwts.size());
+        for(const auto& voidCertOutput: ceasedBwts)
+           res += voidCertOutput.ToString() + "\n";
+
+        res += strprintf("lowQualityBwts.size %u\n", lowQualityBwts.size());
+        for(const auto& voidCertUndo: lowQualityBwts)
+            res += voidCertUndo.ToString() + "\n";
+
+        return res;
     }
 };
+
+enum class IncludeScAttributes { ON, OFF };
 
 /** Undo information for a CBlock */
 class CBlockUndo
 {
     /** Magic number read from the value expressing the size of vtxundo vector.
      *  It is used for distinguish new version of CBlockUndo instance from old ones.
-     *  The maximum number of tx in a block is roughly MAX_BLOCK_SIZE / MIN_TX_SIZE, which is:
-     *   2M / 61bytes =~ 33K = 0x8012
+     *  The maximum number of tx+cert in a block is roughly:
+     *      BLOCK_TX_PARTITION_SIZE / MIN_TX_SIZE + (MAX_BLOCK_SIZE - BLOCK_TX_PARTITION_SIZE) / MIN_CERT_SIZE =
+     *      2M / 61bytes + 2M / 1186bytes =~ 35K = 0x8912  
      * Therefore the magic number must be a number greater than this limit. */
-    static const uint16_t _marker = 0xffff;
+    static const uint64_t _marker = 0xffff;
 
-    static_assert(_marker > (MAX_BLOCK_SIZE / MIN_TX_SIZE),
+    static_assert(_marker > (BLOCK_TX_PARTITION_SIZE / MIN_TX_SIZE + (MAX_BLOCK_SIZE - BLOCK_TX_PARTITION_SIZE) / MIN_CERT_SIZE),
         "CBlockUndo::_marker must be greater than max number of tx in a block!");
+
+    static_assert(_marker <= MAX_SERIALIZED_COMPACT_SIZE,
+        "CBlockUndo::_marker must not be greater than max value representable in a serialized compact size!");
 
     /** memory only */
     bool includesSidechainAttributes;
 
 public:
-    std::vector<CTxUndo> vtxundo; // for all txs and certs but the coinbase
+    std::vector<CTxUndo> vtxundo;
     uint256 old_tree_root;
-    std::map<uint256, ScUndoData> scUndoMap;       // key=scid, value=amount matured at block height
-    std::vector<CVoidedCertUndo>  vVoidedCertUndo; // for voided backward transfers
+    std::map<uint256, CSidechainUndoData> scUndoDatabyScId;
 
     /** create as new */
-    CBlockUndo() : includesSidechainAttributes(true) {}
+    CBlockUndo() = delete;
+    CBlockUndo(IncludeScAttributes includeSC) : includesSidechainAttributes(includeSC==IncludeScAttributes::ON) {}
 
     size_t GetSerializeSize(int nType, int nVersion) const
     {
         CSizeComputer s(nType, nVersion);
         NCONST_PTR(this)->Serialize(s, nType, nVersion);
         return s.size();
-    }   
+    }
 
     template<typename Stream>
     void Serialize(Stream& s, int nType, int nVersion) const
@@ -235,17 +347,16 @@ public:
         if (includesSidechainAttributes)
         {
             WriteCompactSize(s, _marker);
-            ::Serialize(s, (vtxundo), nType, nVersion);
-            ::Serialize(s, (old_tree_root), nType, nVersion);
-            ::Serialize(s, (scUndoMap), nType, nVersion);
-            ::Serialize(s, (vVoidedCertUndo), nType, nVersion);
+            ::Serialize(s, vtxundo, nType, nVersion);
+            ::Serialize(s, old_tree_root, nType, nVersion);
+            ::Serialize(s, scUndoDatabyScId, nType, nVersion);
         }
         else
         {
             ::Serialize(s, (vtxundo), nType, nVersion);
             ::Serialize(s, (old_tree_root), nType, nVersion);
         }
-    }   
+    }
 
     template<typename Stream>
     void Unserialize(Stream& s, int nType, int nVersion)
@@ -254,14 +365,13 @@ public:
         vtxundo.clear();
         includesSidechainAttributes = false;
 
-        unsigned int nSize = ReadCompactSize(s);
+        uint64_t nSize = ReadCompactSize(s);
         if (nSize == _marker)
         {
             // this is a new version of blockundo
             ::Unserialize(s, (vtxundo), nType, nVersion);
             ::Unserialize(s, (old_tree_root), nType, nVersion);
-            ::Unserialize(s, (scUndoMap), nType, nVersion);
-            ::Unserialize(s, (vVoidedCertUndo), nType, nVersion);
+            ::Unserialize(s, scUndoDatabyScId, nType, nVersion);
             includesSidechainAttributes = true;
         }
         else
@@ -277,15 +387,15 @@ public:
         std::string str = "\n=== CBlockUndo START ===========================================================================\n";
         str += strprintf("includesSidechainAttributes=%u (mem only)\n", includesSidechainAttributes);
         str += strprintf("vtxundo.size %u\n", vtxundo.size());
+
         for(const CTxUndo& txUndo: vtxundo)
             str += txUndo.ToString() + "\n";
-        str += strprintf("vVoidedCertUndo.size %u\n", vVoidedCertUndo.size());
-        for(const CVoidedCertUndo& voidCertUndo: vVoidedCertUndo)
-            str += voidCertUndo.ToString() + "\n";
+
         str += strprintf("old_tree_root %s\n", old_tree_root.ToString().substr(0,10));
-        str += strprintf("msc_iaundo.size %u\n", scUndoMap.size());
-        for (auto entry : scUndoMap)
+
+        for (auto entry : scUndoDatabyScId)
             str += strprintf("%s --> %s\n", entry.first.ToString().substr(0,10), entry.second.ToString());
+
         str += strprintf(" ---> obj size %u\n", GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION));
         CHashWriter hasher(SER_GETHASH, PROTOCOL_VERSION);
         hasher << *this;

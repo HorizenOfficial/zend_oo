@@ -8,7 +8,6 @@
 
 #include "amount.h"
 #include "rpc/protocol.h"
-#include "uint256.h"
 
 #include <list>
 #include <map>
@@ -22,6 +21,7 @@
 
 class AsyncRPCQueue;
 class CRPCCommand;
+class uint256;
 
 namespace RPCServer
 {
@@ -166,6 +166,7 @@ extern CAmount AmountFromValue(const UniValue& value);
 extern UniValue ValueFromAmount(const CAmount& amount);
 extern double GetDifficulty(const CBlockIndex* blockindex = NULL);
 extern double GetNetworkDifficulty(const CBlockIndex* blockindex = NULL);
+extern int64_t blocksToOvertakeTarget(const CBlockIndex* forkTip, const CBlockIndex* targetBlock);
 extern std::string HelpRequiringPassphrase();
 extern std::string HelpExampleCli(const std::string& methodname, const std::string& args);
 extern std::string HelpExampleRpc(const std::string& methodname, const std::string& args);
@@ -260,8 +261,6 @@ extern UniValue decodescript(const UniValue& params, bool fHelp);
 extern UniValue fundrawtransaction(const UniValue& params, bool fHelp);
 extern UniValue signrawtransaction(const UniValue& params, bool fHelp);
 extern UniValue sendrawtransaction(const UniValue& params, bool fHelp);
-extern UniValue signrawcertificate(const UniValue& params, bool fHelp);
-extern UniValue sendrawcertificate(const UniValue& params, bool fHelp);
 extern UniValue gettxoutproof(const UniValue& params, bool fHelp);
 extern UniValue verifytxoutproof(const UniValue& params, bool fHelp);
 
@@ -284,6 +283,7 @@ extern UniValue invalidateblock(const UniValue& params, bool fHelp);
 extern UniValue reconsiderblock(const UniValue& params, bool fHelp);
 
 extern UniValue getblocksubsidy(const UniValue& params, bool fHelp);
+extern UniValue getblockmerkleroots(const UniValue& params, bool fHelp);
 
 extern UniValue z_exportkey(const UniValue& params, bool fHelp); // in rpcdump.cpp
 extern UniValue z_importkey(const UniValue& params, bool fHelp); // in rpcdump.cpp
@@ -297,14 +297,18 @@ extern UniValue z_listreceivedbyaddress(const UniValue& params, bool fHelp); // 
 extern UniValue z_getbalance(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue z_gettotalbalance(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue z_sendmany(const UniValue& params, bool fHelp); // in rpcwallet.cpp
-extern UniValue send_certificate(const UniValue& params, bool fHelp);
-extern UniValue sc_send(const UniValue& params, bool fHelp);
+extern UniValue sc_send_certificate(const UniValue& params, bool fHelp);
+extern UniValue dep_sc_send(const UniValue& params, bool fHelp);
 extern UniValue sc_sendmany(const UniValue& params, bool fHelp); // in rpcwallet.cpp
+extern UniValue dep_sc_create(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue sc_create(const UniValue& params, bool fHelp); // in rpcwallet.cpp
-extern UniValue create_sidechain(const UniValue& params, bool fHelp); // in rpcwallet.cpp
-extern UniValue send_to_sidechain(const UniValue& params, bool fHelp); // in rpcwallet.cpp
+extern UniValue sc_send(const UniValue& params, bool fHelp); // in rpcwallet.cpp
+extern UniValue sc_request_transfer(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue getscinfo(const UniValue& params, bool fHelp); 
+extern UniValue getactivecertdatahash(const UniValue& params, bool fHelp);
+extern UniValue getceasingcumsccommtreehash(const UniValue& params, bool fHelp);
 extern UniValue getscgenesisinfo(const UniValue& params, bool fHelp); 
+extern UniValue checkcswnullifier(const UniValue& params, bool fHelp);
 extern UniValue z_shieldcoinbase(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue z_getoperationstatus(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue z_getoperationresult(const UniValue& params, bool fHelp); // in rpcwallet.cpp
@@ -317,6 +321,9 @@ extern UniValue listaddresses(const UniValue& params, bool fHelp); // in rpcwall
 
 extern UniValue dbg_log(const UniValue &params, bool fHelp); // print a line in debug.log
 extern UniValue dbg_do(const UniValue &params, bool fHelp); // does a dbg hard coded task
+
+extern UniValue getproofverifierstats(const UniValue& params, bool fHelp); // in blockchain.cpp
+extern UniValue setproofverifierlowpriorityguard(const UniValue& params, bool fHelp); // in blockchain.cpp
 
 bool StartRPC();
 void InterruptRPC();
