@@ -276,8 +276,12 @@ extern UniValue getdifficulty(const UniValue& params, bool fHelp);
 extern UniValue settxfee(const UniValue& params, bool fHelp);
 extern UniValue getmempoolinfo(const UniValue& params, bool fHelp);
 extern UniValue getrawmempool(const UniValue& params, bool fHelp);
-extern UniValue getblockhashes(const UniValue& params, bool fHelp);
+
+#ifdef ENABLE_ADDRESS_INDEXING
 //extern UniValue getblockdeltas(const UniValue& params, bool fHelp);
+extern UniValue getblockhashes(const UniValue& params, bool fHelp);
+#endif
+
 extern UniValue getblockhash(const UniValue& params, bool fHelp);
 extern UniValue getblockheader(const UniValue& params, bool fHelp);
 extern UniValue getblock(const UniValue& params, bool fHelp);

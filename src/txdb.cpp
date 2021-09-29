@@ -26,9 +26,13 @@ static const char DB_SIDECHAINS = 'i';
 static const char DB_CEASEDSCS = 'd';
 static const char DB_BLOCK_FILES = 'f';
 static const char DB_TXINDEX = 't';
+
+#ifdef ENABLE_ADDRESS_INDEXING
 static const char DB_ADDRESSINDEX = 'D';
 static const char DB_ADDRESSUNSPENTINDEX = 'u';
 static const char DB_TIMESTAMPINDEX = 'T';
+#endif
+
 static const char DB_BLOCKHASHINDEX = 'z';
 static const char DB_SPENTINDEX = 'p';
 static const char DB_BLOCK_INDEX = 'b';
@@ -445,6 +449,7 @@ bool CBlockTreeDB::WriteTxIndex(const std::vector<std::pair<uint256, CTxIndexVal
     return WriteBatch(batch);
 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
 bool CBlockTreeDB::ReadSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value) {
     return Read(make_pair(DB_SPENTINDEX, key), value);
 }
@@ -654,6 +659,7 @@ bool CBlockTreeDB::ReadTimestampBlockIndex(const uint256 &hash, unsigned int &lt
     ltimestamp = lts.ltimestamp;
     return true;
 }
+#endif
 
 bool CBlockTreeDB::WriteFlag(const std::string &name, bool fValue) {
     return Write(std::make_pair(DB_FLAG, name), fValue ? '1' : '0');

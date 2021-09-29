@@ -532,6 +532,7 @@ bool getAddressesFromParams(const UniValue& params, std::vector<std::pair<uint16
     return true;
 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
 bool heightSort(std::pair<CAddressUnspentKey, CAddressUnspentValue> a,
                 std::pair<CAddressUnspentKey, CAddressUnspentValue> b) {
     return a.second.blockHeight < b.second.blockHeight;
@@ -1098,3 +1099,4 @@ UniValue getspentinfo(const UniValue& params, bool fHelp)
 
     return obj;
 }
+#endif

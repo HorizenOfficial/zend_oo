@@ -26,10 +26,12 @@ class CTxInUndo;
 class CSidechainUndoData;
 class CScProofVerifier;
 
+#ifdef ENABLE_ADDRESS_INDEXING
 struct CAddressIndexKey;
 struct CAddressIndexValue;
 struct CAddressUnspentKey;
 struct CAddressUnspentValue;
+#endif
 
 static const int BWT_POS_UNSET = -1;
 
@@ -706,6 +708,7 @@ public:
     void NullifyBackwardTransfers(const uint256& certHash, std::vector<CTxInUndo>& nullifiedOuts);
     bool RestoreBackwardTransfers(const uint256& certHash, const std::vector<CTxInUndo>& outsToRestore);
 
+#ifdef ENABLE_ADDRESS_INDEXING
     /**
      * @brief The enumeration of allowed operations related to the indexes update.
      * When connecting a new block, a previous top quality certificate get superseded.
@@ -723,6 +726,7 @@ public:
                                         std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                         std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex,
                                         flagIndexesUpdateType updateType);
+#endif
 
     //SIDECHAINS EVENTS RELATED MEMBERS
     bool HaveSidechainEvents(int height)                            const override;
@@ -731,6 +735,7 @@ public:
     bool HandleSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo);
     bool RevertSidechainEvents(const CBlockUndo& blockUndo, int height, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo);
 
+#ifdef ENABLE_ADDRESS_INDEXING
     void HandleIndexesSidechainEvents(int height, CBlockTreeDB* pblocktree,
                                       std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                       std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex);
@@ -738,6 +743,7 @@ public:
     void RevertIndexesSidechainEvents(int height, CBlockUndo& blockUndo, CBlockTreeDB* pblocktree,
                                       std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                       std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex);
+#endif
 
     //CSW NULLIFIER PUBLIC MEMBERS
     bool HaveCswNullifier(const uint256& scId, const CFieldElement &nullifier) const override;

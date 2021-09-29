@@ -139,6 +139,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
             o.pushKV("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
             in.pushKV("scriptSig", o);
 
+#ifdef ENABLE_ADDRESS_INDEXING
             // Add address and value info if spentindex enabled
             CSpentIndexValue spentInfo;
             CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
@@ -151,6 +152,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
                     in.pushKV("address", CBitcoinAddress(CScriptID(spentInfo.addressHash)).ToString());
                 }
             }
+#endif
         }
         in.pushKV("sequence", (int64_t)txin.nSequence);
         vin.push_back(in);
@@ -174,6 +176,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
         ScriptPubKeyToJSON(txout.scriptPubKey, o, true);
         out.pushKV("scriptPubKey", o);
 
+#ifdef ENABLE_ADDRESS_INDEXING
         // Add spent information if spentindex is enabled
         CSpentIndexValue spentInfo;
         CSpentIndexKey spentKey(txid, i);
@@ -182,6 +185,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
             out.pushKV("spentIndex", (int)spentInfo.inputIndex);
             out.pushKV("spentHeight", spentInfo.blockHeight);
         }
+#endif
 
         vout.push_back(out);
     }
@@ -229,6 +233,7 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
         o.pushKV("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
         in.pushKV("scriptSig", o);
 
+#ifdef ENABLE_ADDRESS_INDEXING
         // Add address and value info if spentindex enabled
         CSpentIndexValue spentInfo;
         CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
@@ -241,6 +246,7 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
                 in.pushKV("address", CBitcoinAddress(CScriptID(spentInfo.addressHash)).ToString());
             }
         }
+#endif
 
         in.pushKV("sequence", (int64_t)txin.nSequence);
         vin.push_back(in);
@@ -257,6 +263,7 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
         ScriptPubKeyToJSON(txout.scriptPubKey, o, true);
         out.pushKV("scriptPubKey", o);
 
+#ifdef ENABLE_ADDRESS_INDEXING
         // Add spent information if spentindex is enabled
         CSpentIndexValue spentInfo;
         CSpentIndexKey spentKey(certId, i);
@@ -265,6 +272,7 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
             out.pushKV("spentIndex", (int)spentInfo.inputIndex);
             out.pushKV("spentHeight", spentInfo.blockHeight);
         }
+#endif
 
         if (cert.IsBackwardTransfer(i))
         {
@@ -342,6 +350,7 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
             o.pushKV("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
             in.pushKV("scriptSig", o);
 
+#ifdef ENABLE_ADDRESS_INDEXING
             // Add address and value info if spentindex enabled
             CSpentIndexValue spentInfo;
             CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
@@ -354,6 +363,7 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
                     in.pushKV("address", CBitcoinAddress(CScriptID(spentInfo.addressHash)).ToString());
                 }
             }
+#endif
 
         }
         in.pushKV("sequence", (int64_t)txin.nSequence);
@@ -375,6 +385,7 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
         ScriptPubKeyToJSON(txout.scriptPubKey, o, true);
         out.pushKV("scriptPubKey", o);
 
+#ifdef ENABLE_ADDRESS_INDEXING
         // Add spent information if spentindex is enabled
         CSpentIndexValue spentInfo;
         CSpentIndexKey spentKey(txid, i);
@@ -383,6 +394,7 @@ void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue&
             out.pushKV("spentIndex", (int)spentInfo.inputIndex);
             out.pushKV("spentHeight", spentInfo.blockHeight);
         }
+#endif
 
         vout.push_back(out);
     }
@@ -599,14 +611,19 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
             CertToJSON(cert, hashBlock, result);
         } else {
             CTransaction tx(dynamic_cast<const CTransaction&>(*pTxBase));
+
+#ifdef ENABLE_ADDRESS_INDEXING
             if (fAddressIndex)
             {
                 TxToJSONExpanded(tx, hashBlock, result, nHeight, nConfirmations, nBlockTime);
             }
             else
             {
+#endif
                 TxToJSON(tx, hashBlock, result);
+#ifdef ENABLE_ADDRESS_INDEXING
             }
+#endif
         }
     } catch (std::exception& e) {
         throw JSONRPCError(RPC_INTERNAL_ERROR, std::string("internal error: ") + std::string(e.what() ));

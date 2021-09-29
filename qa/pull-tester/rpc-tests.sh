@@ -63,9 +63,6 @@ testScripts=(
   'key_import_export.py'
   'nodehandling.py'
   'reindex.py'
-  'addressindex.py'
-  'timestampindex.py'
-  'spentindex.py'
   'decodescript.py'
   'disablewallet.py'
   'zcjoinsplit.py'
@@ -160,8 +157,6 @@ testScriptsExt=(
   'headers_10.py'
   'checkblockatheight.py'
   'sc_big_block.py'
-  'sc_cert_addressindex.py'  #This  works only in AddressIndexing branch
-  'sc_cert_addrmempool.py'  #This  works only in AddressIndexing branch
 );
 
 if [ "x$ENABLE_ZMQ" = "x1" ]; then
@@ -170,6 +165,14 @@ fi
 
 if [ "x$ENABLE_PROTON" = "x1" ]; then
   testScripts+=('proton_test.py')
+fi
+
+if [ "x$ENABLE_ADDRESS_INDEX" = "x1" ]; then
+  testScripts+=('addressindex.py'
+                'spentindex.py'
+                'timestampindex.py'
+                'sc_cert_addressindex.py'
+                'sc_cert_addrmempool.py')
 fi
 
 # include extended tests

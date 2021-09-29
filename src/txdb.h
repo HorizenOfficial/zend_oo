@@ -18,6 +18,8 @@
 class CBlockFileInfo;
 class CBlockIndex;
 struct CTxIndexValue;
+
+#ifdef ENABLE_ADDRESS_INDEXING
 struct CAddressUnspentKey;
 struct CAddressUnspentValue;
 struct CAddressIndexKey;
@@ -30,6 +32,8 @@ struct CTimestampBlockIndexKey;
 struct CTimestampBlockIndexValue;
 struct CSpentIndexKey;
 struct CSpentIndexValue;
+#endif
+
 class uint256;
 
 //! -dbcache default (MiB)
@@ -150,6 +154,8 @@ public:
     bool ReadFastReindexing(bool &fReindexFast);
     bool ReadTxIndex(const uint256 &txid, CTxIndexValue &val);
     bool WriteTxIndex(const std::vector<std::pair<uint256, CTxIndexValue> > &list);
+
+#ifdef ENABLE_ADDRESS_INDEXING
     bool ReadSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);
     bool UpdateSpentIndex(const std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> >&vect);
     bool UpdateAddressUnspentIndex(const std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue > >&vect);
@@ -165,6 +171,8 @@ public:
     bool ReadTimestampIndex(const unsigned int &high, const unsigned int &low, const bool fActiveOnly, std::vector<std::pair<uint256, unsigned int> > &vect);
     bool WriteTimestampBlockIndex(const CTimestampBlockIndexKey &blockhashIndex, const CTimestampBlockIndexValue &logicalts);
     bool ReadTimestampBlockIndex(const uint256 &hash, unsigned int &logicalTS);
+#endif
+
     bool WriteFlag(const std::string &name, bool fValue);
     bool ReadFlag(const std::string &name, bool &fValue);
     bool LoadBlockIndexGuts();

@@ -1098,6 +1098,7 @@ int CCoinsViewCache::GetHeight() const {return -1;}
 CValidationState::Code CCoinsViewCache::IsCertApplicableToState(const CScCertificate& cert, bool* banSenderNode) const {return CValidationState::Code::OK;}
 CValidationState::Code CCoinsViewCache::IsScTxApplicableToState(const CTransaction& tx, Sidechain::ScFeeCheckFlag scFeeCheckType, bool* banSenderNode) const { return CValidationState::Code::OK;}
 
+#ifdef ENABLE_ADDRESS_INDEXING
 void CCoinsViewCache::HandleIndexesSidechainEvents(int height, CBlockTreeDB* pblocktree,
                                                    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                                    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex)
@@ -1111,6 +1112,8 @@ void CCoinsViewCache::RevertIndexesSidechainEvents(int height, CBlockUndo& block
 {
     return;
 }
+#endif
+
 #else
 
 int CCoinsViewCache::GetHeight() const
@@ -1573,6 +1576,7 @@ CValidationState::Code CCoinsViewCache::IsScTxApplicableToState(const CTransacti
     return CValidationState::Code::OK;
 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
 void CCoinsViewCache::HandleIndexesSidechainEvents(int height, CBlockTreeDB* pblocktree,
                                                    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
                                                    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue>>& addressUnspentIndex)
@@ -1630,7 +1634,7 @@ void CCoinsViewCache::RevertIndexesSidechainEvents(int height, CBlockUndo& block
         }
     }
 }
-
+#endif
 #endif
 
 bool CCoinsViewCache::UpdateSidechain(const CScCertificate& cert, CBlockUndo& blockUndo)
@@ -1819,6 +1823,7 @@ bool CCoinsViewCache::RestoreBackwardTransfers(const uint256& certHash, const st
     return fClean;
 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
 void CCoinsViewCache::UpdateBackwardTransferIndexes(const uint256& certHash,
                                                     int certIndex,
                                                     std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
@@ -1858,6 +1863,7 @@ void CCoinsViewCache::UpdateBackwardTransferIndexes(const uint256& certHash,
         }
     }
 }
+#endif
 
 bool CCoinsViewCache::RestoreSidechain(const CScCertificate& certToRevert, const CSidechainUndoData& sidechainUndo)
 {

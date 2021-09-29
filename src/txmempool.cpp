@@ -234,6 +234,8 @@ bool CTxMemPool::addUnchecked(const uint256& hash, const CCertificateMemPoolEntr
     return true;
 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
+
 void CTxMemPool::addAddressIndex(const CTransactionBase &txBase, int64_t nTime, const CCoinsViewCache &view)
 {
     LOCK(cs);
@@ -436,6 +438,7 @@ bool CTxMemPool::removeSpentIndex(const uint256& txBaseHash)
 
     return true;
 }
+#endif
 
 std::vector<uint256> CTxMemPool::mempoolDirectDependenciesFrom(const CTransactionBase& root) const
 {
@@ -660,10 +663,13 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
 
             nTransactionsUpdated++;
             minerPolicyEstimator->removeTx(hash);
+
+#ifdef ENABLE_ADDRESS_INDEXING
             if (fAddressIndex)
                 removeAddressIndex(hash);
             if (fSpentIndex)
                 removeSpentIndex(hash);
+#endif
         } else if (mapCertificate.count(hash))
         {
             const CScCertificate& cert = mapCertificate[hash].GetCertificate();
@@ -697,6 +703,7 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
             mapCertificate.erase(hash);
             nCertificatesUpdated++;
 
+#ifdef ENABLE_ADDRESS_INDEXING
             if (fAddressIndex)
             {
                 removeAddressIndex(hash);
@@ -709,6 +716,7 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
             }
             if (fSpentIndex)
                 removeSpentIndex(hash);
+#endif
         }
     }
 }

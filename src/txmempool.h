@@ -8,8 +8,15 @@
 
 #include <list>
 
+#if defined(HAVE_CONFIG_H)
+#include "config/bitcoin-config.h"
+#endif
+
+#ifdef ENABLE_ADDRESS_INDEXING
 #include "addressindex.h"
 #include "spentindex.h"
+#endif
+
 #include "amount.h"
 #include "coins.h"
 #include "primitives/transaction.h"
@@ -165,6 +172,7 @@ private:
     uint64_t nRecentlyAddedSequence = 0;
     uint64_t nNotifiedSequence = 0;
 
+#ifdef ENABLE_ADDRESS_INDEXING
     typedef std::map<CMempoolAddressDeltaKey, CMempoolAddressDelta, CMempoolAddressDeltaKeyCompare> addressDeltaMap;
     addressDeltaMap mapAddress;
 
@@ -176,6 +184,7 @@ private:
 
     typedef std::map<uint256, std::vector<CSpentIndexKey> > mapSpentIndexInserted;
     mapSpentIndexInserted mapSpentInserted;
+#endif
 
 public:
     mutable CCriticalSection cs;
@@ -213,6 +222,7 @@ public:
     bool addUnchecked(const uint256& hash, const CTxMemPoolEntry &entry, bool fCurrentEstimate = true);
     bool addUnchecked(const uint256& hash, const CCertificateMemPoolEntry &entry, bool fCurrentEstimate = true);
 
+#ifdef ENABLE_ADDRESS_INDEXING
     void addAddressIndex(const CTransactionBase &txBase, int64_t nTime, const CCoinsViewCache &view);
     bool getAddressIndex(std::vector<std::pair<uint160, int> > &addresses,
                          std::vector<std::pair<CMempoolAddressDeltaKey, CMempoolAddressDelta> > &results);
@@ -222,6 +232,7 @@ public:
     void addSpentIndex(const CTransactionBase& txBase, const CCoinsViewCache &view);
     bool getSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);
     bool removeSpentIndex(const uint256& txBaseHash);
+#endif
 
     std::vector<uint256> mempoolDirectDependenciesFrom(const CTransactionBase& root) const;
     std::vector<uint256> mempoolDirectDependenciesOf(const CTransactionBase& root) const;

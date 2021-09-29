@@ -142,6 +142,7 @@ UniValue blockheaderToJSON(const CBlockIndex* blockindex)
     return result;
 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
 UniValue blockToDeltasJSON(const CBlock& block, const CBlockIndex* blockindex)
 {
     UniValue result(UniValue::VOBJ);
@@ -247,6 +248,7 @@ UniValue blockToDeltasJSON(const CBlock& block, const CBlockIndex* blockindex)
         result.pushKV("nextblockhash", pnext->GetBlockHash().GetHex());
     return result;
 }
+#endif
 
 UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool txDetails = false)
 {
@@ -496,6 +498,7 @@ UniValue getrawmempool(const UniValue& params, bool fHelp)
     return mempoolToJSON(fVerbose);
 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
 UniValue getblockdeltas(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
@@ -591,6 +594,7 @@ UniValue getblockhashes(const UniValue& params, bool fHelp)
 
     return result;
 }
+#endif
 
 UniValue getblockhash(const UniValue& params, bool fHelp)
 {
