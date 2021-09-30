@@ -88,6 +88,7 @@ class sc_cert_getraw(BitcoinTestFramework):
         }
 
         ret = self.nodes[1].sc_create(cmdInput)
+
         creating_tx = ret['txid']
         scid = ret['scid']
         scid_swapped = str(swap_bytes(scid))
@@ -115,8 +116,11 @@ class sc_cert_getraw(BitcoinTestFramework):
 
         # Fwd Transfer to Sc
         mark_logs("Node0 sends fwd transfer", self.nodes, DEBUG_MODE)
-        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid}]
+
+        mc_return_address = self.nodes[0].getnewaddress()
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid, 'mcReturnAddress': mc_return_address}]
         fwd_tx = self.nodes[0].sc_send(cmdInput)
+
         self.sync_all()
 
         decoded_tx_mempool = self.nodes[1].getrawtransaction(fwd_tx, 1)
@@ -137,17 +141,17 @@ class sc_cert_getraw(BitcoinTestFramework):
 
         epoch_number, epoch_cum_tree_hash = get_epoch_data(scid, self.nodes[0], EPOCH_LENGTH)
 
-        pkh_node1 = self.nodes[1].getnewaddress("", True)
-        amount_cert_1 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount}]
+        addr_node1 = self.nodes[1].getnewaddress()
+        amount_cert_1 = [{"address": addr_node1, "amount": bwt_amount}]
 
         #Create proof for WCert
         quality = 0
         proof = mcTest.create_test_proof(
-            vk_tag, scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount])
+            vk_tag, scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [addr_node1], [bwt_amount])
 
-        mark_logs("Node 0 performs a bwd transfer of {} coins to Node1 pkh".format(amount_cert_1[0]["pubkeyhash"], amount_cert_1[0]["amount"]), self.nodes, DEBUG_MODE)
+        mark_logs("Node 0 performs a bwd transfer of {} coins to Node1 address {}".format(amount_cert_1[0]["address"], amount_cert_1[0]["amount"]), self.nodes, DEBUG_MODE)
         try:
-            cert_epoch_0 = self.nodes[0].send_certificate(scid, epoch_number, quality,
+            cert_epoch_0 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             mark_logs("Certificate is {}".format(cert_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -166,7 +170,7 @@ class sc_cert_getraw(BitcoinTestFramework):
         decoded_cert_mempool_hex2 = self.nodes[1].getrawtransaction(cert_epoch_0)
         assert_equal(decoded_cert_mempool_hex, decoded_cert_mempool_hex2)
         dec = self.nodes[2].decoderawtransaction(decoded_cert_mempool_hex)
-        assert_equal(cert_epoch_0, dec['certid'])
+        assert_equal(cert_epoch_0, dec['txid'])
         assert_equal(scid, dec['cert']['scid'])
         dec2 = self.nodes[2].decoderawtransaction(decoded_cert_mempool_hex)
         assert_equal(dec2, dec)
@@ -194,7 +198,7 @@ class sc_cert_getraw(BitcoinTestFramework):
 
         nullFee = Decimal("0.0")
         try:
-            cert_epoch_1 = self.nodes[0].send_certificate(scid, epoch_number, quality,
+            cert_epoch_1 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, [], FT_SC_FEE, MBTR_SC_FEE, "*", nullFee)
             mark_logs("Certificate is {}".format(cert_epoch_1), self.nodes, DEBUG_MODE)
             self.sync_all()

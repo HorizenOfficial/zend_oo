@@ -259,8 +259,6 @@ extern UniValue decodescript(const UniValue& params, bool fHelp);
 extern UniValue fundrawtransaction(const UniValue& params, bool fHelp);
 extern UniValue signrawtransaction(const UniValue& params, bool fHelp);
 extern UniValue sendrawtransaction(const UniValue& params, bool fHelp);
-extern UniValue signrawcertificate(const UniValue& params, bool fHelp);
-extern UniValue sendrawcertificate(const UniValue& params, bool fHelp);
 extern UniValue gettxoutproof(const UniValue& params, bool fHelp);
 extern UniValue verifytxoutproof(const UniValue& params, bool fHelp);
 
@@ -297,10 +295,10 @@ extern UniValue z_listreceivedbyaddress(const UniValue& params, bool fHelp); // 
 extern UniValue z_getbalance(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue z_gettotalbalance(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue z_sendmany(const UniValue& params, bool fHelp); // in rpcwallet.cpp
-extern UniValue send_certificate(const UniValue& params, bool fHelp);
 extern UniValue sc_create(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue sc_send(const UniValue& params, bool fHelp); // in rpcwallet.cpp
-extern UniValue request_transfer_from_sidechain(const UniValue& params, bool fHelp); // in rpcwallet.cpp
+extern UniValue sc_send_certificate(const UniValue& params, bool fHelp);
+extern UniValue sc_request_transfer(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue getscinfo(const UniValue& params, bool fHelp); 
 extern UniValue getactivecertdatahash(const UniValue& params, bool fHelp);
 extern UniValue getceasingcumsccommtreehash(const UniValue& params, bool fHelp);
@@ -320,6 +318,7 @@ extern UniValue dbg_log(const UniValue &params, bool fHelp); // print a line in 
 extern UniValue dbg_do(const UniValue &params, bool fHelp); // does a dbg hard coded task
 
 extern UniValue getproofverifierstats(const UniValue& params, bool fHelp); // in blockchain.cpp
+extern UniValue setproofverifierlowpriorityguard(const UniValue& params, bool fHelp); // in blockchain.cpp
 
 bool StartRPC();
 void InterruptRPC();

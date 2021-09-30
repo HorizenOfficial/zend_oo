@@ -225,10 +225,15 @@ UniValue help(const UniValue& params, bool fHelp)
         throw runtime_error(
             "help ( \"command\" )\n"
             "\nList all commands, or get help for a specified command.\n"
+            
             "\nArguments:\n"
-            "1. \"command\"     (string, optional) The command to get help on\n"
+            "1. \"command\"   (string, optional) the command to get help on\n"
             "\nResult:\n"
-            "\"text\"     (string) The help text\n"
+            "\"text\"         (string) the help text\n"
+            
+            "\nExamples:\n"
+            + HelpExampleCli("help", "")
+            + HelpExampleRpc("help", "")
         );
 
     string strCommand;
@@ -245,7 +250,16 @@ UniValue stop(const UniValue& params, bool fHelp)
     if (fHelp || params.size() > 1)
         throw runtime_error(
             "stop\n"
-            "\nStop Zen server.");
+            "\nStop Zen server."
+            
+            "\nResult\n"
+            "Nothing if is success\n"
+            "\"Failure\": \"xxxx\"   (string) rejected reason"
+            
+            "\nExamples:\n"
+            + HelpExampleCli("stop", "")
+            + HelpExampleRpc("stop", "")
+        );
     // Shutdown will take long enough that the response should get back
     StartShutdown();
     return "Zen server stopping";
@@ -268,6 +282,7 @@ static const CRPCCommand vRPCCommands[] =
     { "control",            "getceasingcumsccommtreehash", &getceasingcumsccommtreehash, true  },
     { "control",            "getscgenesisinfo",       &getscgenesisinfo,       true  },
     { "control",            "getproofverifierstats",  &getproofverifierstats,  true  },
+    { "control",            "setproofverifierlowpriorityguard",  &setproofverifierlowpriorityguard,  true  },
 
     /* P2P networking */
     { "network",            "getnetworkinfo",         &getnetworkinfo,         true  },
@@ -328,9 +343,7 @@ static const CRPCCommand vRPCCommands[] =
     { "rawtransactions",    "decodescript",           &decodescript,           true  },
     { "rawtransactions",    "getrawtransaction",      &getrawtransaction,      true  },
     { "rawtransactions",    "sendrawtransaction",     &sendrawtransaction,     false },
-    { "rawtransactions",    "sendrawcertificate",     &sendrawcertificate,     false },
     { "rawtransactions",    "signrawtransaction",     &signrawtransaction,     false }, /* uses wallet if enabled */
-    { "rawtransactions",    "signrawcertificate",     &signrawcertificate,     false }, /* uses wallet if enabled */
 #ifdef ENABLE_WALLET
     { "rawtransactions",    "fundrawtransaction",     &fundrawtransaction,     false },
 #endif
@@ -415,11 +428,11 @@ static const CRPCCommand vRPCCommands[] =
     { "wallet",             "z_importviewingkey",     &z_importviewingkey,     true  },
     { "wallet",             "z_exportwallet",         &z_exportwallet,         true  },
     { "wallet",             "z_importwallet",         &z_importwallet,         true  },
-    { "wallet",             "send_certificate",       &send_certificate,       false },
+    { "wallet",             "sc_send_certificate",    &sc_send_certificate,    false },
     // useful for sbh wallet
-    { "wallet",             "sc_create",              &sc_create,       false },
-    { "wallet",             "sc_send",                &sc_send,      false },
-    { "wallet",             "request_transfer_from_sidechain",&request_transfer_from_sidechain,false },
+    { "wallet",             "sc_create",              &sc_create,              false },
+    { "wallet",             "sc_send",                &sc_send,                false },
+    { "wallet",             "sc_request_transfer",    &sc_request_transfer,    false },
 
     // TODO: rearrange into another category 
     { "disclosure",         "z_getpaymentdisclosure", &z_getpaymentdisclosure, true  }, 
@@ -615,7 +628,7 @@ std::string HelpExampleCli(const std::string& methodname, const std::string& arg
 std::string HelpExampleRpc(const std::string& methodname, const std::string& args)
 {
     return "> curl --user myusername --data-binary '{\"jsonrpc\": \"1.0\", \"id\":\"curltest\", "
-        "\"method\": \"" + methodname + "\", \"params\": [" + args + "] }' -H 'content-type: text/plain;' http://127.0.0.1:8232/\n";
+        "\"method\": \"" + methodname + "\", \"params\": [" + args + "] }' -H 'content-type: text/plain;' http://127.0.0.1:8231/\n";
 }
 
 void RPCRegisterTimerInterface(RPCTimerInterface *iface)

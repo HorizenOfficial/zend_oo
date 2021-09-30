@@ -10,6 +10,7 @@ from test_framework.util import assert_true, assert_false, assert_equal, initial
     mark_logs, start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, \
     disconnect_nodes, dump_sc_info, dump_sc_info_record
 from test_framework.mc_test.mc_test import *
+import pprint
 import os
 from decimal import Decimal
 import time
@@ -128,22 +129,25 @@ class sc_fwd_maturity(BitcoinTestFramework):
 
         # raw_input("Press enter to send...")
         mark_logs("\nNode 1 sends " + str(fwt_amount_1) + " coins to SC", self.nodes, DEBUG_MODE)
-        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_1, "scid": scid_1}]
+        mc_return_address = self.nodes[1].getnewaddress()
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_1, "scid": scid_1, 'mcReturnAddress': mc_return_address}]
         self.nodes[1].sc_send(cmdInput)
         self.sync_all()
 
         mark_logs("\nNode 1 sends 3 amounts to SC 1 (tot: " + str(fwt_amount_many) + ")", self.nodes, DEBUG_MODE)
+        mc_return_address = self.nodes[1].getnewaddress()
         amounts = []
-        amounts.append({"toaddress": "add1", "amount": fwt_amount_1, "scid": scid_1})
-        amounts.append({"toaddress": "add2", "amount": fwt_amount_2, "scid": scid_1})
-        amounts.append({"toaddress": "add3", "amount": fwt_amount_3, "scid": scid_1})
-        self.nodes[1].sc_send(amounts)
-        # print "tx=" + tx
+
+        amounts.append({"toaddress": "add1", "amount": fwt_amount_1, "scid": scid_1, "mcReturnAddress": mc_return_address})
+        amounts.append({"toaddress": "add2", "amount": fwt_amount_2, "scid": scid_1, "mcReturnAddress": mc_return_address})
+        amounts.append({"toaddress": "add3", "amount": fwt_amount_3, "scid": scid_1, "mcReturnAddress": mc_return_address})
+        tx = self.nodes[1].sc_send(amounts)
+
         self.sync_all()
 
         mark_logs("\nNode 1 creates SC 2,3,4, all with " + str(creation_amount) + " coins", self.nodes, DEBUG_MODE)
         amounts = []
-        amounts.append({"address": "dada", "amount": creation_amount})
+        amounts.append({"toaddress": "dada", "amount": creation_amount})
 
         cmdInput = {
             "withdrawalEpochLength": 123,
@@ -185,6 +189,12 @@ class sc_fwd_maturity(BitcoinTestFramework):
         self.nodes[0].generate(1)
         self.sync_all()
 
+        tx_details = self.nodes[1].gettransaction(tx)["details"]
+        assert_equal(1, len(tx_details))
+        assert_equal(tx_details[0]["category"], "send")
+        assert_equal(tx_details[0]["account"], "")
+        assert_equal(tx_details[0]["amount"], -fwt_amount_many)
+
         # ----------------------------------------------------------------------------
         curh = self.nodes[2].getblockcount()
         print "Current height: ", curh
@@ -207,8 +217,8 @@ class sc_fwd_maturity(BitcoinTestFramework):
 
         mark_logs("\nNode 1 sends 2 amounts to SC 2 (tot: " + str(fwt_amount_2 + fwt_amount_3) + ")", self.nodes, DEBUG_MODE)
         amounts = []
-        amounts.append({"toaddress": "add2", "amount": fwt_amount_2, "scid": scid_2})
-        amounts.append({"toaddress": "add3", "amount": fwt_amount_3, "scid": scid_2})
+        amounts.append({"toaddress": "add2", "amount": fwt_amount_2, "scid": scid_2, "mcReturnAddress": mc_return_address})
+        amounts.append({"toaddress": "add3", "amount": fwt_amount_3, "scid": scid_2, "mcReturnAddress": mc_return_address})
         self.nodes[1].sc_send(amounts)
         self.sync_all()
 

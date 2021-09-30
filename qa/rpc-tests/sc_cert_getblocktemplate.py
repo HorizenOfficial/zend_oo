@@ -85,14 +85,14 @@ class sc_cert_base(BitcoinTestFramework):
         self.sync_all()
 
         epoch_number, epoch_cum_tree_hash = get_epoch_data(scid, self.nodes[0], EPOCH_LENGTH)
-        pkh_node1 = self.nodes[1].getnewaddress("", True)
+        addr_node1 = self.nodes[1].getnewaddress()
 
         #Create proof for WCert
         quality = 10
         proof = mcTest.create_test_proof(
-            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount])
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [addr_node1], [bwt_amount])
 
-        amount_cert_1 = [{"pubkeyhash": pkh_node1, "amount": bwt_amount}]
+        amount_cert_1 = [{"address": addr_node1, "amount": bwt_amount}]
 
         cur_h = self.nodes[0].getblockcount()
         ret = self.nodes[0].getscinfo(scid, True, False)['items'][0]
@@ -132,7 +132,7 @@ class sc_cert_base(BitcoinTestFramework):
 
         mark_logs("Node 0 sends a certificate", self.nodes, DEBUG_MODE)
         try:
-            cert_epoch_0 = self.nodes[0].send_certificate(scid, epoch_number, quality, 
+            cert_epoch_0 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(len(cert_epoch_0) > 0)
         except JSONRPCException, e:
@@ -159,6 +159,13 @@ class sc_cert_base(BitcoinTestFramework):
         self.nodes[0].generate(1)
         self.sync_all()
 
+        # Generate proof before the call of `getblocktemplate`.
+        # It is a time consuming operation, so may take more than GET_BLOCK_TEMPLATE_DELAY seconds.
+        quality = quality + 1
+        proof = mcTest.create_test_proof(
+            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant,
+            [addr_node1], [bwt_amount])
+
         mark_logs("\nCall GetBlockTemplate on each node to create a new cached version", self.nodes, DEBUG_MODE)
         for i in range(0, NUMB_OF_NODES):
             self.nodes[i].getblocktemplate()
@@ -167,12 +174,8 @@ class sc_cert_base(BitcoinTestFramework):
         
         self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(), 0.1)
 
-        quality = quality + 1
-        proof = mcTest.create_test_proof(
-            "sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount])
-
         try:
-            cert_epoch_0 = self.nodes[0].send_certificate(scid, epoch_number, quality, 
+            cert_epoch_0 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(len(cert_epoch_0) > 0)
         except JSONRPCException, e:

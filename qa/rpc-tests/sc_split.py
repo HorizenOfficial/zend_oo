@@ -141,7 +141,8 @@ class ScSplitTest(BitcoinTestFramework):
 
         # Node 1 creates a FT of 4.0 coins and Node 0 generates 1 block
         mark_logs("\nNode 1 performs a fwd transfer of " + str(fwt_amount_1) + " coins ...", self.nodes, DEBUG_MODE)
-        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_1, "scid": scid}]
+        mc_return_address = self.nodes[1].getnewaddress()
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_1, "scid": scid, 'mcReturnAddress': mc_return_address}]
         txes.append(self.nodes[1].sc_send(cmdInput))
         mark_logs("tx: {}".format(txes[-1]), self.nodes, DEBUG_MODE)
 
@@ -151,7 +152,8 @@ class ScSplitTest(BitcoinTestFramework):
 
         # Node 1 creates a FT of 1.0 coin and Node 0 generates 1 block
         mark_logs("\nNode 1 performs a fwd transfer of " + str(fwt_amount_2) + " coins ...", self.nodes, DEBUG_MODE)
-        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_2, "scid": scid}]
+        mc_return_address = self.nodes[1].getnewaddress()
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_2, "scid": scid, 'mcReturnAddress': mc_return_address}]
         cmdParams = {"minconf": 0}
         txes.append(self.nodes[1].sc_send(cmdInput, cmdParams))
         mark_logs("tx: {}".format(txes[-1]), self.nodes, DEBUG_MODE)

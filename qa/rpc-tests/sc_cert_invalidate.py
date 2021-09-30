@@ -131,7 +131,8 @@ class sc_cert_invalidate(BitcoinTestFramework):
         sc_creating_height = self.nodes[0].getblockcount()
 
         mark_logs("Node 0 performs a fwd transfer of {} coins to SC...".format(fwt_amount_1), self.nodes, DEBUG_MODE)
-        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_1, "scid": scid}]
+        mc_return_address = self.nodes[0].getnewaddress()
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_1, "scid": scid, 'mcReturnAddress': mc_return_address}]
         fwd_tx = self.nodes[0].sc_send(cmdInput)
         print "fwd_tx=" + fwd_tx
         sc_txes.append(fwd_tx)
@@ -139,8 +140,8 @@ class sc_cert_invalidate(BitcoinTestFramework):
 
         self.refresh_sidechain(sc_info, scid)
 
-        pkh_node1 = self.nodes[1].getnewaddress("", True)
-        pkh_node2 = self.nodes[2].getnewaddress("", True)
+        addr_node1 = self.nodes[1].getnewaddress()
+        addr_node2 = self.nodes[2].getnewaddress()
 
         mark_logs("...3 more blocks needed for achieving sc coins maturity", self.nodes, DEBUG_MODE)
         self.refresh_sidechain(sc_info, scid)
@@ -154,13 +155,13 @@ class sc_cert_invalidate(BitcoinTestFramework):
 
         mark_logs("Node 0 performs a bwd transfer of {} coins to Node1...".format(bwt_amount_1), self.nodes, DEBUG_MODE)
         amounts = []
-        amounts.append({"pubkeyhash": pkh_node1, "amount": bwt_amount_1})
+        amounts.append({"address": addr_node1, "amount": bwt_amount_1})
 
         #Create proof for WCert
         quality = 0
-        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount_1])
+        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [addr_node1], [bwt_amount_1])
 
-        cert = self.nodes[0].send_certificate(scid, epoch_number, quality, epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
+        cert = self.nodes[0].sc_send_certificate(scid, epoch_number, quality, epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
         mark_logs("cert = {}".format(cert), self.nodes, DEBUG_MODE)
         certs.append(cert)
         self.sync_all()
@@ -168,7 +169,8 @@ class sc_cert_invalidate(BitcoinTestFramework):
         self.refresh_sidechain(sc_info, scid)
 
         mark_logs("Node 0 performs a fwd transfer of {} coins to SC...".format(fwt_amount_2), self.nodes, DEBUG_MODE)
-        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_2, "scid": scid}]
+        mc_return_address = self.nodes[0].getnewaddress()
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_2, "scid": scid, 'mcReturnAddress': mc_return_address}]
         fwd_tx = self.nodes[0].sc_send(cmdInput)
         mark_logs("fwd_tx = {}".format(fwd_tx), self.nodes, DEBUG_MODE)
         sc_txes.append(fwd_tx)
@@ -177,8 +179,11 @@ class sc_cert_invalidate(BitcoinTestFramework):
         self.refresh_sidechain(sc_info, scid)
 
         mark_logs("Node 0 performs a fwd transfer of {} coins to SC...".format(fwt_amount_3), self.nodes, DEBUG_MODE)
-        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_3, "scid": scid}]
+
+        mc_return_address = self.nodes[0].getnewaddress()
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_3, "scid": scid, 'mcReturnAddress': mc_return_address}]
         fwd_tx = self.nodes[0].sc_send(cmdInput)
+
         mark_logs("fwd_tx = {}".format(fwd_tx), self.nodes, DEBUG_MODE)
         sc_txes.append(fwd_tx)
         self.sync_all()
@@ -186,8 +191,10 @@ class sc_cert_invalidate(BitcoinTestFramework):
         self.refresh_sidechain(sc_info, scid)
 
         mark_logs("Node 0 performs a fwd transfer of {} coins to SC...".format(fwt_amount_4), self.nodes, DEBUG_MODE)
-        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_4, "scid": scid}]
+        mc_return_address = self.nodes[0].getnewaddress()
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_4, "scid": scid, 'mcReturnAddress': mc_return_address}]
         fwd_tx = self.nodes[0].sc_send(cmdInput)
+
         mark_logs("fwd_tx = {}".format(fwd_tx), self.nodes, DEBUG_MODE)
         sc_txes.append(fwd_tx)
         self.sync_all()
@@ -208,13 +215,13 @@ class sc_cert_invalidate(BitcoinTestFramework):
 
         mark_logs("Node 0 performs a bwd transfer of {} coins to Node2...".format(bwt_amount_2), self.nodes, DEBUG_MODE)
         amounts = []
-        amounts.append({"pubkeyhash": pkh_node2, "amount": bwt_amount_2})
+        amounts.append({"address": addr_node2, "amount": bwt_amount_2})
 
         #Create proof for WCert
         quality = 1
-        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node2], [bwt_amount_2])
+        proof = mcTest.create_test_proof("sc1", scid_swapped, epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [addr_node2], [bwt_amount_2])
 
-        cert = self.nodes[0].send_certificate(scid, epoch_number, quality, epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
+        cert = self.nodes[0].sc_send_certificate(scid, epoch_number, quality, epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
         mark_logs("cert = {}".format(cert), self.nodes, DEBUG_MODE)
         certs.append(cert)
         self.sync_all()

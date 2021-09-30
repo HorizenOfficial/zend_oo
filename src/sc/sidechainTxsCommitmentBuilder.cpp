@@ -148,10 +148,14 @@ bool SidechainTxsCommitmentBuilder::add_fwt(const CTxForwardTransferOut& ccout, 
     const uint256& fwt_pub_key = ccout.address;
     BufferWithSize bws_fwt_pk((unsigned char*)fwt_pub_key.begin(), fwt_pub_key.size());
 
+    const uint160& fwt_mc_return_address = ccout.mcReturnAddress;
+    BufferWithSize bws_fwt_return_address((unsigned char*)fwt_mc_return_address.begin(), fwt_mc_return_address.size());
+
     bool ret = zendoo_commitment_tree_add_fwt(const_cast<commitment_tree_t*>(_cmt),
          scid_fe,
          ccout.nValue,
          &bws_fwt_pk,
+         &bws_fwt_return_address,
          &bws_tx_hash,
          out_idx,
          &ret_code
@@ -294,8 +298,7 @@ bool SidechainTxsCommitmentBuilder::add(const CTransaction& tx)
     if (!tx.IsScVersion())
         return true;
 
-    LogPrint("sc", "%s():%d entering with comm[%s] for adding tx[%s]\n", __func__, __LINE__,
-        getCommitment().ToString(), tx.GetHash().ToString());
+    LogPrint("sc", "%s():%d adding tx[%s] to ScTxsCommitment\n", __func__, __LINE__, tx.GetHash().ToString());
 
     CctpErrorCode ret_code = CctpErrorCode::OK;
 
@@ -390,5 +393,16 @@ uint256 SidechainTxsCommitmentBuilder::getCommitment()
     CFieldElement finalTreeRoot{res};
 
     return finalTreeRoot.GetLegacyHash();
+}
+
+const uint256& SidechainTxsCommitmentBuilder::getEmptyCommitment()
+{
+    static uint256 value;
+    if (value.IsNull())
+    {
+        SidechainTxsCommitmentBuilder nullBuilder;
+        value = nullBuilder.getCommitment();
+    }
+    return value;
 }
 #endif

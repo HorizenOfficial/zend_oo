@@ -127,15 +127,15 @@ class sc_cert_ceasing(BitcoinTestFramework):
         last_cert_epochs.append(-1)
 
         # node0 create a cert_1 for funding node1 
-        pkh_node1 = self.nodes[1].getnewaddress("", True)
-        amounts = [{"pubkeyhash": pkh_node1, "amount": bwt_amount[0]}]
-        mark_logs("Node 0 sends a cert for scid_1 {} with a bwd transfer of {} coins to Node1 pkh".format(scids[0], bwt_amount[0], pkh_node1), self.nodes, DEBUG_MODE)
+        addr_node1 = self.nodes[1].getnewaddress()
+        amounts = [{"address": addr_node1, "amount": bwt_amount[0]}]
+        mark_logs("Node 0 sends a cert for scid_1 {} with a bwd transfer of {} coins to Node1 address".format(scids[0], bwt_amount[0], addr_node1), self.nodes, DEBUG_MODE)
         try:
             #Create proof for WCert
             quality = 1
-            proof = mcTest.create_test_proof("sc1", scids_swapped[0], epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [pkh_node1], [bwt_amount[0]])
+            proof = mcTest.create_test_proof("sc1", scids_swapped[0], epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [addr_node1], [bwt_amount[0]])
 
-            cert_1 = self.nodes[0].send_certificate(scids[0], epoch_number, quality,
+            cert_1 = self.nodes[0].sc_send_certificate(scids[0], epoch_number, quality,
                 epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_1), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -152,7 +152,7 @@ class sc_cert_ceasing(BitcoinTestFramework):
             quality = 1
             proof = mcTest.create_test_proof("sc2", scids_swapped[1], epoch_number, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash, constant, [], [])
 
-            cert_2 = self.nodes[0].send_certificate(scids[1], epoch_number, quality,
+            cert_2 = self.nodes[0].sc_send_certificate(scids[1], epoch_number, quality,
                 epoch_cum_tree_hash, proof, [], FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_2), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -218,7 +218,8 @@ class sc_cert_ceasing(BitcoinTestFramework):
 
         mark_logs("Node 0 tries to fwd coins to ceased sc {}...".format(scids[-1]), self.nodes, DEBUG_MODE)
         fwt_amount = Decimal("0.5")
-        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scids[-1]}]
+        mc_return_address = self.nodes[0].getnewaddress()
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scids[-1], 'mcReturnAddress': mc_return_address}]
         try:
             fwd_tx = self.nodes[0].sc_send(cmdInput)
             assert(False)

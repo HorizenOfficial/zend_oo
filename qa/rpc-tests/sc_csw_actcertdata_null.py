@@ -44,7 +44,7 @@ class CswActCertDataTest(BitcoinTestFramework):
     def run_test(self):
         '''
         Create a SC, advance 1 epoch and then let it cease.
-        Test that even if act cert data hash is null, a csw can be requested
+        Test that even if act cert data hash is null, a csw can be requested.
         Restart the network and check DB integrity.
         '''
 
@@ -116,7 +116,6 @@ class CswActCertDataTest(BitcoinTestFramework):
 
         # CSW sender MC address, in taddress and pub key hash formats
         csw_mc_address = self.nodes[0].getnewaddress()
-        pkh_mc_address = self.nodes[0].validateaddress(csw_mc_address)['pubkeyhash']
 
         sc_balance = self.nodes[0].getscinfo(scid, False, False)['items'][0]['balance']
         sc_csw_amount = (sc_balance/2)
@@ -134,8 +133,8 @@ class CswActCertDataTest(BitcoinTestFramework):
 
         scid1_swapped = swap_bytes(scid)
         sc_proof = cswMcTest.create_test_proof(
-                "sc", sc_csw_amount, str(scid1_swapped), nullifier, pkh_mc_address, ceasingCumScTxCommTree,
-                actCertData)
+                "sc", sc_csw_amount, str(scid1_swapped), nullifier, csw_mc_address, ceasingCumScTxCommTree,
+                actCertData, constant1)
         
         sc_csws = [
         {
