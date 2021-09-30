@@ -24,6 +24,8 @@ import re
 import codecs
 from authproxy import AuthServiceProxy, JSONRPCException
 
+COIN = 100000000 # 1 zec in zatoshis
+
 def p2p_port(n):
     return 11000 + n + os.getpid()%999
 def rpc_port(n):
@@ -622,7 +624,6 @@ def get_total_amount_from_listaddressgroupings(input_list):
             tot_amount += val
     return tot_amount
 
-from mininode import COIN
 def to_satoshis(decimalAmount):
     return int(round(decimalAmount * COIN))
 

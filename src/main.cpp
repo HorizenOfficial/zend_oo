@@ -2813,11 +2813,12 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                 view.RestoreBackwardTransfers(prevBlockTopQualityCertHash, blockUndo.scUndoDatabyScId.at(cert.GetScId()).lowQualityBwts);
 
 #ifdef ENABLE_ADDRESS_INDEXING
-                CTxIndexValue txIndexVal;
-                assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
-
                 // Set the lower quality BTs as top quality
-                if (fAddressIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
+                if (fAddressIndex && indexesProcessing == flagBlockProcessingType::COMPLETE)
+                {
+                    CTxIndexValue txIndexVal;
+                    assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
+
                     view.UpdateBackwardTransferIndexes(prevBlockTopQualityCertHash, txIndexVal.txIndex, addressIndex, addressUnspentIndex,
                                                        CCoinsViewCache::flagIndexesUpdateType::RESTORE_CERTIFICATE);
                 }
