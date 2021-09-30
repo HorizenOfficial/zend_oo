@@ -153,6 +153,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
                 }
             }
 #endif
+
         }
         in.pushKV("sequence", (int64_t)txin.nSequence);
         vin.push_back(in);
@@ -222,7 +223,9 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
 {
     uint256 certId = cert.GetHash();
     entry.pushKV("txid", certId.GetHex());
+    entry.pushKV("size", (int)::GetSerializeSize(cert, SER_NETWORK, PROTOCOL_VERSION));
     entry.pushKV("version", cert.nVersion);
+    entry.pushKV("locktime", (int64_t)cert.GetLockTime());
     UniValue vin(UniValue::VARR);
     BOOST_FOREACH(const CTxIn& txin, cert.GetVin()) {
         UniValue in(UniValue::VOBJ);
@@ -318,108 +321,18 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
         if (mi != mapBlockIndex.end() && (*mi).second) {
             CBlockIndex* pindex = (*mi).second;
             if (chainActive.Contains(pindex)) {
+                entry.pushKV("height", pindex->nHeight);
                 entry.pushKV("confirmations", 1 + chainActive.Height() - pindex->nHeight);
+                entry.pushKV("time", pindex->GetBlockTime());
                 entry.pushKV("blocktime", pindex->GetBlockTime());
             }
             else
             {
+                entry.pushKV("height", -1);
                 entry.pushKV("confirmations", 0);
             }
         }
     }
-}
-
-void TxToJSONExpanded(const CTransaction& tx, const uint256 hashBlock, UniValue& entry,
-                      int nHeight = 0, int nConfirmations = 0, int nBlockTime = 0)
-{
-
-    uint256 txid = tx.GetHash();
-    entry.pushKV("txid", txid.GetHex());
-    entry.pushKV("version", tx.nVersion);
-    entry.pushKV("locktime", (int64_t)tx.GetLockTime());
-    UniValue vin(UniValue::VARR);
-    BOOST_FOREACH(const CTxIn& txin, tx.GetVin()) {
-        UniValue in(UniValue::VOBJ);
-        if (tx.IsCoinBase())
-            in.pushKV("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
-        else {
-            in.pushKV("txid", txin.prevout.hash.GetHex());
-            in.pushKV("vout", (int64_t)txin.prevout.n);
-            UniValue o(UniValue::VOBJ);
-            o.pushKV("asm", txin.scriptSig.ToString());
-            o.pushKV("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
-            in.pushKV("scriptSig", o);
-
-#ifdef ENABLE_ADDRESS_INDEXING
-            // Add address and value info if spentindex enabled
-            CSpentIndexValue spentInfo;
-            CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
-            if (GetSpentIndex(spentKey, spentInfo)) {
-                in.pushKV("value", ValueFromAmount(spentInfo.satoshis));
-                in.pushKV("valueSat", spentInfo.satoshis);
-                if (spentInfo.addressType == 1) {
-                    in.pushKV("address", CBitcoinAddress(CKeyID(spentInfo.addressHash)).ToString());
-                } else if (spentInfo.addressType == 2)  {
-                    in.pushKV("address", CBitcoinAddress(CScriptID(spentInfo.addressHash)).ToString());
-                }
-            }
-#endif
-
-        }
-        in.pushKV("sequence", (int64_t)txin.nSequence);
-        vin.push_back(in);
-    }
-    entry.pushKV("vin", vin);
-
-    // add to entry obj the ceased sidechain withdrawal inputs
-    Sidechain::AddCeasedSidechainWithdrawalInputsToJSON(tx, entry);
-
-    UniValue vout(UniValue::VARR);
-    for (unsigned int i = 0; i < tx.GetVout().size(); i++) {
-        const CTxOut& txout = tx.GetVout()[i];
-        UniValue out(UniValue::VOBJ);
-        out.pushKV("value", ValueFromAmount(txout.nValue));
-        out.pushKV("valueSat", txout.nValue);
-        out.pushKV("n", (int64_t)i);
-        UniValue o(UniValue::VOBJ);
-        ScriptPubKeyToJSON(txout.scriptPubKey, o, true);
-        out.pushKV("scriptPubKey", o);
-
-#ifdef ENABLE_ADDRESS_INDEXING
-        // Add spent information if spentindex is enabled
-        CSpentIndexValue spentInfo;
-        CSpentIndexKey spentKey(txid, i);
-        if (GetSpentIndex(spentKey, spentInfo)) {
-            out.pushKV("spentTxId", spentInfo.txid.GetHex());
-            out.pushKV("spentIndex", (int)spentInfo.inputIndex);
-            out.pushKV("spentHeight", spentInfo.blockHeight);
-        }
-#endif
-
-        vout.push_back(out);
-    }
-    entry.pushKV("vout", vout);
-
-    // add to entry obj the cross chain outputs
-    Sidechain::AddSidechainOutsToJSON(tx, entry);
-
-    UniValue vjoinsplit = TxJoinSplitToJSON(tx);
-    entry.pushKV("vjoinsplit", vjoinsplit);
-
-    if (!hashBlock.IsNull()) {
-        entry.pushKV("blockhash", hashBlock.GetHex());
-
-        if (nConfirmations > 0) {
-            entry.pushKV("height", nHeight);
-            entry.pushKV("confirmations", nConfirmations);
-            entry.pushKV("time", nBlockTime);
-            entry.pushKV("blocktime", nBlockTime);
-        } else {
-            entry.pushKV("height", -1);
-            entry.pushKV("confirmations", 0);
-        }
-    }
-
 }
 
 UniValue getrawtransaction(const UniValue& params, bool fHelp)
@@ -573,28 +486,11 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
     std::unique_ptr<CTransactionBase> pTxBase;
     
     uint256 hashBlock{};
-    int nHeight = 0;
-    int nConfirmations = 0;
-    int nBlockTime = 0;
 
     {
         LOCK(cs_main);
         if (!GetTxBaseObj(hash, pTxBase, hashBlock, true) || !pTxBase)
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
-
-        BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
-        if (mi != mapBlockIndex.end() && (*mi).second) {
-            CBlockIndex* pindex = (*mi).second;
-            if (chainActive.Contains(pindex)) {
-                nHeight = pindex->nHeight;
-                nConfirmations = 1 + chainActive.Height() - pindex->nHeight;
-                nBlockTime = pindex->GetBlockTime();
-            } else {
-                nHeight = -1;
-                nConfirmations = 0;
-                nBlockTime = pindex->GetBlockTime();
-            }
-        }
     }
 
     std::string strHex = EncodeHex(pTxBase);
@@ -607,23 +503,10 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
     try {
         if (pTxBase->IsCertificate()) {
             CScCertificate cert(dynamic_cast<const CScCertificate&>(*pTxBase));
-            // TODO call the expanded Json API if the case
             CertToJSON(cert, hashBlock, result);
         } else {
             CTransaction tx(dynamic_cast<const CTransaction&>(*pTxBase));
-
-#ifdef ENABLE_ADDRESS_INDEXING
-            if (fAddressIndex)
-            {
-                TxToJSONExpanded(tx, hashBlock, result, nHeight, nConfirmations, nBlockTime);
-            }
-            else
-            {
-#endif
-                TxToJSON(tx, hashBlock, result);
-#ifdef ENABLE_ADDRESS_INDEXING
-            }
-#endif
+            TxToJSON(tx, hashBlock, result);
         }
     } catch (std::exception& e) {
         throw JSONRPCError(RPC_INTERNAL_ERROR, std::string("internal error: ") + std::string(e.what() ));
