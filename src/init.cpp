@@ -1621,6 +1621,20 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     break;
                 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
+                // Check for changed -addressindex state
+                if (fAddressIndex != GetBoolArg("-addressindex", false)) {
+                    strLoadError = _("You need to rebuild the database using -reindex to change -addressindex");
+                    break;
+                }
+
+                // Check that -txindex is enabled when -addressindex is enabled
+                if (fAddressIndex && !fTxIndex) {
+                    strLoadError = _("You need to enable -txindex in order to use -addressindex");
+                    break;
+                }
+#endif
+
                 // Check for changed -prune state.  What we are concerned about is a user who has pruned blocks
                 // in the past, but is now trying to run unpruned.
                 if (fHavePruned && !fPruneMode) {
