@@ -145,7 +145,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
             CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
             if (GetSpentIndex(spentKey, spentInfo)) {
                 in.pushKV("value", ValueFromAmount(spentInfo.satoshis));
-                in.pushKV("valueSat", spentInfo.satoshis);
+                in.pushKV("valueZat", spentInfo.satoshis);
                 if (spentInfo.addressType == 1) {
                     in.pushKV("address", CBitcoinAddress(CKeyID(spentInfo.addressHash)).ToString());
                 } else if (spentInfo.addressType == 2)  {
@@ -171,7 +171,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
         const CTxOut& txout = tx.GetVout()[i];
         UniValue out(UniValue::VOBJ);
         out.pushKV("value", ValueFromAmount(txout.nValue));
-        out.pushKV("valueSat", txout.nValue);
+        out.pushKV("valueZat", txout.nValue);
         out.pushKV("n", (int64_t)i);
         UniValue o(UniValue::VOBJ);
         ScriptPubKeyToJSON(txout.scriptPubKey, o, true);
@@ -242,7 +242,7 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
         CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
         if (GetSpentIndex(spentKey, spentInfo)) {
             in.pushKV("value", ValueFromAmount(spentInfo.satoshis));
-            in.pushKV("valueSat", spentInfo.satoshis);
+            in.pushKV("valueZat", spentInfo.satoshis);
             if (spentInfo.addressType == 1) {
                 in.pushKV("address", CBitcoinAddress(CKeyID(spentInfo.addressHash)).ToString());
             } else if (spentInfo.addressType == 2)  {
