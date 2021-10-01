@@ -1019,8 +1019,6 @@ echo "  with test     = $use_tests"
 echo "  debug enabled = $enable_debug"
 echo "  werror        = $enable_werror"
 echo "  addr index    = $enable_address_indexing"
-echo "  [addr index]  = $ENABLE_ADDRESS_INDEXING"
-echo "  [WALLET]      = $(ENABLE_WALLET)"
 echo 
 echo "  target os     = $TARGET_OS"
 echo "  build os      = $BUILD_OS"
