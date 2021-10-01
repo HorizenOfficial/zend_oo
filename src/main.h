@@ -110,10 +110,12 @@ static const int MAX_BLOCK_AGE_FOR_FINALITY = 2000;
 static const bool DEFAULT_ADDRESSINDEX = false;
 static const bool DEFAULT_TIMESTAMPINDEX = false;
 static const bool DEFAULT_SPENTINDEX = false;
-#endif
-
 static const unsigned int DEFAULT_DB_MAX_OPEN_FILES = 1000;
 static const bool DEFAULT_DB_COMPRESSION = true;
+#else
+static const unsigned int DEFAULT_DB_MAX_OPEN_FILES = 64;
+static const bool DEFAULT_DB_COMPRESSION = false;
+#endif
 
 // Sanity check the magic numbers when we change them
 BOOST_STATIC_ASSERT(DEFAULT_BLOCK_MAX_SIZE <= MAX_BLOCK_SIZE);

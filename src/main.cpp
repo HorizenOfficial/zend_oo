@@ -2965,10 +2965,9 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                     fClean = false;
                 }
 
-
+#ifdef ENABLE_ADDRESS_INDEXING
                 const CTxIn input = tx.GetVin()[j];
 
-#ifdef ENABLE_ADDRESS_INDEXING
                 if (fAddressIndex && indexesProcessing == flagBlockProcessingType::COMPLETE) {
                     const CTxOut &prevout = view.GetOutputFor(tx.GetVin()[j]);
 
