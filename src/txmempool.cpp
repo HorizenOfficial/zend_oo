@@ -680,10 +680,6 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
 
             const uint256& scid = cert.GetScId();
 
-            // are we removing a top-quality cert?
-            const uint256& topQualHash = mapSidechains.at(scid).GetTopQualityCert()->second;
-            bool isTopQualityCert = (topQualHash == hash);
-
             // remove certificate hash from list
             LogPrint("mempool", "%s():%d - removing cert [%s] from mapSidechain[%s]\n",
                 __func__, __LINE__, hash.ToString(), scid.ToString());
@@ -706,7 +702,12 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
 #ifdef ENABLE_ADDRESS_INDEXING
             if (fAddressIndex)
             {
+                // are we removing a top-quality cert?
+                const uint256& topQualHash = mapSidechains.at(scid).GetTopQualityCert()->second;
+                bool isTopQualityCert = (topQualHash == hash);
+
                 removeAddressIndex(hash);
+                
                 if (isTopQualityCert)
                 {
                     // we have removed a top quality cert, if another one is promoted to be the next top quality, we have to
