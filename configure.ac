@@ -187,6 +187,7 @@ AC_ARG_ENABLE([werror],
     [enable_werror=no])
 
 # Enable AddressIndexing (typically for usage with Explorer)
+# Note that this flag enables 3 indexes: AddressIndex/AddressUnspentIndex, SpentIndex and TimestampBlockIndex
 AC_ARG_ENABLE([address-indexing],
     [AS_HELP_STRING([--enable-address-indexing])],
     [enable_address_indexing=$enableval],
