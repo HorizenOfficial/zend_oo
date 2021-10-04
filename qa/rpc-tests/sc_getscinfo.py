@@ -291,7 +291,7 @@ class sc_getscinfo(BitcoinTestFramework):
 
         try:
             cert_1_epoch_0 = self.nodes[0].sc_send_certificate(scid_0, epoch_number_1, quality,
-                epoch_cum_tree_hash_1, proof, amount_cert, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
+                epoch_cum_tree_hash_1, proof, amount_cert, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             assert(len(cert_1_epoch_0) > 0)
             mark_logs("Certificate is {}".format(cert_1_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:

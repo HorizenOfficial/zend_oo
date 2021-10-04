@@ -135,7 +135,7 @@ class sc_cert_bwt_amount_rounding(BitcoinTestFramework):
         
         try:
             cert = self.nodes[0].sc_send_certificate(scid, epoch_number, q,
-                epoch_cum_tree_hash, proof, bwt_cert, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
+                epoch_cum_tree_hash, proof, bwt_cert, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
         except JSONRPCException, e:
             errorString = e.error['message']
             print "Send certificate failed with reason {}".format(errorString)

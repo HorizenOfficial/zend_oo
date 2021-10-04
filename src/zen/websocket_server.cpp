@@ -898,9 +898,6 @@ private:
                     }
                 }
 
-                // Push the default value for fromAddress param.
-                cmdParams.push_back("*");
-
                 const UniValue& feeVal = find_value(reqPayload, "fee");
 
                 // can be null, it is optional. The default is set in the cmd

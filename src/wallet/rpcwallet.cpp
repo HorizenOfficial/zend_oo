@@ -5151,13 +5151,12 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
             "     }, ... ]\n"
             " 7. forwardTransferScFee            (numeric, required) The amount of fee due to sidechain actors when creating a FT\n"
             " 8. mainchainBackwardTransferScFee  (numeric, required) The amount of fee due to sidechain actors when creating a MBTR\n"
-            " 9. fromAddress                     (string, required) The address UTXO will be taken from\n"
-            "10. fee                             (numeric, optional, default=" + strprintf("%s", FormatMoney(SC_RPC_OPERATION_DEFAULT_MINERS_FEE)) + ") The fee of the certificate in ZEN\n"
-            "11. vFieldElementCertificateField   (array, optional) An array of byte strings...TODO add description\n"
+            " 9. fee                             (numeric, optional, default=" + strprintf("%s", FormatMoney(SC_RPC_OPERATION_DEFAULT_MINERS_FEE)) + ") The fee of the certificate in ZEN\n"
+            "10. vFieldElementCertificateField   (array, optional) An array of byte strings...TODO add description\n"
             "    [\n"                     
             "      \"fieldElement\"             (string, required) The HEX string representing a generic field element\n"
             "    , ... ]\n"
-            "12. vBitVectorCertificateField      (array, optional) An array of byte strings...TODO add description\n"
+            "11. vBitVectorCertificateField      (array, optional) An array of byte strings...TODO add description\n"
             "    [\n"                     
             "      \"fieldElement\"             (string, required) The HEX string representing a generic field element\n"
             "    , ... ]\n"
@@ -5344,21 +5343,12 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
     }
 
     //--------------------------------------------------------------------------
-    CBitcoinAddress fromaddress;
-    inputString = params[8].get_str();
-    if (inputString != "*") {
-        fromaddress = CBitcoinAddress(inputString);
-
-        if (!fromaddress.IsValid())
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Zen address(coin to ta from)");
-    }
-    //--------------------------------------------------------------------------
     // fee, default to a small amount
     CAmount nCertFee = SC_RPC_OPERATION_DEFAULT_MINERS_FEE;
-    if (params.size() > 9)
+    if (params.size() > 8)
     {
         try {
-            nCertFee = AmountFromValue(params[9]);
+            nCertFee = AmountFromValue(params[8]);
         } catch (const UniValue& error) {
             UniValue errMsg  = find_value(error, "message");
             throw JSONRPCError(RPC_TYPE_ERROR, ("Invalid fee param:" + errMsg.getValStr() ));
@@ -5374,9 +5364,9 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
     const auto & vFieldElementCertificateFieldConfig = sidechain.fixedParams.vFieldElementCertificateFieldConfig;
     std::vector<FieldElementCertificateField> vFieldElementCertificateField;
     UniValue feArray(UniValue::VARR);
-    if (params.size() > 10)
+    if (params.size() > 9)
     {
-        feArray = params[10].get_array();
+        feArray = params[9].get_array();
         
         if (vFieldElementCertificateFieldConfig.size() != feArray.size())
         {
@@ -5420,9 +5410,9 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
     const auto & vBitVectorCertificateFieldConfig = sidechain.fixedParams.vBitVectorCertificateFieldConfig;
     std::vector<BitVectorCertificateField> vBitVectorCertificateField;
     UniValue cmtArray(UniValue::VARR);
-    if (params.size() > 11)
+    if (params.size() > 10)
     {
-        cmtArray = params[11].get_array();
+        cmtArray = params[10].get_array();
 
         if (cmtArray.size() != vBitVectorCertificateFieldConfig.size() )
         {
@@ -5464,6 +5454,7 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
     std::string strFailReason;
 
     // optional parameters (TODO to be handled since they will be probabl useful to SBH wallet)
+    CBitcoinAddress fromaddress;
     CBitcoinAddress changeaddress;
     
     // allow use of unconfirmed coins

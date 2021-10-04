@@ -132,8 +132,8 @@ class sc_cert_base(BitcoinTestFramework):
 
         mark_logs("Node 0 sends a certificate", self.nodes, DEBUG_MODE)
         try:
-            cert_epoch_0 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
+            cert_epoch_0 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality, 
+                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             assert(len(cert_epoch_0) > 0)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -175,8 +175,8 @@ class sc_cert_base(BitcoinTestFramework):
         self.nodes[0].sendtoaddress(self.nodes[2].getnewaddress(), 0.1)
 
         try:
-            cert_epoch_0 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
+            cert_epoch_0 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality, 
+                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             assert(len(cert_epoch_0) > 0)
         except JSONRPCException, e:
             errorString = e.error['message']

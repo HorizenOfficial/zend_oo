@@ -137,7 +137,7 @@ class sc_proof_verifier_low_priority_threads(BitcoinTestFramework):
         mark_logs("Node sends a certificate while CZendooLowPrioThreadGuard is enabled...", self.nodes, DEBUG_MODE)
         try:
             self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
+                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
             assert(False)
         except Exception as e:
             errorString = e.message
@@ -157,7 +157,7 @@ class sc_proof_verifier_low_priority_threads(BitcoinTestFramework):
         try:
             cert_epoch_0 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                                                           epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE,
-                                                          MBTR_SC_FEE, "*", CERT_FEE)
+                                                          MBTR_SC_FEE, CERT_FEE)
             assert (len(cert_epoch_0) > 0)
             mark_logs("Certificate is {}".format(cert_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
