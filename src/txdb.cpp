@@ -31,12 +31,11 @@ static const char DB_TXINDEX = 't';
 static const char DB_ADDRESSINDEX = 'D';
 static const char DB_ADDRESSUNSPENTINDEX = 'u';
 static const char DB_TIMESTAMPINDEX = 'T';
-#endif // ENABLE_ADDRESS_INDEXING
-
 static const char DB_BLOCKHASHINDEX = 'z';
 static const char DB_SPENTINDEX = 'p';
-static const char DB_BLOCK_INDEX = 'b';
+#endif // ENABLE_ADDRESS_INDEXING
 
+static const char DB_BLOCK_INDEX = 'b';
 static const char DB_BEST_BLOCK = 'B';
 static const char DB_BEST_ANCHOR = 'a';
 static const char DB_FLAG = 'F';
