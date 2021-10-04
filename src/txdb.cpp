@@ -660,13 +660,14 @@ bool CBlockTreeDB::ReadTimestampBlockIndex(const uint256 &hash, unsigned int &lt
 }
 
 bool CBlockTreeDB::blockOnchainActive(const uint256 &hash) {
-    CBlockIndex* pblockindex = mapBlockIndex[hash];
+    BlockMap::iterator mi = mapBlockIndex.find(hash);
 
-    if (!chainActive.Contains(pblockindex)) {
-	return false;
+    if (mi != mapBlockIndex.end() && chainActive.Contains(mi->second))
+    {
+        return true;
     }
 
-    return true;
+    return false;
 }
 #endif // ENABLE_ADDRESS_INDEXING
 
