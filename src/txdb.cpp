@@ -31,7 +31,7 @@ static const char DB_TXINDEX = 't';
 static const char DB_ADDRESSINDEX = 'D';
 static const char DB_ADDRESSUNSPENTINDEX = 'u';
 static const char DB_TIMESTAMPINDEX = 'T';
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 static const char DB_BLOCKHASHINDEX = 'z';
 static const char DB_SPENTINDEX = 'p';
@@ -659,7 +659,7 @@ bool CBlockTreeDB::ReadTimestampBlockIndex(const uint256 &hash, unsigned int &lt
     ltimestamp = lts.ltimestamp;
     return true;
 }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 bool CBlockTreeDB::WriteFlag(const std::string &name, bool fValue) {
     return Write(std::make_pair(DB_FLAG, name), fValue ? '1' : '0');

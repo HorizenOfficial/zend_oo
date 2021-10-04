@@ -125,7 +125,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "getaddressutxos", 0},
     { "getaddressutxos", 1},
     { "getaddressmempool", 0},
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
     { "zcrawjoinsplit", 1 },
     { "zcrawjoinsplit", 2 },

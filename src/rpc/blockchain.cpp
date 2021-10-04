@@ -248,7 +248,7 @@ UniValue blockToDeltasJSON(const CBlock& block, const CBlockIndex* blockindex)
         result.pushKV("nextblockhash", pnext->GetBlockHash().GetHex());
     return result;
 }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool txDetails = false)
 {
@@ -594,7 +594,7 @@ UniValue getblockhashes(const UniValue& params, bool fHelp)
 
     return result;
 }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 UniValue getblockhash(const UniValue& params, bool fHelp)
 {

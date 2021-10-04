@@ -1099,4 +1099,4 @@ UniValue getspentinfo(const UniValue& params, bool fHelp)
 
     return obj;
 }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING

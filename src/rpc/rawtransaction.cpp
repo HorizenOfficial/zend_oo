@@ -152,7 +152,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
                     in.pushKV("address", CBitcoinAddress(CScriptID(spentInfo.addressHash)).ToString());
                 }
             }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
         }
         in.pushKV("sequence", (int64_t)txin.nSequence);
@@ -186,7 +186,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
             out.pushKV("spentIndex", (int)spentInfo.inputIndex);
             out.pushKV("spentHeight", spentInfo.blockHeight);
         }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
         vout.push_back(out);
     }
@@ -249,7 +249,7 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
                 in.pushKV("address", CBitcoinAddress(CScriptID(spentInfo.addressHash)).ToString());
             }
         }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
         in.pushKV("sequence", (int64_t)txin.nSequence);
         vin.push_back(in);
@@ -275,7 +275,7 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
             out.pushKV("spentIndex", (int)spentInfo.inputIndex);
             out.pushKV("spentHeight", spentInfo.blockHeight);
         }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
         if (cert.IsBackwardTransfer(i))
         {

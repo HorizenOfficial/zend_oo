@@ -23,7 +23,7 @@
 const std::string CLIENT_NAME("zenai");
 #else
 const std::string CLIENT_NAME("zen");
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 /**
  * Client version number

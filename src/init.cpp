@@ -381,7 +381,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-addressindex", strprintf(_("Maintain a full address index, used to query for the balance, txids and unspent outputs for addresses (default: %u)"), DEFAULT_ADDRESSINDEX));
     strUsage += HelpMessageOpt("-timestampindex", strprintf(_("Maintain a timestamp index for block hashes, used to query blocks hashes by a range of timestamps (default: %u)"), DEFAULT_TIMESTAMPINDEX));
     strUsage += HelpMessageOpt("-spentindex", strprintf(_("Maintain a full spent index, used to query the spending txid and input index for an outpoint (default: %u)"), DEFAULT_SPENTINDEX));
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
     strUsage += HelpMessageGroup(_("Connection options:"));
     strUsage += HelpMessageOpt("-addnode=<ip>", _("Add a node to connect to and attempt to keep the connection open"));
@@ -1548,14 +1548,14 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         // enable 3/4 of the cache if addressindex and/or spentindex is enabled
         nBlockTreeDBCache = nTotalCache * 3 / 4;
     } else {
-    #endif
+    #endif // ENABLE_ADDRESS_INDEXING
         if (nBlockTreeDBCache > (1 << 21) && !GetBoolArg("-txindex", false)) {
             nBlockTreeDBCache = (1 << 21); // block tree db cache shouldn't be larger than 2 MiB
         }
 
     #ifdef ENABLE_ADDRESS_INDEXING
     }
-    #endif
+    #endif // ENABLE_ADDRESS_INDEXING
 
     nTotalCache -= nBlockTreeDBCache;
     int64_t nCoinDBCache = std::min(nTotalCache / 2, (nTotalCache / 4) + (1 << 23)); // use 25%-50% of the remainder for disk cache
@@ -1633,7 +1633,7 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     strLoadError = _("You need to enable -txindex in order to use -addressindex");
                     break;
                 }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
                 // Check for changed -prune state.  What we are concerned about is a user who has pruned blocks
                 // in the past, but is now trying to run unpruned.

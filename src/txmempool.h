@@ -15,7 +15,7 @@
 #ifdef ENABLE_ADDRESS_INDEXING
 #include "addressindex.h"
 #include "spentindex.h"
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 #include "amount.h"
 #include "coins.h"
@@ -184,7 +184,7 @@ private:
 
     typedef std::map<uint256, std::vector<CSpentIndexKey> > mapSpentIndexInserted;
     mapSpentIndexInserted mapSpentInserted;
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 public:
     mutable CCriticalSection cs;
@@ -232,7 +232,7 @@ public:
     void addSpentIndex(const CTransactionBase& txBase, const CCoinsViewCache &view);
     bool getSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value);
     bool removeSpentIndex(const uint256& txBaseHash);
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
     std::vector<uint256> mempoolDirectDependenciesFrom(const CTransactionBase& root) const;
     std::vector<uint256> mempoolDirectDependenciesOf(const CTransactionBase& root) const;

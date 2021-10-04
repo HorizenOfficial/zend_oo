@@ -1112,7 +1112,7 @@ void CCoinsViewCache::RevertIndexesSidechainEvents(int height, CBlockUndo& block
 {
     return;
 }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 #else
 
@@ -1634,7 +1634,7 @@ void CCoinsViewCache::RevertIndexesSidechainEvents(int height, CBlockUndo& block
         }
     }
 }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 #endif
 
 bool CCoinsViewCache::UpdateSidechain(const CScCertificate& cert, CBlockUndo& blockUndo)
@@ -1863,7 +1863,7 @@ void CCoinsViewCache::UpdateBackwardTransferIndexes(const uint256& certHash,
         }
     }
 }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 bool CCoinsViewCache::RestoreSidechain(const CScCertificate& certToRevert, const CSidechainUndoData& sidechainUndo)
 {

@@ -438,7 +438,7 @@ bool CTxMemPool::removeSpentIndex(const uint256& txBaseHash)
 
     return true;
 }
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 std::vector<uint256> CTxMemPool::mempoolDirectDependenciesFrom(const CTransactionBase& root) const
 {
@@ -669,7 +669,7 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
                 removeAddressIndex(hash);
             if (fSpentIndex)
                 removeSpentIndex(hash);
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
         } else if (mapCertificate.count(hash))
         {
             const CScCertificate& cert = mapCertificate[hash].GetCertificate();
@@ -716,7 +716,7 @@ void CTxMemPool::remove(const CTransactionBase& origTx, std::list<CTransaction>&
             }
             if (fSpentIndex)
                 removeSpentIndex(hash);
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
         }
     }
 }

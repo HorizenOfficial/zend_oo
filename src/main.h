@@ -13,7 +13,7 @@
 #ifdef ENABLE_ADDRESS_INDEXING
 #include "spentindex.h"
 #include "timestampindex.h"
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 #include "amount.h"
 #include "chain.h"
@@ -115,7 +115,7 @@ static const bool DEFAULT_DB_COMPRESSION = true;
 #else
 static const unsigned int DEFAULT_DB_MAX_OPEN_FILES = 64;
 static const bool DEFAULT_DB_COMPRESSION = false;
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 // Sanity check the magic numbers when we change them
 BOOST_STATIC_ASSERT(DEFAULT_BLOCK_MAX_SIZE <= MAX_BLOCK_SIZE);
@@ -150,7 +150,7 @@ extern int nScriptCheckThreads;
 #ifdef ENABLE_ADDRESS_INDEXING
 extern bool fAddressIndex;
 extern bool fSpentIndex;
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 extern bool fTxIndex;
 extern bool fIsBareMultisigStd;
@@ -524,7 +524,7 @@ bool GetAddressIndex(uint160 addressHash, int type,
                      int start = 0, int end = 0);
 bool GetAddressUnspent(uint160 addressHash, int type,
                        std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs);
-#endif
+#endif // ENABLE_ADDRESS_INDEXING
 
 /** Functions for disk access for blocks */
 bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos, const CMessageHeader::MessageStartChars& messageStart);
