@@ -658,6 +658,16 @@ bool CBlockTreeDB::ReadTimestampBlockIndex(const uint256 &hash, unsigned int &lt
     ltimestamp = lts.ltimestamp;
     return true;
 }
+
+bool CBlockTreeDB::blockOnchainActive(const uint256 &hash) {
+    CBlockIndex* pblockindex = mapBlockIndex[hash];
+
+    if (!chainActive.Contains(pblockindex)) {
+	return false;
+    }
+
+    return true;
+}
 #endif // ENABLE_ADDRESS_INDEXING
 
 bool CBlockTreeDB::WriteFlag(const std::string &name, bool fValue) {
@@ -669,16 +679,6 @@ bool CBlockTreeDB::ReadFlag(const std::string &name, bool &fValue) {
     if (!Read(std::make_pair(DB_FLAG, name), ch))
         return false;
     fValue = ch == '1';
-    return true;
-}
-
-bool CBlockTreeDB::blockOnchainActive(const uint256 &hash) {
-    CBlockIndex* pblockindex = mapBlockIndex[hash];
-
-    if (!chainActive.Contains(pblockindex)) {
-	return false;
-    }
-
     return true;
 }
 
