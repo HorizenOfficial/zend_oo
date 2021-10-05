@@ -87,13 +87,29 @@ class sc_cert_orphans(BitcoinTestFramework):
         vk_2 = mcTest.generate_params("sc2")
         constant_2 = generate_random_field_element_hex()
 
-        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk_1, "", constant_1)
+        cmdInput = {
+            "withdrawalEpochLength": EPOCH_LENGTH,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": vk_1,
+            "constant": constant_1
+        }
+
+        ret = self.nodes[0].sc_create(cmdInput)
         creating_tx_1 = ret['txid']
         scid_1 = ret['scid']
         mark_logs("Node0 created SC id: {}".format(scid_1), self.nodes, DEBUG_MODE)
         self.sync_all()
 
-        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "baba", creation_amount, vk_2, "", constant_2)
+        cmdInput = {
+            "withdrawalEpochLength": EPOCH_LENGTH,
+            "toaddress": "baba",
+            "amount": creation_amount,
+            "wCertVk": vk_2,
+            "constant": constant_2,
+        }
+
+        ret = self.nodes[0].sc_create(cmdInput)
         creating_tx_2 = ret['txid']
         scid_2 = ret['scid']
         mark_logs("Node0 created SC id: {}".format(scid_2), self.nodes, DEBUG_MODE)
@@ -126,7 +142,7 @@ class sc_cert_orphans(BitcoinTestFramework):
         mark_logs("Node1 sends a certificate for SC {} using unconfirmed UTXO from tx1".format(scid_1), self.nodes, DEBUG_MODE)
         try:
             cert1 = self.nodes[1].sc_send_certificate(scid_1, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             mark_logs("======> cert1 = {}".format(cert1), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -182,7 +198,7 @@ class sc_cert_orphans(BitcoinTestFramework):
         mark_logs("Node1 tries to sends a certificate for SC {} using unconfirmed change from cert1".format(scid_2), self.nodes, DEBUG_MODE)
         try:
             cert2 = self.nodes[1].sc_send_certificate(scid_2, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             mark_logs("======> cert2 = {}".format(cert2), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -200,7 +216,7 @@ class sc_cert_orphans(BitcoinTestFramework):
         try:
             rawcert    = self.nodes[1].createrawcertificate(inputs, outputs, {}, params)
             signed_cert = self.nodes[1].signrawtransaction(rawcert)
-            #pprint.pprint(self.nodes[1].decoderawcertificate(signed_cert['hex']))
+            #pprint.pprint(self.nodes[1].decoderawtransaction(signed_cert['hex']))
             rawcert = self.nodes[1].sendrawtransaction(signed_cert['hex'])
             assert_true(False)
         except JSONRPCException, e:

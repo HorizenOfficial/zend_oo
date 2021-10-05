@@ -86,15 +86,31 @@ class quality_mempool(BitcoinTestFramework):
         vk_tag_2 = "sc2"
         vk_2 = mcTest.generate_params(vk_tag_2)
         constant_2 = generate_random_field_element_hex()
+        cmdInput = {
+            "withdrawalEpochLength": EPOCH_LENGTH,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": vk_1,
+            "constant": constant_1,
+        }
 
-        ret = self.nodes[1].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk_1, "", constant_1)
+        ret = self.nodes[1].sc_create(cmdInput)
         creating_tx_1 = ret['txid']
         scid_1 = ret['scid']
         scid1_swapped = str(swap_bytes(scid_1))
         mark_logs("Node 1 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx_1), self.nodes, DEBUG_MODE)
         self.sync_all()
 
-        ret = self.nodes[1].dep_sc_create(EPOCH_LENGTH, "baba", creation_amount, vk_2, "", constant_2)
+        cmdInput = {
+            "withdrawalEpochLength": EPOCH_LENGTH,
+            "toaddress": "baba",
+            "amount": creation_amount,
+            "wCertVk": vk_2,
+            "constant": constant_2,
+            "minconf": 0
+        }
+
+        ret = self.nodes[1].sc_create(cmdInput)
         creating_tx_2 = ret['txid']
         scid_2 = ret['scid']
         scid2_swapped = str(swap_bytes(scid_2))
@@ -127,7 +143,8 @@ class quality_mempool(BitcoinTestFramework):
         bal_before_fwd_tx = self.nodes[0].getbalance("", 0)
         mc_return_address = self.nodes[0].getnewaddress()
         mark_logs("Node0 balance before fwd tx: {}".format(bal_before_fwd_tx), self.nodes, DEBUG_MODE)
-        fwd_tx = self.nodes[0].dep_sc_send("abcd", fwt_amount, scid_1, mc_return_address)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid_1, 'mcReturnAddress': mc_return_address}]
+        fwd_tx = self.nodes[0].sc_send(cmdInput)
         mark_logs("Node0 transfers {} coins to SC 1 with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -139,7 +156,8 @@ class quality_mempool(BitcoinTestFramework):
         bal_before_fwd_tx = self.nodes[0].getbalance("", 0)
         mc_return_address = self.nodes[0].getnewaddress()
         mark_logs("Node0 balance before fwd tx: {}".format(bal_before_fwd_tx), self.nodes, DEBUG_MODE)
-        fwd_tx = self.nodes[0].dep_sc_send("abcd", fwt_amount, scid_2, mc_return_address)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid_2, 'mcReturnAddress': mc_return_address}]
+        fwd_tx = self.nodes[0].sc_send(cmdInput)
         mark_logs("Node0 transfers {} coins to SC 2 with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -180,7 +198,7 @@ class quality_mempool(BitcoinTestFramework):
 
         try:
             cert_1_epoch_0 = self.nodes[0].sc_send_certificate(scid_1, epoch_number_1, quality,
-                epoch_cum_tree_hash_1, proof, amount_cert, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash_1, proof, amount_cert, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(len(cert_1_epoch_0) > 0)
             mark_logs("Certificate is {}".format(cert_1_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -241,7 +259,7 @@ class quality_mempool(BitcoinTestFramework):
             vk_tag_1, scid1_swapped, epoch_number_1, quality - 10, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash_1, constant_1, [addr_node2], [bwt_amount])
         try:
             cert_2_epoch_0 = self.nodes[1].sc_send_certificate(scid_1, epoch_number_1, quality - 10,
-                epoch_cum_tree_hash_1, low_quality_proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash_1, low_quality_proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(len(cert_2_epoch_0) > 0)
             mark_logs("Certificate is {}".format(cert_2_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -262,7 +280,7 @@ class quality_mempool(BitcoinTestFramework):
             vk_tag_1, scid1_swapped, epoch_number_1, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash_1, constant_1, [addr_node2], [bwt_amount])
         try:
             cert_3_epoch_0 = self.nodes[0].sc_send_certificate(scid_1, epoch_number_1, quality,
-                epoch_cum_tree_hash_1, cert3_proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, LOW_CERT_FEE)
+                epoch_cum_tree_hash_1, cert3_proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, "*", LOW_CERT_FEE)
             assert (False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -280,7 +298,7 @@ class quality_mempool(BitcoinTestFramework):
             vk_tag_1, scid1_swapped, epoch_number_1, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash_1, constant_1, [addr_node2], [bwt_amount])
         try:
             cert_3_epoch_0 = self.nodes[1].sc_send_certificate(scid_1, epoch_number_1, quality,
-                epoch_cum_tree_hash_1, cert3_proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash_1, cert3_proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert (False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -335,7 +353,7 @@ class quality_mempool(BitcoinTestFramework):
             vk_tag_1, scid1_swapped, epoch_number_1, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash_1, constant_1, [addr_node3], [bwt_amount])
         try:
             cert_3_epoch_0 = self.nodes[2].sc_send_certificate(scid_1, epoch_number_1, quality,
-                epoch_cum_tree_hash_1, normal_quality_proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, HIGH_CERT_FEE)
+                epoch_cum_tree_hash_1, normal_quality_proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, "*", HIGH_CERT_FEE)
             mark_logs("Certificate is {}".format(cert_3_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -356,7 +374,7 @@ class quality_mempool(BitcoinTestFramework):
             vk_tag_1, scid1_swapped, epoch_number_1, quality + 20, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash_1, constant_1, [addr_node4], [bwt_amount])
         try:
             cert_4_epoch_0 = self.nodes[2].sc_send_certificate(scid_1, epoch_number_1, quality + 20,
-                epoch_cum_tree_hash_1, high_quality_proof, amount_cert_4, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash_1, high_quality_proof, amount_cert_4, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             sync_mempools(self.nodes[1:3])
             assert(len(cert_4_epoch_0) > 0)
             mark_logs("Certificate is {}".format(cert_4_epoch_0), self.nodes, DEBUG_MODE)
@@ -398,7 +416,7 @@ class quality_mempool(BitcoinTestFramework):
             vk_tag_1, scid1_swapped, epoch_number_1, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash_1, constant_1, [addr_node1], [bwt_amount])
         try:
             cert_1_sc1 = self.nodes[0].sc_send_certificate(scid_1, epoch_number_1, quality,
-                epoch_cum_tree_hash_1, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash_1, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(len(cert_1_sc1) > 0)
             mark_logs("Certificate is {}".format(cert_1_sc1), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -415,7 +433,7 @@ class quality_mempool(BitcoinTestFramework):
             vk_tag_2, scid2_swapped, epoch_number_2, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash_2, constant_2, [addr_node2], [bwt_amount])
         try:
             cert_2_sc2 = self.nodes[2].sc_send_certificate(scid_2, epoch_number_2, quality,
-                epoch_cum_tree_hash_2, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash_2, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(len(cert_2_sc2) > 0)
             mark_logs("Certificate is {}".format(cert_2_sc2), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -436,7 +454,7 @@ class quality_mempool(BitcoinTestFramework):
             vk_tag_2, scid2_swapped, epoch_number_2, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash_2, constant_2, [addr_node1], [bwt_amount])
         try:
             cert_3_sc2 = self.nodes[1].sc_send_certificate(scid_2, epoch_number_2, quality,
-                epoch_cum_tree_hash_2, proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash_2, proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(len(cert_3_sc2) > 0)
             mark_logs("Certificate is {}".format(cert_3_sc2), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -471,7 +489,7 @@ class quality_mempool(BitcoinTestFramework):
             vk_tag_1, scid1_swapped, epoch_number_1, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash_1, constant_1, [addr_node1], [bwt_amount])
         try:
             cert_5_epoch_0 = self.nodes[0].sc_send_certificate(scid_1, epoch_number_1, quality,
-                epoch_cum_tree_hash_1, quality_proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash_1, quality_proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(len(cert_5_epoch_0) > 0)
             mark_logs("Certificate is {}".format(cert_5_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:
@@ -531,7 +549,7 @@ class quality_mempool(BitcoinTestFramework):
             vk_tag_1, scid1_swapped, epoch_number_1, quality, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash_1, constant_1, [addr_node2], [bwt_amount])
         try:
             cert_7_epoch_0 = self.nodes[2].sc_send_certificate(scid_1, epoch_number_1, quality,
-                epoch_cum_tree_hash_1, quality_proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, HIGH_CERT_FEE)
+                epoch_cum_tree_hash_1, quality_proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, "*", HIGH_CERT_FEE)
             assert(len(cert_7_epoch_0) > 0)
             mark_logs("Certificate is {}".format(cert_7_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:

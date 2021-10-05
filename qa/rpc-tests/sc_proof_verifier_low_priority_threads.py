@@ -73,8 +73,13 @@ class sc_proof_verifier_low_priority_threads(BitcoinTestFramework):
         mcTest = CertTestUtils(self.options.tmpdir, self.options.srcdir)
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
+        cmdInput = {'withdrawalEpochLength': EPOCH_LENGTH,
+                    'toaddress': "dada",
+                    'amount': creation_amount,
+                    'wCertVk': vk,
+                    'constant': constant}
 
-        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[0].sc_create(cmdInput)
         creating_tx = ret['txid']
         scid = ret['scid']
         scid_swapped = str(swap_bytes(scid))
@@ -94,7 +99,8 @@ class sc_proof_verifier_low_priority_threads(BitcoinTestFramework):
         bal_before_fwd_tx = self.nodes[0].getbalance("", 0)
         mark_logs("Node balance before fwd tx: {}".format(bal_before_fwd_tx), self.nodes, DEBUG_MODE)
         mc_return_address = self.nodes[0].getnewaddress()
-        fwd_tx = self.nodes[0].dep_sc_send("abcd", fwt_amount, scid, mc_return_address)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid, "mcReturnAddress": mc_return_address}]
+        fwd_tx = self.nodes[0].sc_send(cmdInput)
         mark_logs("Node transfers {} coins to SC with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
 
         mark_logs("Node confirms fwd transfer generating 1 block", self.nodes, DEBUG_MODE)
@@ -131,7 +137,7 @@ class sc_proof_verifier_low_priority_threads(BitcoinTestFramework):
         mark_logs("Node sends a certificate while CZendooLowPrioThreadGuard is enabled...", self.nodes, DEBUG_MODE)
         try:
             self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+                epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, "*", CERT_FEE)
             assert(False)
         except Exception as e:
             errorString = e.message
@@ -151,7 +157,7 @@ class sc_proof_verifier_low_priority_threads(BitcoinTestFramework):
         try:
             cert_epoch_0 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                                                           epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE,
-                                                          MBTR_SC_FEE, CERT_FEE)
+                                                          MBTR_SC_FEE, "*", CERT_FEE)
             assert (len(cert_epoch_0) > 0)
             mark_logs("Certificate is {}".format(cert_epoch_0), self.nodes, DEBUG_MODE)
         except JSONRPCException, e:

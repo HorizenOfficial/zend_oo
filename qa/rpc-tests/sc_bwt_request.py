@@ -305,7 +305,19 @@ class sc_bwt_request(BitcoinTestFramework):
         #  create one more sc
         prev_epoch_hash_2 = self.nodes[0].getbestblockhash()
         epoch_len_2 = 10
-        ret = self.nodes[0].dep_sc_create(epoch_len_2, "dada", creation_amount2, vk2, "", c2, "", [], [], ftScFee, mbtrScFee, mbtrDataLength)
+        cmdInput = {
+            "withdrawalEpochLength":epoch_len_2,
+            "toaddress":"dada",
+            "amount":creation_amount2,
+            "wCertVk":vk2,
+            "constant":c2,
+            'customData': "bb" * 1024,
+            'forwardTransferScFee': ftScFee,
+            'mainchainBackwardTransferScFee': mbtrScFee,
+            'mainchainBackwardTransferRequestDataLength': mbtrDataLength
+        }
+
+        ret = self.nodes[0].sc_create(cmdInput)
         scid2  = ret['scid']
         cr_tx2 = ret['txid']
         mark_logs("Node0 created the SC2 spending {} coins via tx {}.".format(creation_amount1, cr_tx2), self.nodes, DEBUG_MODE)
@@ -437,7 +449,7 @@ class sc_bwt_request(BitcoinTestFramework):
         mark_logs("Node1 sends a cert withdrawing the contribution of the creation amount to the sc balance", self.nodes, DEBUG_MODE)
         try:
             cert_epoch_0 = self.nodes[1].sc_send_certificate(scid1, epoch_number, 0,
-                epoch_cum_tree_hash, proof, amounts, ftScFee, mbtrScFee, CERT_FEE)
+                epoch_cum_tree_hash, proof, amounts, ftScFee, mbtrScFee, "*", CERT_FEE)
             mark_logs("Node 1 sent a cert with bwd transfer of {} coins to Node1 address via cert {}.".format(bwt_amount, cert_epoch_0), self.nodes, DEBUG_MODE)
             assert(len(cert_epoch_0) > 0)
         except JSONRPCException, e:
@@ -570,7 +582,7 @@ class sc_bwt_request(BitcoinTestFramework):
         amount_cert = [{"address": addr_node1, "amount": bt_amount}]
         try:
             cert_bad = self.nodes[0].sc_send_certificate(scid2, epoch_number, quality,
-                epoch_cum_tree_hash, proof, amount_cert, ftScFee, mbtrScFee, 0.01)
+                epoch_cum_tree_hash, proof, amount_cert, ftScFee, mbtrScFee, "*", 0.01)
         except JSONRPCException, e:
             errorString = e.error['message']
             print "Send certificate failed with reason {}".format(errorString)

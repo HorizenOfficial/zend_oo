@@ -161,7 +161,8 @@ class CeasingSplitTest(BitcoinTestFramework):
         fwt_amount = Decimal("2.0")
         mc_return_address = self.nodes[0].getnewaddress()
         mark_logs("\nNTW part 1) Node0 sends {} coins to SC".format(fwt_amount), self.nodes, DEBUG_MODE)
-        tx_fwd = self.nodes[0].dep_sc_send("abcd", fwt_amount, scid, mc_return_address)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid, 'mcReturnAddress': mc_return_address}]
+        tx_fwd = self.nodes[0].sc_send(cmdInput)
         sync_mempools(self.nodes[0:3])
 
         mark_logs("              Check fwd tx {} is in mempool".format(tx_fwd), self.nodes, DEBUG_MODE)
@@ -195,7 +196,7 @@ class CeasingSplitTest(BitcoinTestFramework):
         amount_cert = [{"address": addr_node1, "amount": bt_amount}]
         try:
             cert_bad = self.nodes[2].sc_send_certificate(scid, epoch_number, 10,
-                epoch_cum_tree_hash, proof, amount_cert, 0, 0, 0.01)
+                epoch_cum_tree_hash, proof, amount_cert, 0, 0, "*", 0.01)
         except JSONRPCException, e:
             errorString = e.error['message']
             print "Send certificate failed with reason {}".format(errorString)
@@ -274,7 +275,7 @@ class CeasingSplitTest(BitcoinTestFramework):
 
         mark_logs("And that no info are available too...", self.nodes, DEBUG_MODE)
         try:
-            dec = self.nodes[0].getrawcertificate(cert_bad, 1)
+            dec = self.nodes[0].getrawtransaction(cert_bad, 1)
             print "FIX FIX FIX!!! cert has info in Node0" 
             any_error = True
             #assert (False)
