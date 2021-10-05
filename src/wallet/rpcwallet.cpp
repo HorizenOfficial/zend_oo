@@ -5365,7 +5365,7 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
     if (params.size() > 9)
     {
         inputString = params[9].get_str();
-        if (inputString != "*")
+        if (!inputString.empty())
         {
             fromaddress = CBitcoinAddress(inputString);
 

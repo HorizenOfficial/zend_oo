@@ -10,7 +10,6 @@ from test_framework.util import assert_true, assert_false, assert_equal, initial
     mark_logs, start_nodes, sync_blocks, sync_mempools, connect_nodes_bi, \
     disconnect_nodes, dump_sc_info, dump_sc_info_record
 from test_framework.mc_test.mc_test import *
-import pprint
 import os
 from decimal import Decimal
 import time
