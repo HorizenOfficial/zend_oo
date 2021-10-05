@@ -196,7 +196,7 @@ class CeasingSplitTest(BitcoinTestFramework):
         amount_cert = [{"address": addr_node1, "amount": bt_amount}]
         try:
             cert_bad = self.nodes[2].sc_send_certificate(scid, epoch_number, 10,
-                epoch_cum_tree_hash, proof, amount_cert, 0, 0, "*", 0.01)
+                epoch_cum_tree_hash, proof, amount_cert, 0, 0, 0.01)
         except JSONRPCException, e:
             errorString = e.error['message']
             print "Send certificate failed with reason {}".format(errorString)

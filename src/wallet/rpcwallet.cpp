@@ -5142,7 +5142,7 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
             " 1. \"scid\"                        (string, required) The uint256 side chain ID\n"
             " 2. epochNumber                     (numeric, required) The epoch number this certificate refers to, zero-based numbered\n"
             " 3. quality                         (numeric, required) The quality of this withdrawal certificate. \n"
-            " 4. \"endEpochCumScTxCommTreeRoot\"    (string, required) The hex string representation of the field element corresponding to the root of the cumulative scTxCommitment tree stored at the block marking the end of the referenced epoch\n"
+            " 4. \"endEpochCumScTxCommTreeRoot\" (string, required) The hex string representation of the field element corresponding to the root of the cumulative scTxCommitment tree stored at the block marking the end of the referenced epoch\n"
             " 5. \"scProof\"                     (string, required) SNARK proof whose verification key wCertVk was set upon sidechain registration. Its size must be " + strprintf("%d", CScProof::MaxByteSize()) + " bytes max\n"
             " 6. transfers:                      (array, required) An array of json objects representing the amounts of the backward transfers. Can also be empty\n"
             "     [{\n"                     
@@ -5151,15 +5151,15 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
             "     }, ... ]\n"
             " 7. forwardTransferScFee            (numeric, required) The amount of fee due to sidechain actors when creating a FT\n"
             " 8. mainchainBackwardTransferScFee  (numeric, required) The amount of fee due to sidechain actors when creating a MBTR\n"
-            " 9. fromAddress                     (string, required) The address UTXO will be taken from\n"
-            "10. fee                             (numeric, optional, default=" + strprintf("%s", FormatMoney(SC_RPC_OPERATION_DEFAULT_MINERS_FEE)) + ") The fee of the certificate in ZEN\n"
+            " 9. fee                             (numeric, optional, default=" + strprintf("%s", FormatMoney(SC_RPC_OPERATION_DEFAULT_MINERS_FEE)) + ") The fee of the certificate in ZEN\n"
+            "10. fromAddress                     (string, optional) The address UTXO will be taken from\n"
             "11. vFieldElementCertificateField   (array, optional) An array of byte strings...TODO add description\n"
             "    [\n"                     
-            "      \"fieldElement\"             (string, required) The HEX string representing a generic field element\n"
+            "      \"fieldElement\"              (string, required) The HEX string representing a generic field element\n"
             "    , ... ]\n"
             "12. vBitVectorCertificateField      (array, optional) An array of byte strings...TODO add description\n"
             "    [\n"                     
-            "      \"fieldElement\"             (string, required) The HEX string representing a generic field element\n"
+            "      \"fieldElement\"              (string, required) The HEX string representing a generic field element\n"
             "    , ... ]\n"
             "\nResult:\n"
             "  \"certificateId\"   (string) The resulting certificate id.\n"
@@ -5344,21 +5344,12 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
     }
 
     //--------------------------------------------------------------------------
-    CBitcoinAddress fromaddress;
-    inputString = params[8].get_str();
-    if (inputString != "*") {
-        fromaddress = CBitcoinAddress(inputString);
-
-        if (!fromaddress.IsValid())
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Zen address(coin to ta from)");
-    }
-    //--------------------------------------------------------------------------
     // fee, default to a small amount
     CAmount nCertFee = SC_RPC_OPERATION_DEFAULT_MINERS_FEE;
-    if (params.size() > 9)
+    if (params.size() > 8)
     {
         try {
-            nCertFee = AmountFromValue(params[9]);
+            nCertFee = AmountFromValue(params[8]);
         } catch (const UniValue& error) {
             UniValue errMsg  = find_value(error, "message");
             throw JSONRPCError(RPC_TYPE_ERROR, ("Invalid fee param:" + errMsg.getValStr() ));
@@ -5369,6 +5360,19 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
         // any check for upper threshold is left to cert processing
     }
 
+    //--------------------------------------------------------------------------
+    CBitcoinAddress fromaddress;
+    if (params.size() > 9)
+    {
+        inputString = params[9].get_str();
+        if (inputString != "*")
+        {
+            fromaddress = CBitcoinAddress(inputString);
+
+            if (!fromaddress.IsValid())
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Zen address(coin to ta from)");
+        }
+    }
     //--------------------------------------------------------------------------
     // get fe cfg from creation params if any
     const auto & vFieldElementCertificateFieldConfig = sidechain.fixedParams.vFieldElementCertificateFieldConfig;

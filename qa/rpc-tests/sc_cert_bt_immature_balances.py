@@ -161,7 +161,7 @@ class sc_cert_bt_immature_balances(BitcoinTestFramework):
 
             cert_1 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                                                     epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE,
-                                                    "*", CERT_FEE)
+                                                       CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_1), self.nodes, DEBUG_MODE)
             self.sync_all()
         except JSONRPCException, e:
@@ -354,7 +354,7 @@ class sc_cert_bt_immature_balances(BitcoinTestFramework):
 
             cert_2 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                                                     epoch_cum_tree_hash, proof, amounts, FT_SC_FEE, MBTR_SC_FEE,
-                                                    "*", CERT_FEE)
+                                                    CERT_FEE)
             mark_logs("==> certificate is {}".format(cert_2), self.nodes, DEBUG_MODE)
             self.sync_all()
         except JSONRPCException, e:
