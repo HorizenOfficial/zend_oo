@@ -132,6 +132,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
     { "getscinfo", 2 },
     { "getscinfo", 3 },
     { "getscinfo", 4 },
+    { "sc_create", 0 },
     { "sc_send", 0 },
     { "sc_send", 1 },
     { "sc_request_transfer", 0 },
