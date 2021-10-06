@@ -2340,7 +2340,7 @@ UniValue getcertmaturityinfo(const UniValue& params, bool fHelp)
             "{\n"
             "    \"maturityHeight\"     (number) The maturity height when the backwardtransfer output are spendable\n"           
             "    \"blocksToMaturity\"   (number) The number of blocks to be mined for achieving maturity (0 means already spendable)\n"           
-            "    \"certificateState\"   (string) Can be one of [\"MATURE\", \"IMMATURE\", \"SUPERSEDED\"]\n"  
+            "    \"certificateState\"   (string) Can be one of [\"MATURE\", \"IMMATURE\", \"SUPERSEDED\", \"INVALID\"]\n"  
             "}\n"
 
             "\nExamples\n"
@@ -2392,7 +2392,15 @@ UniValue getcertmaturityinfo(const UniValue& params, bool fHelp)
     if (bwtMatHeight < 0)
     {
         ret.pushKV("blocksToMaturity", -1);
-        ret.pushKV("certificateState", "SUPERSEDED");
+        if (bwtMatHeight == CTxIndexValue::INVALID_MATURITY_HEIGHT)
+        {
+            // this is the case when the certificate is not in the active chain
+            ret.pushKV("certificateState", "INVALID");
+        }
+        else
+        {
+            ret.pushKV("certificateState", "SUPERSEDED");
+        }
     }
     else
     {
