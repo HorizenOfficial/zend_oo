@@ -535,25 +535,19 @@ CBlock LoadBlockFrom(CBufferedFile& blkdat, CDiskBlockPos* pLastLoadedBlkPos);
 /** Functions for validating blocks and updating the block tree */
 
 /**
- * @brief The enumeration of allowed types of block processing.
- * It is used in the ConnectBlock() function to choose between the full/normal processing
- * or a dry-run intended to check only the validity (without applying any changes).
- * In the DisconnectBlock() it is used just for storing or ignoring changes to
- * explorer indexes.
+ * @brief The enumeration to enable/disable Level DB indexes write for AddressIndexing.
+ * It is used in the ConnectBlock() and DisconnectBlock() to prevent updating the DB
+ * when called from VerifyDB() and TestBlockValidity().
+ * Such flag is needed because the indexes don't have a cache as CoinDB.
  */
-enum class flagBlockProcessingType
-{
-    COMPLETE,       /**< Perform the normal/complete procedure applying changes. */
-    CHECK_ONLY      /**< Perofrm only the validity check and do not apply any changes. */
-};
+enum class flagExplorerIndexesWrite { ON, OFF };
 
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  In case pfClean is provided, operation will try to be tolerant about errors, and *pfClean
  *  will be true if no problems were found. Otherwise, the return value will be false in case
  *  of problems. Note that in any case, coins may be modified. */
-bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins,
-                     bool* pfClean = NULL, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo = nullptr,
-                     flagBlockProcessingType indexesProcessing = flagBlockProcessingType::COMPLETE);
+bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, flagExplorerIndexesWrite explorerIndexesWrite,
+                     bool* pfClean = NULL, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo = nullptr);
 
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins */
 enum class flagCheckPow             { ON, OFF };
@@ -561,9 +555,21 @@ enum class flagCheckMerkleRoot      { ON, OFF };
 enum class flagScRelatedChecks      { ON, OFF };
 enum class flagScProofVerification  { ON, OFF };
 
+/**
+ * @brief The enumeration of allowed types of block processing.
+ * It is used in the ConnectBlock() function to choose between the full/normal processing
+ * or a dry-run intended to check only the validity (without applying any changes).
+ */
+enum class flagBlockProcessingType
+{
+    COMPLETE,       /**< Perform the normal/complete procedure applying changes. */
+    CHECK_ONLY      /**< Perofrm only the validity check and do not apply any changes. */
+};
+
 bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex,
     CCoinsViewCache& coins, const CChain& chain, flagBlockProcessingType processingType,
     flagScRelatedChecks fScRelatedChecks, flagScProofVerification fScProofVerification,
+    flagExplorerIndexesWrite explorerIndexesWrite,
     std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo = nullptr);
 
 /** Find the position in block files (blk??????.dat) in which a block must be written. */
