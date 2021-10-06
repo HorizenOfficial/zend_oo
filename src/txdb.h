@@ -69,6 +69,9 @@ struct CDiskTxPos : public CDiskBlockPos
 };
 
 struct CTxIndexValue {
+
+    static const int INVALID_MATURITY_HEIGHT = -1;
+
     CDiskTxPos txPosition;
     int txIndex;
     int maturityHeight;     // It can contain negative numbers
@@ -97,7 +100,7 @@ struct CTxIndexValue {
     void SetNull() {
         txPosition = CDiskTxPos();
         txIndex = 0;
-        maturityHeight = 0;
+        maturityHeight = INVALID_MATURITY_HEIGHT;
     }
 };
 

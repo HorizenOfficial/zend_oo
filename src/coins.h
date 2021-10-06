@@ -26,6 +26,8 @@ class CTxInUndo;
 class CSidechainUndoData;
 class CScProofVerifier;
 
+struct CTxIndexValue;
+
 #ifdef ENABLE_ADDRESS_INDEXING
 struct CAddressIndexKey;
 struct CAddressIndexValue;
@@ -734,6 +736,11 @@ public:
 
     bool HandleSidechainEvents(int height, CBlockUndo& blockUndo, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo);
     bool RevertSidechainEvents(const CBlockUndo& blockUndo, int height, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo);
+
+    void HandleTxIndexSidechainEvents(int height, CBlockTreeDB* pblocktree,
+                                      std::vector<std::pair<uint256, CTxIndexValue>>& txIndex);
+    void RevertTxIndexSidechainEvents(int height, CBlockUndo& blockUndo, CBlockTreeDB* pblocktree,
+                                      std::vector<std::pair<uint256, CTxIndexValue>>& txIndex);
 
 #ifdef ENABLE_ADDRESS_INDEXING
     void HandleIndexesSidechainEvents(int height, CBlockTreeDB* pblocktree,

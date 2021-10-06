@@ -2697,6 +2697,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
 #endif // ENABLE_ADDRESS_INDEXING
+    std::vector<std::pair<uint256, CTxIndexValue> > vTxIndexValues;
 
     assert(pindex->GetBlockHash() == view.GetBestBlock());
 
@@ -2727,6 +2728,8 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         return error("DisconnectBlock(): cannot revert sidechains scheduled events");
     }
 
+    view.RevertTxIndexSidechainEvents(pindex->nHeight, blockUndo, pblocktree, vTxIndexValues);
+
 #ifdef ENABLE_ADDRESS_INDEXING
     if (fAddressIndex && explorerIndexesWrite == flagExplorerIndexesWrite::ON) {
         view.RevertIndexesSidechainEvents(pindex->nHeight, blockUndo, pblocktree, addressIndex, addressUnspentIndex);
@@ -2745,6 +2748,12 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         bool isBlockTopQualityCert = highQualityCertData.count(cert.GetHash()) != 0;
 
         LogPrint("cert", "%s():%d - reverting outs of cert[%s]\n", __func__, __LINE__, hash.ToString());
+
+        // Set the disconnected certificate as invalid with maturityHeight -1
+        CTxIndexValue txIndexVal;
+        assert(pblocktree->ReadTxIndex(hash, txIndexVal));
+        txIndexVal.maturityHeight = CTxIndexValue::INVALID_MATURITY_HEIGHT;
+        vTxIndexValues.push_back(std::make_pair(hash, txIndexVal));
 
 #ifdef ENABLE_ADDRESS_INDEXING
         // Update the explorer indexes according to the removed outputs
@@ -3006,6 +3015,10 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         *pfClean = fClean;
         return true;
     }
+
+    if (fTxIndex)
+        if (!pblocktree->WriteTxIndex(vTxIndexValues))
+            return AbortNode(state, "Failed to write transaction index");
 
 #ifdef ENABLE_ADDRESS_INDEXING
     if (fAddressIndex && explorerIndexesWrite == flagExplorerIndexesWrite::ON) {
@@ -3555,12 +3568,15 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             {
                 // if prevBlockTopQualityCertHash is not null, it has same scId/epochNumber as cert
 
+                // Update the prevBlockTopQualityCert maturity inside the txIndex DB to appear as superseded
+                CTxIndexValue txIndexVal;
+                assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
+                txIndexVal.maturityHeight *= -1;
+                vTxIndexValues.push_back(std::make_pair(prevBlockTopQualityCertHash, txIndexVal));
+
 #ifdef ENABLE_ADDRESS_INDEXING
                 // Set any lower quality BT as superseded on the explorer indexes
                 if (fAddressIndex && explorerIndexesWrite == flagExplorerIndexesWrite::ON) {
-                    CTxIndexValue txIndexVal;
-                    assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
-
                     // Set the lower quality BTs as superseded
                     view.UpdateBackwardTransferIndexes(prevBlockTopQualityCertHash, txIndexVal.txIndex, addressIndex, addressUnspentIndex,
                                                        CCoinsViewCache::flagIndexesUpdateType::SUPERSEDE_CERTIFICATE);
@@ -3631,6 +3647,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         view.HandleIndexesSidechainEvents(pindex->nHeight, pblocktree, addressIndex, addressUnspentIndex);
     }
 #endif // ENABLE_ADDRESS_INDEXING
+
+    view.HandleTxIndexSidechainEvents(pindex->nHeight, pblocktree, vTxIndexValues);
 
     if (!view.HandleSidechainEvents(pindex->nHeight, blockundo, pCertsStateInfo))
     {

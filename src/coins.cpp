@@ -1098,6 +1098,18 @@ int CCoinsViewCache::GetHeight() const {return -1;}
 CValidationState::Code CCoinsViewCache::IsCertApplicableToState(const CScCertificate& cert, bool* banSenderNode) const {return CValidationState::Code::OK;}
 CValidationState::Code CCoinsViewCache::IsScTxApplicableToState(const CTransaction& tx, Sidechain::ScFeeCheckFlag scFeeCheckType, bool* banSenderNode) const { return CValidationState::Code::OK;}
 
+void CCoinsViewCache::HandleTxIndexSidechainEvents(int height, CBlockTreeDB* pblocktree,
+                                                   std::vector<std::pair<uint256, CTxIndexValue>>& txIndex)
+{
+    return;
+}
+
+void CCoinsViewCache::RevertTxIndexSidechainEvents(int height, CBlockUndo& blockUndo, CBlockTreeDB* pblocktree,
+                                                   std::vector<std::pair<uint256, CTxIndexValue>>& txIndex)
+{
+    return;
+}
+
 #ifdef ENABLE_ADDRESS_INDEXING
 void CCoinsViewCache::HandleIndexesSidechainEvents(int height, CBlockTreeDB* pblocktree,
                                                    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue>>& addressIndex,
@@ -1574,6 +1586,62 @@ CValidationState::Code CCoinsViewCache::IsScTxApplicableToState(const CTransacti
     }
 
     return CValidationState::Code::OK;
+}
+
+void CCoinsViewCache::HandleTxIndexSidechainEvents(int height, CBlockTreeDB* pblocktree,
+                                                   std::vector<std::pair<uint256, CTxIndexValue>>& txIndex)
+{
+    if (!HaveSidechainEvents(height))
+        return;
+
+    CSidechainEvents scEvents;
+    GetSidechainEvents(height, scEvents);
+
+    //Handle Ceasing Sidechain
+    for (const uint256& ceasingScId : scEvents.ceasingScs)
+    {
+        CSidechain sidechain;
+        assert(GetSidechain(ceasingScId, sidechain));
+
+        if (sidechain.lastTopQualityCertReferencedEpoch == CScCertificate::EPOCH_NULL) {
+            assert(sidechain.lastTopQualityCertHash.IsNull());
+            continue;
+        }
+
+        CTxIndexValue txIndexVal;
+        assert(pblocktree->ReadTxIndex(sidechain.lastTopQualityCertHash, txIndexVal));
+
+        // Set lastTopQualityCert as superseded
+        txIndexVal.maturityHeight *= -1;
+        txIndex.push_back(std::make_pair(sidechain.lastTopQualityCertHash, txIndexVal));
+    }
+}
+
+void CCoinsViewCache::RevertTxIndexSidechainEvents(int height, CBlockUndo& blockUndo, CBlockTreeDB* pblocktree,
+                                                   std::vector<std::pair<uint256, CTxIndexValue>>& txIndex)
+{
+    if (!HaveSidechainEvents(height))
+        return;
+
+    // Reverting ceasing sidechains
+    for (auto it = blockUndo.scUndoDatabyScId.begin(); it != blockUndo.scUndoDatabyScId.end(); ++it)
+    {
+        if ((it->second.contentBitMask & CSidechainUndoData::AvailableSections::CEASED_CERT_DATA) == 0)
+            continue;
+
+        const uint256& scId = it->first;
+        const CSidechain* const pSidechain = AccessSidechain(scId);
+
+        if (pSidechain->lastTopQualityCertReferencedEpoch != CScCertificate::EPOCH_NULL)
+        {
+            CTxIndexValue txIndexVal;
+            assert(pblocktree->ReadTxIndex(pSidechain->lastTopQualityCertHash, txIndexVal));
+
+            // Restore lastTopQualityCert as valid (not superseded)
+            txIndexVal.maturityHeight *= -1;
+            txIndex.push_back(std::make_pair(pSidechain->lastTopQualityCertHash, txIndexVal));
+        }
+    }
 }
 
 #ifdef ENABLE_ADDRESS_INDEXING
