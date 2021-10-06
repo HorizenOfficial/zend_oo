@@ -3568,11 +3568,14 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             {
                 // if prevBlockTopQualityCertHash is not null, it has same scId/epochNumber as cert
 
-                // Update the prevBlockTopQualityCert maturity inside the txIndex DB to appear as superseded
                 CTxIndexValue txIndexVal;
-                assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
-                txIndexVal.maturityHeight *= -1;
-                vTxIndexValues.push_back(std::make_pair(prevBlockTopQualityCertHash, txIndexVal));
+                if (pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal))
+                {
+                    // Update the prevBlockTopQualityCert maturity inside the txIndex DB, if an entry is there,
+                    // to appear as superseded
+                    txIndexVal.maturityHeight *= -1;
+                    vTxIndexValues.push_back(std::make_pair(prevBlockTopQualityCertHash, txIndexVal));
+                }
 
 #ifdef ENABLE_ADDRESS_INDEXING
                 // Set any lower quality BT as superseded on the explorer indexes
