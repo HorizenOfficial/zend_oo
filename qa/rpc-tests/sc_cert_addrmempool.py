@@ -428,5 +428,32 @@ class AddresMempool(BitcoinTestFramework):
                 assert_equal(sat, to_satoshis(am_bwt1)) 
                 assert_equal(out_status, 1)
 
+        # the certificate in blockchain is still the top quality
+        print "Calling getcertmaturityinfo for cert {}".format(cert_1_top)
+        ret = self.nodes[3].getcertmaturityinfo(cert_1_top)
+        pprint.pprint(ret)
+
+        bl = self.nodes[0].generate(1)
+        self.sync_all()
+
+        print "Calling getcertmaturityinfo for cert {}".format(cert_1_top)
+        ret = self.nodes[3].getcertmaturityinfo(cert_1_top)
+        pprint.pprint(ret)
+
+        print "Calling getcertmaturityinfo for cert {}".format(cert_last)
+        ret = self.nodes[3].getcertmaturityinfo(cert_last)
+        pprint.pprint(ret)
+
+        mark_logs("\nInvalidating the last block and checking RPC call results...", self.nodes, DEBUG_MODE)
+        for i in range(0, NUMB_OF_NODES):
+            self.nodes[i].invalidateblock(bl[0])
+        self.sync_all()
+
+        '''
+        print "Calling getcertmaturityinfo for cert {}".format(cert_last)
+        ret = self.nodes[3].getcertmaturityinfo(cert_last)
+        pprint.pprint(ret)
+        '''
+
 if __name__ == '__main__':
     AddresMempool().main()
