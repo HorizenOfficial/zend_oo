@@ -86,7 +86,7 @@ class AddresMempool(BitcoinTestFramework):
         mark_logs("Node 2 generates 1 block for coinbase to be used after 100 blocks", self.nodes, DEBUG_MODE)
         self.nodes[2].generate(1)
         self.sync_all()
-        print "Chain height=", self.nodes[3].getblockcount()
+        print("Chain height=", self.nodes[3].getblockcount())
 
         # reach sidechain fork
         nb = int(self.nodes[0].getblockcount())
@@ -96,7 +96,7 @@ class AddresMempool(BitcoinTestFramework):
             self.nodes[0].generate(nb_to_gen)
             self.sync_all()
 
-        print "Chain height=", self.nodes[3].getblockcount()
+        print("Chain height=", self.nodes[3].getblockcount())
 
         safe_guard_size = EPOCH_LENGTH//5
         if safe_guard_size < 2:
@@ -191,7 +191,7 @@ class AddresMempool(BitcoinTestFramework):
 
             cert_hex = self.nodes[2].getrawcertificate(cert_2_top)
 
-        except JSONRPCException, e:
+        except JSONRPCException as e:
             errorString = e.error['message']
             mark_logs("Send certificate failed with reason {}".format(errorString), self.nodes, DEBUG_MODE)
             assert(False)
@@ -289,7 +289,7 @@ class AddresMempool(BitcoinTestFramework):
 
             self.sync_all()
 
-        except JSONRPCException, e:
+        except JSONRPCException as e:
             errorString = e.error['message']
             mark_logs(errorString, self.nodes, DEBUG_MODE)
             assert(False)
@@ -297,22 +297,24 @@ class AddresMempool(BitcoinTestFramework):
         assert_true(cert_2_top_retried in self.nodes[0].getrawmempool())
 
         # the certificate in blockchain is still the top quality
-        print "Calling getcertmaturityinfo for cert {}".format(cert_1_top)
+        print("Calling getcertmaturityinfo for cert {}".format(cert_1_top))
         ret = self.nodes[3].getcertmaturityinfo(cert_1_top)
         #pprint.pprint(ret)
 
         nb = self.nodes[3].getblockcount()
         bl_to_mat = bwtMaturityHeight - nb 
-        print "nb = {}, bwtMaturityHeight = {}".format(nb, bwtMaturityHeight)
+        print("nb = {}, bwtMaturityHeight = {}".format(nb, bwtMaturityHeight))
         assert_equal(ret['blocksToMaturity'], bl_to_mat)
         assert_equal(ret['certificateState'], "IMMATURE")
         assert_equal(ret['maturityHeight'], bwtMaturityHeight)
 
-        mark_logs("Calling getcertmaturityinfo for cert {} expecting failure...".format(cert_2_top_retried), self.nodes, DEBUG_MODE)
+        mark_logs("Calling getcertmaturityinfo for cert {} ...".format(cert_2_top_retried), self.nodes, DEBUG_MODE)
         try:
-            self.nodes[3].getcertmaturityinfo(cert_2_top_retried)
-            assert(False)
-        except JSONRPCException, e:
+            ret = self.nodes[3].getcertmaturityinfo(cert_2_top_retried)
+            assert_equal(ret['blocksToMaturity'], -1)
+            assert_equal(ret['certificateState'], "MEMPOOL")
+            assert_equal(ret['maturityHeight'], -1)
+        except JSONRPCException as e:
             errorString = e.error['message']
             mark_logs(errorString, self.nodes, DEBUG_MODE)
 
@@ -375,9 +377,9 @@ class AddresMempool(BitcoinTestFramework):
         try:
             raw_cert    = self.nodes[0].createrawcertificate(raw_inputs, raw_outs, raw_bwt_outs, raw_params)
             signed_cert = self.nodes[0].signrawtransaction(raw_cert)
-        except JSONRPCException, e:
+        except JSONRPCException as e:
             errorString = e.error['message']
-            print "\n======> ", errorString
+            print("\n======> ", errorString)
             assert_true(False)
 
         #pprint.pprint(self.nodes[0].decoderawcertificate(signed_cert['hex']))
@@ -385,9 +387,9 @@ class AddresMempool(BitcoinTestFramework):
         try:
             cert_last = self.nodes[0].sendrawtransaction(signed_cert['hex'])
             self.sync_all()
-        except JSONRPCException, e:
+        except JSONRPCException as e:
             errorString = e.error['message']
-            print "======> ", errorString, "\n"
+            print("======> ", errorString, "\n")
             assert_true(False)
 
         addr_list.append(taddr3)
@@ -429,18 +431,18 @@ class AddresMempool(BitcoinTestFramework):
                 assert_equal(out_status, 1)
 
         # the certificate in blockchain is still the top quality
-        print "Calling getcertmaturityinfo for cert {}".format(cert_1_top)
+        print("Calling getcertmaturityinfo for cert {}".format(cert_1_top))
         ret = self.nodes[3].getcertmaturityinfo(cert_1_top)
         pprint.pprint(ret)
 
         bl = self.nodes[0].generate(1)
         self.sync_all()
 
-        print "Calling getcertmaturityinfo for cert {}".format(cert_1_top)
+        print("Calling getcertmaturityinfo for cert {}".format(cert_1_top))
         ret = self.nodes[3].getcertmaturityinfo(cert_1_top)
         pprint.pprint(ret)
 
-        print "Calling getcertmaturityinfo for cert {}".format(cert_last)
+        print("Calling getcertmaturityinfo for cert {}".format(cert_last))
         ret = self.nodes[3].getcertmaturityinfo(cert_last)
         pprint.pprint(ret)
 
@@ -449,11 +451,9 @@ class AddresMempool(BitcoinTestFramework):
             self.nodes[i].invalidateblock(bl[0])
         self.sync_all()
 
-        '''
-        print "Calling getcertmaturityinfo for cert {}".format(cert_last)
+        print("Calling getcertmaturityinfo for cert {}".format(cert_last))
         ret = self.nodes[3].getcertmaturityinfo(cert_last)
         pprint.pprint(ret)
-        '''
 
 if __name__ == '__main__':
     AddresMempool().main()
