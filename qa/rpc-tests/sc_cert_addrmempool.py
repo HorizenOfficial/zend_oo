@@ -35,8 +35,8 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 class AddresMempool(BitcoinTestFramework):
 
     def setup_chain(self):
-        logging.info("Initializing test directory "+self.options.tmpdir)
-        initialize_chain_clean(self.options.tmpdir, 4)
+        logging.info("Initializing test directory " + self.options.tmpdir)
+        initialize_chain_clean(self.options.tmpdir, NUMB_OF_NODES)
 
     # This mirrors how the network was setup in the bash test
     def setup_network(self, split=False):
@@ -451,9 +451,29 @@ class AddresMempool(BitcoinTestFramework):
             self.nodes[i].invalidateblock(bl[0])
         self.sync_all()
 
-        print("Calling getcertmaturityinfo for cert {}".format(cert_last))
+        print("Calling getcertmaturityinfo for cert {} , it should be in mempool".format(cert_last))
+        assert_true(cert_last in self.nodes[3].getrawmempool())
         ret = self.nodes[3].getcertmaturityinfo(cert_last)
         pprint.pprint(ret)
+        assert_equal(ret['blocksToMaturity'], -1)
+        assert_equal(ret['certificateState'], "MEMPOOL")
+        assert_equal(ret['maturityHeight'], -1)
+
+        print("Clearing the mempool of all nodes...")
+        for i in range(0, NUMB_OF_NODES):
+            self.nodes[i].clearmempool()
+        self.sync_all()
+
+        for i in range(0, NUMB_OF_NODES):
+            assert_equal(len(self.nodes[i].getrawmempool()), 0)
+
+        print("Calling getcertmaturityinfo for cert {} , it shouldn't be in mempool anymore".format(cert_last))
+        assert_false(cert_last in self.nodes[3].getrawmempool())
+        ret = self.nodes[3].getcertmaturityinfo(cert_last)
+        pprint.pprint(ret)
+        assert_equal(ret['blocksToMaturity'], -1)
+        assert_equal(ret['certificateState'], "INVALID")
+        assert_equal(ret['maturityHeight'], -1)
 
 if __name__ == '__main__':
     AddresMempool().main()

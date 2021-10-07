@@ -2435,3 +2435,30 @@ UniValue getcertmaturityinfo(const UniValue& params, bool fHelp)
     return ret;
 }
 
+/**
+ * @brief Removes any transaction from the mempool.
+ */
+UniValue clearmempool(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+    {
+        throw runtime_error(
+            "clearmempool\n"
+            "\nRemoves any transaction from the mempool.\n"
+            "Regtest only.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("clearmempool", "")
+            + HelpExampleRpc("clearmempool", "")
+        );
+    }
+
+    if (Params().NetworkIDString() != "regtest")
+    {
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This method can only be used in regtest");
+    }
+
+    LOCK(cs_main);
+    mempool.clear();
+
+    return NullUniValue;
+}
