@@ -54,9 +54,9 @@ class TxIndexTest(BitcoinTestFramework):
         print("####UNSPENT###")
         print(unspent[0])
         tx = CTransaction()
-        amount = unspent[0]["amount"] * 100000000
+        amount = unspent[0]["amount"]
         tx.vin = [CTxIn(COutPoint(int(unspent[0]["txid"], 16), unspent[0]["vout"]))]
-        tx.vout = [CTxOut(amount, scriptPubKey)]
+        tx.vout = [CTxOut(to_satoshis(amount), scriptPubKey)]
         tx.rehash()
 
         signed_tx = self.nodes[0].signrawtransaction(binascii.hexlify(tx.serialize()).decode("utf-8"))
@@ -70,8 +70,8 @@ class TxIndexTest(BitcoinTestFramework):
         pprint.pprint(verbose)
         print("##### RAW ######")
         pprint.pprint(self.nodes[3].getrawtransaction(txid, 1))
-        assert_equal(verbose["vout"][0]["valueZat"], 5000000000);
-        assert_equal(verbose["vout"][0]["value"], 50);
+        assert_equal(verbose["vout"][0]["valueZat"], to_satoshis(amount));
+        assert_equal(verbose["vout"][0]["value"], amount);
 
         print "Passed\n"
 
