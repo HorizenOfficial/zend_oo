@@ -2335,17 +2335,40 @@ UniValue getcertmaturityinfo(const UniValue& params, bool fHelp)
             "getcertmaturityinfo (\"hash\")\n"
             "\nArgument:\n"
             "   \"hash\"   (string, mandatory) certificate hash (txid)\n"
-            "\nReturns the informations about certificate maturity. The cmd line option -txindex must have been used in the node\n"
+            "\nReturns the informations about certificate maturity. The cmd line option -txindex must be enabled, otherwise it works only\n"
+            "for certificates in the mempool\n"
             "\nResult:\n"
             "{\n"
             "    \"maturityHeight\"     (number) The maturity height when the backwardtransfer output are spendable\n"           
             "    \"blocksToMaturity\"   (number) The number of blocks to be mined for achieving maturity (0 means already spendable)\n"           
-            "    \"certificateState\"   (string) Can be one of [\"MATURE\", \"IMMATURE\", \"SUPERSEDED\", \"INVALID\"]\n"  
+            "    \"certificateState\"   (string) Can be one of [\"MATURE\", \"IMMATURE\", \"SUPERSEDED\", \"INVALID\", \"MEMPOOL\"]\n"  
             "}\n"
 
             "\nExamples\n"
             + HelpExampleCli("getcertmaturityinfo", "\"1a3e7ccbfd40c4e2304c3215f76d204e4de63c578ad835510f580d529516a874\"")
         );
+
+    UniValue ret(UniValue::VOBJ);
+    uint256 hash;
+
+    string hashString = params[0].get_str();
+    {
+        if (hashString.find_first_not_of("0123456789abcdefABCDEF", 0) != std::string::npos)
+            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid hash format: not an hex");
+    }
+
+    hash.SetHex(hashString);
+
+    // Search for the certificate in the mempool
+    CScCertificate certOut;
+
+    if (mempool.lookup(hash, certOut))
+    {
+        ret.pushKV("maturityHeight", -1);
+        ret.pushKV("blocksToMaturity", -1);
+        ret.pushKV("certificateState", "MEMPOOL");
+        return ret;
+    }
 
     if (!fTxIndex)
     {
@@ -2357,17 +2380,7 @@ UniValue getcertmaturityinfo(const UniValue& params, bool fHelp)
         throw JSONRPCError(RPC_TYPE_ERROR, "DB not initialized: can not retrieve info");
     }
 
-    uint256 hash;
-    string hashString = params[0].get_str();
-    {
-        if (hashString.find_first_not_of("0123456789abcdefABCDEF", 0) != std::string::npos)
-            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid hash format: not an hex");
-    }
-
-    hash.SetHex(hashString);
-
     int currentTipHeight = -1;
-    UniValue ret(UniValue::VOBJ);
     CTxIndexValue txIndexValue;
  
     {
