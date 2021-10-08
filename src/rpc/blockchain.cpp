@@ -2341,7 +2341,7 @@ UniValue getcertmaturityinfo(const UniValue& params, bool fHelp)
             "{\n"
             "    \"maturityHeight\"     (number) The maturity height when the backwardtransfer output are spendable\n"           
             "    \"blocksToMaturity\"   (number) The number of blocks to be mined for achieving maturity (0 means already spendable)\n"           
-            "    \"certificateState\"   (string) Can be one of [\"MATURE\", \"IMMATURE\", \"SUPERSEDED\", \"INVALID\", \"MEMPOOL\"]\n"  
+            "    \"certificateState\"   (string) Can be one of [\"MATURE\", \"IMMATURE\", \"SUPERSEDED\", \"TOP_QUALITY_MEMPOOL\", \"LOW_QUALITY_MEMPOOL\", \"INVALID\"]\n"  
             "}\n"
 
             "\nExamples\n"
@@ -2362,12 +2362,17 @@ UniValue getcertmaturityinfo(const UniValue& params, bool fHelp)
     // Search for the certificate in the mempool
     CScCertificate certOut;
 
-    if (mempool.lookup(hash, certOut))
     {
-        ret.pushKV("maturityHeight", -1);
-        ret.pushKV("blocksToMaturity", -1);
-        ret.pushKV("certificateState", "MEMPOOL");
-        return ret;
+        LOCK(mempool.cs);
+        if (mempool.lookup(hash, certOut))
+        {
+            ret.pushKV("maturityHeight", -1);
+            ret.pushKV("blocksToMaturity", -1);
+            std::string s;
+            mempool.CertQualityStatusString(certOut, s);
+            ret.pushKV("certificateState", s);
+            return ret;
+        }
     }
 
     if (!fTxIndex)

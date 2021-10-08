@@ -1645,6 +1645,26 @@ bool CTxMemPool::lookup(const uint256& hash, CScCertificate& result) const
     return true;
 }
 
+void CTxMemPool::CertQualityStatusString(const CScCertificate& cert, std::string& statusString) const
+{
+    const uint256& scid = cert.GetScId();
+    if (mapSidechains.count(scid) == 0)
+    {
+        // not in mempool data structures
+        statusString = "UNKNOWN";
+        return;
+    }
+
+    if (mapSidechains.at(scid).GetTopQualityCert()->second == cert.GetHash())
+    {
+        statusString = "TOP_QUALITY_MEMPOOL";
+    }
+    else
+    {
+        statusString = "LOW_QUALITY_MEMPOOL";
+    }
+}
+
 CFeeRate CTxMemPool::estimateFee(int nBlocks) const
 {
     LOCK(cs);

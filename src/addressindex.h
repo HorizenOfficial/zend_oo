@@ -273,6 +273,17 @@ struct CMempoolAddressDelta
         NOT_APPLICABLE = 0xFF                   /**< not an output: the mempool map refer to both inputs and outputs */
     };
 
+    static std::string OutputStatusToString(enum OutputStatus s)
+    {
+        switch(s) {
+            case ORDINARY_OUTPUT:                    return "ORDINARY";
+            case TOP_QUALITY_CERT_BACKWARD_TRANSFER: return "TOP_QUALITY_MEMPOOL";
+            case LOW_QUALITY_CERT_BACKWARD_TRANSFER: return "LOW_QUALITY_MEMPOOL";
+            default: break;
+        }
+        return "UNKNOWN";
+    };
+
     int64_t time;
     CAmount amount;
     uint256 prevhash;

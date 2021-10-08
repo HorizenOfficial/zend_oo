@@ -196,6 +196,18 @@ class AddresMempool(BitcoinTestFramework):
             mark_logs("Send certificate failed with reason {}".format(errorString), self.nodes, DEBUG_MODE)
             assert(False)
 
+        print("Calling getcertmaturityinfo for cert {} , it should be in mempool, non top quality".format(cert_0_top))
+        ret = self.nodes[0].getcertmaturityinfo(cert_0_top)
+        assert_equal(ret['blocksToMaturity'], -1)
+        assert_equal(ret['certificateState'], "LOW_QUALITY_MEMPOOL")
+        assert_equal(ret['maturityHeight'], -1)
+
+        print("Calling getcertmaturityinfo for cert {} , it should be in mempool, top quality".format(cert_2_top))
+        ret = self.nodes[0].getcertmaturityinfo(cert_2_top)
+        assert_equal(ret['blocksToMaturity'], -1)
+        assert_equal(ret['certificateState'], "TOP_QUALITY_MEMPOOL")
+        assert_equal(ret['maturityHeight'], -1)
+
         addr_list = []
         addr_list.append(taddr0)
         addr_list.append(taddr1)
@@ -312,7 +324,7 @@ class AddresMempool(BitcoinTestFramework):
         try:
             ret = self.nodes[3].getcertmaturityinfo(cert_2_top_retried)
             assert_equal(ret['blocksToMaturity'], -1)
-            assert_equal(ret['certificateState'], "MEMPOOL")
+            assert_equal(ret['certificateState'], "TOP_QUALITY_MEMPOOL")
             assert_equal(ret['maturityHeight'], -1)
         except JSONRPCException as e:
             errorString = e.error['message']
@@ -456,7 +468,7 @@ class AddresMempool(BitcoinTestFramework):
         ret = self.nodes[3].getcertmaturityinfo(cert_last)
         pprint.pprint(ret)
         assert_equal(ret['blocksToMaturity'], -1)
-        assert_equal(ret['certificateState'], "MEMPOOL")
+        assert_equal(ret['certificateState'], "TOP_QUALITY_MEMPOOL")
         assert_equal(ret['maturityHeight'], -1)
 
         print("Clearing the mempool of all nodes...")

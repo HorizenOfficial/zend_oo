@@ -371,6 +371,8 @@ public:
     bool lookup(const uint256& hash, CTransaction& result) const;
     bool lookup(const uint256& hash, CScCertificate& result) const;
 
+    void CertQualityStatusString(const CScCertificate& cert, std::string& statusString) const;
+
     /** Estimate fee rate needed to get into the next nBlocks */
     CFeeRate estimateFee(int nBlocks) const;
 
