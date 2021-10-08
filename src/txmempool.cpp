@@ -1141,15 +1141,27 @@ void CTxMemPool::removeForBlock(const std::vector<CScCertificate>& vcert, unsign
 void CTxMemPool::clear()
 {
     LOCK(cs);
+
     mapTx.clear();
     mapCertificate.clear();
     mapDeltas.clear();
     mapNextTx.clear();
     mapSidechains.clear();
+    mapNullifiers.clear();
+    mapRecentlyAddedTxBase.clear();
+
+#ifdef ENABLE_ADDRESS_INDEXING
+    mapAddress.clear();
+    mapAddressInserted.clear();
+    mapSpent.clear();
+    mapSpentInserted.clear();
+#endif // ENABLE_ADDRESS_INDEXING
+
     totalTxSize = 0;
     totalCertificateSize = 0;
     cachedInnerUsage = 0;
     ++nTransactionsUpdated;
+    ++nCertificatesUpdated;
 }
 
 void CTxMemPool::check(const CCoinsViewCache *pcoins) const

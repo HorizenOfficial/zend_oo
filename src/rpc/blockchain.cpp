@@ -2444,7 +2444,7 @@ UniValue clearmempool(const UniValue& params, bool fHelp)
     {
         throw runtime_error(
             "clearmempool\n"
-            "\nRemoves any transaction from the mempool.\n"
+            "\nRemoves any transaction and certificate from the mempool. Wallets are NOT synchronized.\n"
             "Regtest only.\n"
             "\nExamples:\n"
             + HelpExampleCli("clearmempool", "")
