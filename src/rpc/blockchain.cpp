@@ -2445,16 +2445,16 @@ UniValue clearmempool(const UniValue& params, bool fHelp)
         throw runtime_error(
             "clearmempool\n"
             "\nRemoves any transaction and certificate from the mempool. Wallets are NOT synchronized.\n"
-            "Regtest only.\n"
+            "Regtest and Testnet only.\n"
             "\nExamples:\n"
             + HelpExampleCli("clearmempool", "")
             + HelpExampleRpc("clearmempool", "")
         );
     }
 
-    if (Params().NetworkIDString() != "regtest")
+    if (Params().NetworkIDString() == "main")
     {
-        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This method can only be used in regtest");
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This method can not be used in main network");
     }
 
     LOCK(cs_main);
