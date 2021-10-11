@@ -1196,6 +1196,12 @@ bool ScRpcCmdCert::send()
             "certificate size %d > max cert size(%d)", nSize, MAX_CERT_SIZE));
     }
 
+    if (!checkFeeRate())
+    {
+        // try again with an updated fee
+        return false;
+    }
+#if 0
     _feeNeeded = ::minRelayTxFee.GetFee(nSize);
     LogPrint("sc", "%s():%d - cert size[%d], fee %d, minFee %d\n", __func__, __LINE__, nSize, _fee, _feeNeeded);
 
@@ -1209,6 +1215,7 @@ bool ScRpcCmdCert::send()
             "certificate with size %d has too low a fee: %d < minimum(%d), the miner might not include it in a block",
             nSize, _fee, _feeNeeded));
     }
+#endif
 
     UniValue val = UniValue(UniValue::VARR);
     val.push_back(_signedObjHex);

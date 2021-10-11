@@ -1042,7 +1042,7 @@ UniValue sc_create(const UniValue& params, bool fHelp)
             " \"toaddress\":scaddr              (string, required) The receiver PublicKey25519Proposition in the SC\n"
             " \"amount\":amount                 (numeric, required) Value expressed in " + CURRENCY_UNIT + "\n"
             " \"minconf\":conf                  (numeric, optional, default=1) Only use funds confirmed at least this many times.\n"
-            " \"fee\":fee                       (numeric, optional) The fee amount to attach to this transaction. If not specified it is automatically computed using a fixed fee rate (default is 1zat per byte)\n"
+            " \"fee\":fee                       (numeric, optional) The fee amount to attach to this transaction " + CURRENCY_UNIT + ". If not specified it is automatically computed using a fixed fee rate (default is 1zat per byte)\n"
             " \"wCertVk\":data                  (string, required) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. Required to verify a WCert SC proof. Its size must be " + strprintf("%d", CScVKey::MaxByteSize()) + " bytes max\n"
             " \"customData\":data               (string, optional) It is an arbitrary byte string of even length expressed in\n"
@@ -5592,7 +5592,7 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
             "     }, ... ]\n"
             " 7. forwardTransferScFee            (numeric, required) The amount of fee due to sidechain actors when creating a FT\n"
             " 8. mainchainBackwardTransferScFee  (numeric, required) The amount of fee due to sidechain actors when creating a MBTR\n"
-            " 9. fee                             (numeric, optional, default=" + strprintf("%s", FormatMoney(SC_RPC_OPERATION_DEFAULT_MINERS_FEE)) + ") The fee of the certificate in ZEN\n"
+            " 9. fee                             (numeric, optional) The fee amount of the certificate in " + CURRENCY_UNIT + ". If not specified it is automatically computed using a fixed fee rate (default is 1Zat/Byte)\n"
             "10. vFieldElementCertificateField   (array, optional) An array of byte strings...TODO add description\n"
             "    [\n"                     
             "      \"fieldElement\"             (string, required) The HEX string representing a generic field element\n"
@@ -5785,7 +5785,7 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
 
     //--------------------------------------------------------------------------
     // fee, default to a small amount
-    CAmount nCertFee = SC_RPC_OPERATION_DEFAULT_MINERS_FEE;
+    CAmount nCertFee = SC_RPC_OPERATION_AUTO_MINERS_FEE;
     if (params.size() > 8)
     {
         try {
