@@ -198,7 +198,7 @@ TEST_F(SidechainsConnectCertsBlockTestSuite, ConnectBlock_SingleCert_SameEpoch_C
     // test
     bool res = ConnectBlock(certBlock, dummyState, certBlockIndex, *sidechainsView, dummyChain,
                             flagBlockProcessingType::CHECK_ONLY, flagScRelatedChecks::OFF,
-                            flagScProofVerification::ON, flagExplorerIndexesWrite::OFF,
+                            flagScProofVerification::ON, flagLevelDBIndexesWrite::OFF,
                             &dummyCertStatusUpdateInfo);
 
     //checks
@@ -274,7 +274,7 @@ TEST_F(SidechainsConnectCertsBlockTestSuite, ConnectBlock_SingleCert_DifferentEp
     // test
     bool res = ConnectBlock(certBlock, dummyState, certBlockIndex, *sidechainsView, dummyChain,
                             flagBlockProcessingType::CHECK_ONLY, flagScRelatedChecks::OFF,
-                            flagScProofVerification::ON, flagExplorerIndexesWrite::OFF,
+                            flagScProofVerification::ON, flagLevelDBIndexesWrite::OFF,
                             &dummyCertStatusUpdateInfo);
 
     //checks
@@ -364,7 +364,7 @@ TEST_F(SidechainsConnectCertsBlockTestSuite, ConnectBlock_MultipleCerts_SameEpoc
     // test
     bool res = ConnectBlock(certBlock, dummyState, certBlockIndex, *sidechainsView, dummyChain,
                             flagBlockProcessingType::CHECK_ONLY, flagScRelatedChecks::OFF,
-                            flagScProofVerification::ON, flagExplorerIndexesWrite::OFF,
+                            flagScProofVerification::ON, flagLevelDBIndexesWrite::OFF,
                             &dummyCertStatusUpdateInfo);
 
     //checks
@@ -456,7 +456,7 @@ TEST_F(SidechainsConnectCertsBlockTestSuite, ConnectBlock_MultipleCerts_Differen
     // test
     bool res = ConnectBlock(certBlock, dummyState, certBlockIndex, *sidechainsView, dummyChain,
                             flagBlockProcessingType::CHECK_ONLY, flagScRelatedChecks::OFF,
-                            flagScProofVerification::ON, flagExplorerIndexesWrite::OFF,
+                            flagScProofVerification::ON, flagLevelDBIndexesWrite::OFF,
                             &dummyCertStatusUpdateInfo);
 
     //checks
@@ -528,7 +528,7 @@ TEST_F(SidechainsConnectCertsBlockTestSuite, ConnectBlock_ScCreation_then_Mbtr_I
     // test
     bool res = ConnectBlock(block, dummyState, blockIndex, *sidechainsView, dummyChain,
                             flagBlockProcessingType::CHECK_ONLY, flagScRelatedChecks::OFF,
-                            flagScProofVerification::ON, flagExplorerIndexesWrite::OFF,
+                            flagScProofVerification::ON, flagLevelDBIndexesWrite::OFF,
                             &dummyCertStatusUpdateInfo);
 
     //checks
@@ -588,7 +588,7 @@ TEST_F(SidechainsConnectCertsBlockTestSuite, ConnectBlock_Mbtr_then_ScCreation_I
     // test
     bool res = ConnectBlock(block, dummyState, blockIndex, *sidechainsView, dummyChain,
                             flagBlockProcessingType::CHECK_ONLY, flagScRelatedChecks::OFF,
-                            flagScProofVerification::ON, flagExplorerIndexesWrite::OFF,
+                            flagScProofVerification::ON, flagLevelDBIndexesWrite::OFF,
                             &dummyCertStatusUpdateInfo);
 
     //checks

@@ -433,7 +433,7 @@ double benchmark_connectblock_slow()
     struct timeval tv_start;
     timer_start(tv_start);
     assert(ConnectBlock(block, state, &index, view, chain, flagBlockProcessingType::CHECK_ONLY,
-                        flagScRelatedChecks::ON, flagScProofVerification::ON, flagExplorerIndexesWrite::OFF));
+                        flagScRelatedChecks::ON, flagScProofVerification::ON, flagLevelDBIndexesWrite::OFF));
     auto duration = timer_stop(tv_start);
 
     // Undo alterations to global state

@@ -535,18 +535,18 @@ CBlock LoadBlockFrom(CBufferedFile& blkdat, CDiskBlockPos* pLastLoadedBlkPos);
 /** Functions for validating blocks and updating the block tree */
 
 /**
- * @brief The enumeration to enable/disable Level DB indexes write for AddressIndexing.
+ * @brief The enumeration to enable/disable Level DB indexes write.
  * It is used in the ConnectBlock() and DisconnectBlock() to prevent updating the DB
  * when called from VerifyDB() and TestBlockValidity().
  * Such flag is needed because the indexes don't have a cache as CoinDB.
  */
-enum class flagExplorerIndexesWrite { ON, OFF };
+enum class flagLevelDBIndexesWrite { ON, OFF };
 
 /** Undo the effects of this block (with given index) on the UTXO set represented by coins.
  *  In case pfClean is provided, operation will try to be tolerant about errors, and *pfClean
  *  will be true if no problems were found. Otherwise, the return value will be false in case
  *  of problems. Note that in any case, coins may be modified. */
-bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, flagExplorerIndexesWrite explorerIndexesWrite,
+bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& coins, flagLevelDBIndexesWrite explorerIndexesWrite,
                      bool* pfClean = NULL, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo = nullptr);
 
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins */
@@ -569,7 +569,7 @@ enum class flagBlockProcessingType
 bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex,
     CCoinsViewCache& coins, const CChain& chain, flagBlockProcessingType processingType,
     flagScRelatedChecks fScRelatedChecks, flagScProofVerification fScProofVerification,
-    flagExplorerIndexesWrite explorerIndexesWrite,
+    flagLevelDBIndexesWrite explorerIndexesWrite,
     std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo = nullptr);
 
 /** Find the position in block files (blk??????.dat) in which a block must be written. */
