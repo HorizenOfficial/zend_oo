@@ -2994,10 +2994,10 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                 }
 
 #ifdef ENABLE_ADDRESS_INDEXING
-                const CTxIn input = tx.GetVin()[j];
-
                 if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
                 {
+                    const CTxIn input = tx.GetVin()[j];
+
                     if (fAddressIndex)
                     {
                         const CTxOut &prevout = view.GetOutputFor(tx.GetVin()[j]);
