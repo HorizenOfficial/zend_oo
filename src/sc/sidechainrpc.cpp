@@ -1002,8 +1002,8 @@ void ScRpcCmd::addChange()
             CReserveKey keyChange(pwalletMain);
             CPubKey vchPubKey;
 
-            // TODO - bitcoin code has also KeepKey() in the CommitTransaction() for preventing the key reuse,
-            // but zcash does not do that. Check this.
+            // bitcoin code has also KeepKey() in the CommitTransaction() for preventing the key reuse,
+            // but zcash does not do that.
             if (!keyChange.GetReservedKey(vchPubKey))
                 throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, "Could not generate a taddr to use as a change address"); // should never fail, as we just unlocked
 
@@ -1035,34 +1035,15 @@ ScRpcCmdCert::ScRpcCmdCert(
 {
 }
 
-void ScRpcCmdCert::execute()
+void ScRpcCmdCert::_execute()
 {
-    static const int MAX_LOOP = 10;
-    int safeCount = MAX_LOOP;
-    while (true)
-    {
-        init();
-
-        addInputs();
-        addChange();
-        addBackwardTransfers();
-        addCustomFields();
-        addScFees();
-        sign();
-
-        LogPrint("sc", "%s():%d - cnt=%d, fee=%lld, feeNeeded=%lld\n", __func__, __LINE__,
-            (MAX_LOOP - safeCount + 1), _fee, _feeNeeded);
-
-        bool ret = send();
-        if (ret)
-        {
-            break;
-        }
-        if (safeCount-- <= 0)
-        {
-            throw JSONRPCError(RPC_WALLET_ERROR, "Could not set minimum fee");
-        }
-    }
+    init();
+    addInputs();
+    addChange();
+    addBackwardTransfers();
+    addCustomFields();
+    addScFees();
+    sign();
 }
 
 void ScRpcCmdCert::sign()
@@ -1184,16 +1165,16 @@ void ScRpcCmdCert::init()
     _cert.vBitVectorCertificateField.clear();
 }
 
-bool ScRpcCmdCert::send()
+bool ScRpcCmd::send()
 {
     unsigned int nSize = getSignedObjSize();
 
-    // check we do not exceed max certificate size
-    if (nSize > MAX_CERT_SIZE)
+    // check we do not exceed max obj size
+    if (nSize > getMaxObjSize())
     {
-        LogPrintf("%s():%d - certificate size[%d] > max size(%d)\n", __func__, __LINE__, nSize, MAX_CERT_SIZE);
+        LogPrintf("%s():%d - tx/cert size[%d] > max size(%d)\n", __func__, __LINE__, nSize, getMaxObjSize());
         throw JSONRPCError(RPC_VERIFY_ERROR, strprintf(
-            "certificate size %d > max cert size(%d)", nSize, MAX_CERT_SIZE));
+            "tx/cert size %d > max size(%d)", nSize, getMaxObjSize()));
     }
 
     if (!checkFeeRate())
@@ -1201,32 +1182,17 @@ bool ScRpcCmdCert::send()
         // try again with an updated fee
         return false;
     }
-#if 0
-    _feeNeeded = ::minRelayTxFee.GetFee(nSize);
-    LogPrint("sc", "%s():%d - cert size[%d], fee %d, minFee %d\n", __func__, __LINE__, nSize, _fee, _feeNeeded);
-
-    // If fee is null then the user has explicitly set this cert as free.
-    // Else if fee is not null, check that the obj size does not imply a feeRate too low, because
-    // we might risk not to have it mined and yet spend the fee
-    if (_fee != 0 && _fee < _feeNeeded)
-    {
-        LogPrintf("%s():%d - certificate size[%d], fee %d < minimum(%d)\n", __func__, __LINE__, nSize, _fee, _feeNeeded);
-        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf(
-            "certificate with size %d has too low a fee: %d < minimum(%d), the miner might not include it in a block",
-            nSize, _fee, _feeNeeded));
-    }
-#endif
 
     UniValue val = UniValue(UniValue::VARR);
     val.push_back(_signedObjHex);
 
-    UniValue certHash = sendrawtransaction(val, false);
-    if (certHash.isNull())
+    UniValue hash = sendrawtransaction(val, false);
+    if (hash.isNull())
     {
-        // should never happen, since the above command returns a valid cert hash or throws an exception itself
-        throw JSONRPCError(RPC_WALLET_ERROR, "sending raw certificate has failed");
+        // should never happen, since the above command returns a valid hash or throws an exception itself
+        throw JSONRPCError(RPC_WALLET_ERROR, "sendrawtransaction has failed");
     }
-    LogPrint("sc", "cert sent[%s]\n", certHash.get_str());
+    LogPrint("sc", "tx/cert sent[%s]\n", hash.get_str());
     return true;
 }
 
@@ -1318,61 +1284,34 @@ void ScRpcCmdTx::sign()
     _tx = txStreamed;
 }
 
-bool ScRpcCmdTx::send()
+void ScRpcCmdTx::_execute()
 {
-    unsigned int nSize = getSignedObjSize();
-
-    // check we do not exceed max tx size
-    if (nSize > MAX_TX_SIZE)
-    {
-        LogPrintf("%s():%d - tx size[%d] > max size(%d)\n", __func__, __LINE__, nSize, MAX_TX_SIZE);
-            throw JSONRPCError(RPC_VERIFY_ERROR, strprintf(
-                "tx size %d > max tx size(%d)", nSize, MAX_TX_SIZE));
-    }
-
-    if (!checkFeeRate())
-    {
-        // try again with an updated fee
-        return false;
-    }
-
-    UniValue val = UniValue(UniValue::VARR);
-    val.push_back(_signedObjHex);
-
-    UniValue txHash = sendrawtransaction(val, false);
-    if (txHash.isNull())
-    {
-        // should never happen, since the above command returns a valid hash or throws an exception itself
-        throw JSONRPCError(RPC_WALLET_ERROR, "sending raw transaction has failed");
-    }
-    return true;
+    init();
+    addInputs();
+    addChange();
+    addCcOutputs();
+    sign();
 }
 
-void ScRpcCmdTx::execute()
+void ScRpcCmd::execute()
 {
     // we need a safety counter for the case when we have a large number of very small inputs that gets added to
     // the tx increasing its size and the fee needed
-    // An alternative might as well be letting it fail when we do not have utxo's anymore
-    static const int MAX_LOOP = 1000;
+    // An alternative might as well be letting it fail when we do not have utxo's anymore.
+    static const int MAX_LOOP = 100;
 
-    // TODO this can be a data member, in this way we can add a multiplier when checkFeeRate fails too many time
     int safeCount = MAX_LOOP;
 
     while (true)
     {
-        init();
+        _execute();
 
-        addInputs();
-        addChange();
-        addCcOutputs();
-        sign();
+        LogPrint("sc", "%s():%d - cnt=%d, fee=%lld, feeNeeded=%lld\n", __func__, __LINE__,
+            (MAX_LOOP - safeCount + 1), _fee, _feeNeeded);
 
-        LogPrint("sc", "%s():%d - cnt=%d, fee=%lld\n", __func__, __LINE__, (MAX_LOOP - safeCount + 1), _fee);
-
-        bool ret = send();
-
-        if (ret)
+        if (send())
         {
+            // we made it
             break;
         }
         if (safeCount-- <= 0)

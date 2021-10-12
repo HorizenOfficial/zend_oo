@@ -189,6 +189,7 @@ class ScRpcCmdsFeeHandling(BitcoinTestFramework):
         tx_size = self.nodes[1].getrawmempool(True)[tx]['size']
         print "tx fee={}, sz={}, feeRate={}".format(tx_fee, tx_size, get_fee_rate(tx_size, tx_fee))
 
+        mark_logs("\nNode 1 sends some certificate to sc...", self.nodes, DEBUG_MODE)
         # advance epoch
         self.nodes[0].generate(EPOCH_LENGTH - 2)
         self.sync_all()
