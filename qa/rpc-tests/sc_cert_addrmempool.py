@@ -487,5 +487,9 @@ class AddresMempool(BitcoinTestFramework):
         assert_equal(ret['certificateState'], "INVALID")
         assert_equal(ret['maturityHeight'], -1)
 
+        ret = self.nodes[1].verifychain(4, 0)
+        assert_equal(ret, True)
+
+
 if __name__ == '__main__':
     AddresMempool().main()

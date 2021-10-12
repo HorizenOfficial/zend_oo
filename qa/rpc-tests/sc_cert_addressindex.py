@@ -13,6 +13,7 @@ from test_framework.mc_test.mc_test import generate_random_field_element_hex, Ce
 import os
 from decimal import Decimal
 import time
+import pprint
 
 DEBUG_MODE = 1
 NUMB_OF_NODES = 2
@@ -406,6 +407,10 @@ class sc_cert_addressindex(BitcoinTestFramework):
         assert_equal(addressutxoWithImmature[0]["satoshis"], to_satoshis(bwt_amount5))
         currentHeight = self.nodes[1].getblockcount()
         assert_equal(addressutxoWithImmature[0]["blocksToMaturity"], maturityHeight - currentHeight)
+
+        ret = self.nodes[1].verifychain(4, 0)
+        assert_equal(ret, True)
+
 
 if __name__ == '__main__':
     sc_cert_addressindex().main()
