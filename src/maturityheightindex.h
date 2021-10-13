@@ -62,6 +62,7 @@ struct CMaturityHeightKey {
     }
 };
 
+//This is needed because the CLevelDBBatch.Write requires 2 arguments (key, value)
 struct CMaturityHeightValue {
     unsigned int dummy;
     size_t GetSerializeSize(int nType, int nVersion) const {
