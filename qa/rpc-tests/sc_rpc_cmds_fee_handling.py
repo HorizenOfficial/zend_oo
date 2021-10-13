@@ -22,8 +22,8 @@ EPOCH_LENGTH = 10
 FT_SC_FEE = Decimal('0')
 MBTR_SC_FEE = Decimal('0')
 CERT_FEE = Decimal("0.00025")
-CUSTOM_FEE_RATE = Decimal('2.0')
-CUSTOM_FEE_RATE_PER_K = CUSTOM_FEE_RATE/COIN*1000
+CUSTOM_FEE_RATE_ZAT_PER_BYTE = Decimal('2.0')
+CUSTOM_FEE_RATE_ZEN_PER_KBYTE = CUSTOM_FEE_RATE_ZAT_PER_BYTE/COIN*1000
 
 class ScRpcCmdsFeeHandling(BitcoinTestFramework):
     alert_filename = None
@@ -42,7 +42,7 @@ class ScRpcCmdsFeeHandling(BitcoinTestFramework):
             extra_args=[
                 ['-logtimemicros=1', '-debug=sc', '-debug=py', '-debug=mempool'],
                 ['-logtimemicros=1', '-debug=sc', '-debug=py', '-debug=mempool',
-                    '-paytxfee='+str(CUSTOM_FEE_RATE_PER_K)], # fee rate expressed in ZEN/Kb
+                    '-paytxfee='+str(CUSTOM_FEE_RATE_ZEN_PER_KBYTE)],
                 ['-logtimemicros=1', '-debug=sc', '-debug=py', '-debug=mempool']
                 ])
 
@@ -59,7 +59,7 @@ class ScRpcCmdsFeeHandling(BitcoinTestFramework):
         def get_fee_rate(size, fee):
             return ((fee*COIN)/size)
         
-        def isclose(d1, d2, tolerance=Decimal('0.001')):
+        def isclose(d1, d2, tolerance=Decimal('0.005')):
             dec1 = Decimal(d1)
             dec2 = Decimal(d2)
             return abs(d1-d2) <= tolerance
@@ -118,7 +118,7 @@ class ScRpcCmdsFeeHandling(BitcoinTestFramework):
         tx_size = self.nodes[1].getrawmempool(True)[tx]['size']
         rate = get_fee_rate(tx_size, tx_fee)
         print "tx fee={}, sz={}, feeRate={}".format(tx_fee, tx_size, rate)
-        assert_true(isclose(CUSTOM_FEE_RATE, rate))
+        assert_true(isclose(CUSTOM_FEE_RATE_ZAT_PER_BYTE, rate))
 
         mark_logs("\nNode 0 generates 1 block", self.nodes, DEBUG_MODE)
         self.nodes[0].generate(1)
@@ -285,7 +285,7 @@ class ScRpcCmdsFeeHandling(BitcoinTestFramework):
         cert_size = self.nodes[1].getrawmempool(True)[cert]['size']
         rate = get_fee_rate(cert_size, cert_fee)
         print "cert fee={}, sz={}, feeRate={}".format(cert_fee, cert_size, rate)
-        assert_true(isclose(CUSTOM_FEE_RATE, rate))
+        assert_true(isclose(CUSTOM_FEE_RATE_ZAT_PER_BYTE, rate))
 
 
 
