@@ -3736,11 +3736,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
 #endif // ENABLE_ADDRESS_INDEXING
 
-    if (fTxIndex)
-    {
-        //Remove the certificates from the MaturityHeight DB related to the ceased sidechains
-        view.HandleMaturityHeightIndexSidechainEvents(pindex->nHeight, pblocktree, maturityHeightValues);
-        view.HandleTxIndexSidechainEvents(pindex->nHeight, pblocktree, vTxIndexValues);
+        if (fTxIndex)
+        {
+            //Remove the certificates from the MaturityHeight DB related to the ceased sidechains
+            view.HandleMaturityHeightIndexSidechainEvents(pindex->nHeight, pblocktree, maturityHeightValues);
+            view.HandleTxIndexSidechainEvents(pindex->nHeight, pblocktree, vTxIndexValues);
+        }
     }
 
     if (!view.HandleSidechainEvents(pindex->nHeight, blockundo, pCertsStateInfo))

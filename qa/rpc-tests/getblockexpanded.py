@@ -10,9 +10,6 @@ from test_framework.util import assert_equal, initialize_chain_clean, \
 from test_framework.mc_test.mc_test import *
 
 from decimal import Decimal
-'''
-This test wants to verify the certificate quality correctness inside the explorer.
-'''
 
 EPOCH_LENGTH = 100
 CERT_FEE = Decimal("0.000123")
@@ -40,21 +37,6 @@ class getblockexpanded(BitcoinTestFramework):
 
         self.is_network_split=False
         self.sync_all()
-
-    def split_network(self):
-        # Split the network of three nodes into nodes 0 and 1.
-        assert not self.is_network_split
-        disconnect_nodes(self.nodes[0], 1)
-        disconnect_nodes(self.nodes[1], 0)
-        self.is_network_split = True
-
-    def join_network(self):
-        # Join the (previously split) network pieces together: 0-1.
-        assert self.is_network_split
-        connect_nodes_bi(self.nodes, 0, 1)
-        connect_nodes_bi(self.nodes, 1, 0)
-        self.is_network_split = False
-
 
     def run_test(self):
 
@@ -100,7 +82,7 @@ class getblockexpanded(BitcoinTestFramework):
 
         amount_cert_1 = [{"address": node1Addr, "amount": bwt_amount}]
 
-        cert1 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
+        self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_1, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
         self.sync_all()
         maturityHeight = sc_creation_block["height"]+(EPOCH_LENGTH*2)+EPOCH_LENGTH*0.2 - 1
@@ -114,12 +96,12 @@ class getblockexpanded(BitcoinTestFramework):
 
         amount_cert_2 = [{"address": node1Addr, "amount": bwt_amount2}]
 
-        cert2 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
+        self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
         self.sync_all()
 
         #Mine a block
-        cert1_2_block=self.nodes[0].generate(1)[0]
+        self.nodes[0].generate(1)[0]
         self.sync_all()
 
         #Mine a block with a new Certificate 3 with quality = 8
@@ -132,7 +114,7 @@ class getblockexpanded(BitcoinTestFramework):
         amount_cert_3 = [{"address": node1Addr, "amount": bwt_amount3}]
 
         cert3 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
-            epoch_cum_tree_hash, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
+            epoch_cum_tree_hash, proof, amount_cert_3, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
         self.sync_all()
         cert3_block = self.nodes[0].generate(1)[0]
         self.sync_all()
@@ -150,7 +132,7 @@ class getblockexpanded(BitcoinTestFramework):
 
         amount_cert_4 = [{"address": node1Addr, "amount": bwt_amount4}]
 
-        cert4 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
+        self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_4, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
 
         cert4_block = self.nodes[0].generate(1)[0]
@@ -228,9 +210,10 @@ class getblockexpanded(BitcoinTestFramework):
         self.nodes[0].invalidateblock(fake_block)
         self.nodes[1].invalidateblock(fake_block)
 
-        cert4 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
+        self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_4, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
-        self.nodes[0].generate(2)
+        self.nodes[0].generate(1)[0]
+        self.nodes[0].generate(1)
         self.sync_all()
 
         rpcDataByHeight = self.nodes[0].getblockexpanded("640")
@@ -241,6 +224,8 @@ class getblockexpanded(BitcoinTestFramework):
         assert_equal(len(rpcDataByHeight['matureCertificate']), 1)
         assert_equal(len(rpcDataByHashVerbosity['matureCertificate']), 1)
         assert_equal(len(rpcDataByHeightVerbosity['matureCertificate']), 1)
+        assert_equal(rpcDataByHashVerbosity['matureCertificate'][0], cert_3_json)
+        assert_equal(rpcDataByHeightVerbosity['matureCertificate'][0], cert_3_json)
         assert_equal(self.nodes[0].getscinfo(scid)['items'][0]['state'], "ALIVE")
 
         #Let the sidechain cease
