@@ -890,7 +890,7 @@ UniValue getblockexpanded(const UniValue& params, bool fHelp)
 
     std::string strHash = params[0].get_str();
 
-    if (!fTxIndex)
+    if (!fMaturityHeightIndex)
     {
         throw JSONRPCError(RPC_TYPE_ERROR, "txindex option not set: can not retrieve info");
     }

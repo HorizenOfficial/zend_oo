@@ -8,6 +8,7 @@ from test_framework.util import assert_equal, initialize_chain_clean, \
     start_node, connect_nodes_bi, assert_true, assert_false, get_epoch_data, \
     swap_bytes, disconnect_nodes
 from test_framework.mc_test.mc_test import *
+from test_framework.authproxy import JSONRPCException
 
 from decimal import Decimal
 
@@ -30,7 +31,7 @@ class getblockexpanded(BitcoinTestFramework):
 
     def setup_network(self, split=False):
         self.nodes=[]
-        self.nodes += [start_node(0, self.options.tmpdir,extra_args=['-txindex=1'])]
+        self.nodes += [start_node(0, self.options.tmpdir,extra_args=['-txindex=1', '-maturityheightindex=1'])]
         self.nodes += [start_node(1, self.options.tmpdir,extra_args=['-txindex=1'])]
 
         connect_nodes_bi(self.nodes,0,1)
@@ -149,6 +150,15 @@ class getblockexpanded(BitcoinTestFramework):
                 cert_3_json = cert
         assert_true(cert_3_json != {})
         tipHeight = self.nodes[0].getblockcount()
+
+        #Test that we require -maturityheightindex=1 to run the getblockexpanded
+        try:
+            self.nodes[1].getblockexpanded("640")
+            assert(False)
+        except JSONRPCException as e:
+            errorString = e.error['message']
+            print("getblockexpanded failed with because maturityheightindex not enable")
+            assert(True)
 
         #Test that we see the certificate 3 but non the certificate 2 and 1
         for i in range (1,tipHeight+1):

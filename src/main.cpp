@@ -77,6 +77,7 @@ bool fImporting = false;
 bool fReindex = false;
 bool fReindexFast = false;
 bool fTxIndex = false;
+bool fMaturityHeightIndex = false;
 
 #ifdef ENABLE_ADDRESS_INDEXING
 bool fAddressIndex = false;
@@ -2734,9 +2735,12 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     {
         if (fTxIndex)
         {
+            view.RevertTxIndexSidechainEvents(pindex->nHeight, blockUndo, pblocktree, vTxIndexValues);
+        }
+
+        if (fMaturityHeightIndex) {
             //Restore the previous ceased sidechain
             view.RevertMaturityHeightIndexSidechainEvents(pindex->nHeight, blockUndo, pblocktree, maturityHeightValues);
-            view.RevertTxIndexSidechainEvents(pindex->nHeight, blockUndo, pblocktree, vTxIndexValues);
         }
 
 #ifdef ENABLE_ADDRESS_INDEXING
@@ -2837,7 +2841,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
             CSidechain sidechain;
             assert(view.GetSidechain(cert.GetScId(), sidechain));
             int certMaturityHeight = sidechain.GetCertMaturityHeight(cert.epochNumber);
-            if (fTxIndex) {
+            if (fMaturityHeightIndex) {
                 CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, cert.GetHash());
                 maturityHeightValues.push_back(make_pair(maturityHeightKey, CMaturityHeightValue()));
             }
@@ -2846,7 +2850,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
             if (!prevBlockTopQualityCertHash.IsNull())
             {
                 //Restore the previous top certificate in the MaturityHeight DB
-                if (fTxIndex) {
+                if (fMaturityHeightIndex) {
                     const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, prevBlockTopQualityCertHash);
                     maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(1)));
                 }
@@ -3066,6 +3070,8 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         if (fTxIndex) {
             if (!pblocktree->WriteTxIndex(vTxIndexValues))
                 return AbortNode(state, "Failed to write transaction index");
+        }
+        if (fMaturityHeightIndex) {
             if (!pblocktree->UpdateMaturityHeightIndex(maturityHeightValues)) {
                 return AbortNode(state, "Failed to write maturity height index");
             }
@@ -3623,7 +3629,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (isBlockTopQualityCert)
         {
             //Add the new certificate in the MaturityHeight collection
-            if (fTxIndex) {
+            if (fMaturityHeightIndex) {
                 const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, cert.GetHash());
                 maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(1)));
             }
@@ -3649,10 +3655,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                         txIndexVal.maturityHeight *= -1;
                         vTxIndexValues.push_back(std::make_pair(prevBlockTopQualityCertHash, txIndexVal));
 
-                    //Remove the superseded certificate from the MaturityHeight DB
-                    const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, prevBlockTopQualityCertHash);
-                    maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue()));
-
 #ifdef ENABLE_ADDRESS_INDEXING
                         // Set any lower quality BT as superseded on the explorer indexes
                         if (fAddressIndex)
@@ -3662,6 +3664,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                                                                CCoinsViewCache::flagIndexesUpdateType::SUPERSEDE_CERTIFICATE);
                         }
 #endif // ENABLE_ADDRESS_INDEXING
+                    }
+                    if (fMaturityHeightIndex) {
+                        //Remove the superseded certificate from the MaturityHeight DB
+                        const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, prevBlockTopQualityCertHash);
+                        maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue()));
                     }
                 }
 
@@ -3736,7 +3743,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
 #endif // ENABLE_ADDRESS_INDEXING
 
-        if (fTxIndex)
+        if (fMaturityHeightIndex)
         {
             //Remove the certificates from the MaturityHeight DB related to the ceased sidechains
             view.HandleMaturityHeightIndexSidechainEvents(pindex->nHeight, pblocktree, maturityHeightValues);
@@ -3851,6 +3858,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (fTxIndex) {
             if (!pblocktree->WriteTxIndex(vTxIndexValues))
                 return AbortNode(state, "Failed to write transaction index");
+        }
+        if (fMaturityHeightIndex) {
             if (!pblocktree->UpdateMaturityHeightIndex(maturityHeightValues))
                 return AbortNode(state, "Failed to write maturity height index");
         }
@@ -5831,6 +5840,10 @@ bool InitBlockIndex() {
     // Use the provided setting for -txindex in the new database
     fTxIndex = GetBoolArg("-txindex", false);
     pblocktree->WriteFlag("txindex", fTxIndex);
+
+    // Use the provided setting for -maturityheightindex in the new database
+    fMaturityHeightIndex = GetBoolArg("-maturityheightindex", false);
+    pblocktree->WriteFlag("maturityheightindex", fMaturityHeightIndex);
 
 #ifdef ENABLE_ADDRESS_INDEXING
     // Use the provided setting for -addressindex in the new database
