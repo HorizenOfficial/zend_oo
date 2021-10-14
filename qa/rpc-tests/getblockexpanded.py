@@ -6,8 +6,8 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal, initialize_chain_clean, \
     start_node, connect_nodes_bi, assert_true, assert_false, get_epoch_data, \
-    swap_bytes, disconnect_nodes
-from test_framework.mc_test.mc_test import *
+    swap_bytes
+from test_framework.mc_test.mc_test import CertTestUtils, generate_random_field_element_hex
 from test_framework.authproxy import JSONRPCException
 
 from decimal import Decimal
@@ -102,7 +102,7 @@ class getblockexpanded(BitcoinTestFramework):
         self.sync_all()
 
         #Mine a block
-        self.nodes[0].generate(1)[0]
+        self.nodes[0].generate(1)
         self.sync_all()
 
         #Mine a block with a new Certificate 3 with quality = 8
@@ -156,7 +156,6 @@ class getblockexpanded(BitcoinTestFramework):
             self.nodes[1].getblockexpanded("640")
             assert(False)
         except JSONRPCException as e:
-            errorString = e.error['message']
             print("getblockexpanded failed with because maturityheightindex not enable")
             assert(True)
 
@@ -222,8 +221,7 @@ class getblockexpanded(BitcoinTestFramework):
 
         self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_4, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
-        self.nodes[0].generate(1)[0]
-        self.nodes[0].generate(1)
+        self.nodes[0].generate(2)
         self.sync_all()
 
         rpcDataByHeight = self.nodes[0].getblockexpanded("640")

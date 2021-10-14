@@ -3,16 +3,11 @@
 struct CMaturityHeightIteratorKey {
     int blockHeight;
 
-    size_t GetSerializeSize(int nType, int nVersion) const {
-        return 4;
-    }
-    template<typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const {
-        ser_writedata32be(s, blockHeight);
-    }
-    template<typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion) {
-        blockHeight = ser_readdata32be(s);
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(blockHeight);
     }
 
     CMaturityHeightIteratorKey(int height) {
@@ -32,19 +27,11 @@ struct CMaturityHeightKey {
     int blockHeight;
     uint256 certId;
 
-    size_t GetSerializeSize(int nType, int nVersion) const {
-        return 36;
-    } 
-    template<typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const {
-        // Heights are stored big-endian for key sorting in LevelDB
-        ser_writedata32be(s, blockHeight);
-        certId.Serialize(s, nType, nVersion);
-    }
-    template<typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion) {
-        blockHeight = ser_readdata32be(s);
-        certId.Unserialize(s, nType, nVersion);
+    ADD_SERIALIZE_METHODS;
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(blockHeight);
+        READWRITE(certId);       
     }
 
     CMaturityHeightKey(int height, uint256 hash) {
@@ -64,22 +51,15 @@ struct CMaturityHeightKey {
 
 //This is needed because the CLevelDBBatch.Write requires 2 arguments (key, value)
 struct CMaturityHeightValue {
-    unsigned int dummy;
-    size_t GetSerializeSize(int nType, int nVersion) const {
-        return 4;
+    char dummy;
+
+    ADD_SERIALIZE_METHODS;
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
+        READWRITE(dummy);
     }
 
-    template<typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const {
-        ser_writedata32be(s, dummy);
-    }
-
-    template<typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion) {
-        dummy = ser_readdata32be(s);
-    }
-
-    CMaturityHeightValue (unsigned int value) {
+    CMaturityHeightValue (char value) {
         dummy = value;
     }
 
@@ -88,10 +68,10 @@ struct CMaturityHeightValue {
     }
 
     void SetNull() {
-        dummy = 0;
+        dummy = '0';
     }
 
     bool IsNull() const {
-        return dummy == 0;
+        return dummy == '0';
     }
 };

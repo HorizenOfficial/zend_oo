@@ -746,7 +746,7 @@ public:
 
     void HandleMaturityHeightIndexSidechainEvents(int height, CBlockTreeDB* pblocktree,
                                       std::vector<std::pair<CMaturityHeightKey,CMaturityHeightValue>>& maturityHeightIndex);
-   void RevertMaturityHeightIndexSidechainEvents(int height, CBlockUndo& blockUndo, CBlockTreeDB* pblocktree,
+    void RevertMaturityHeightIndexSidechainEvents(int height, CBlockUndo& blockUndo, CBlockTreeDB* pblocktree,
                                                    std::vector<std::pair<CMaturityHeightKey,CMaturityHeightValue>>& maturityHeightIndex);
 #ifdef ENABLE_ADDRESS_INDEXING
     void HandleIndexesSidechainEvents(int height, CBlockTreeDB* pblocktree,

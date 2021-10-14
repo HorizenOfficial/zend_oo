@@ -816,9 +816,10 @@ UniValue getblockexpanded(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
-            "getblock \"hash|height\" ( verbose )\n"
+            "getblockexpanded \"hash|height\" ( verbose )\n"
             "\nIf verbosity is 1, returns an Object with information about the block.\n"
             "If verbosity is 2, returns an Object with information about the block and information about each transaction.\n"
+            "\nIt works only with -maturityheightindex=1 and -txindex=1.\n"
             
             "\nArguments:\n"
             "1. \"hash|height\"                     (string, required) the block hash or height\n"
@@ -892,7 +893,7 @@ UniValue getblockexpanded(const UniValue& params, bool fHelp)
 
     if (!fMaturityHeightIndex)
     {
-        throw JSONRPCError(RPC_TYPE_ERROR, "txindex option not set: can not retrieve info");
+        throw JSONRPCError(RPC_TYPE_ERROR, "maturityHeightIndex option not set: can not retrieve info");
     }
 
     // If height is supplied, find the hash
@@ -946,7 +947,7 @@ UniValue getblockexpanded(const UniValue& params, bool fHelp)
 
     UniValue blockJSON = blockToJSON(block, pblockindex, verbosity >= 2);
     
-    //Add certificates that became maure with this block    
+    //Add certificates that became mature with this block    
     if (block.nVersion == BLOCK_VERSION_SC_SUPPORT)
     {
         UniValue matureCertificate(UniValue::VARR);
@@ -958,20 +959,21 @@ UniValue getblockexpanded(const UniValue& params, bool fHelp)
         }
         std::vector<CMaturityHeightKey> matureCertificatesKeys;
         pblocktree->ReadMaturityHeightIndex(height, matureCertificatesKeys);
-        BOOST_FOREACH(const CMaturityHeightKey& key, matureCertificatesKeys) 
+        for (const CMaturityHeightKey& key : matureCertificatesKeys) 
         {
             if (verbosity == 2)
             {
                 UniValue objCert(UniValue::VOBJ);
-                std::unique_ptr<CTransactionBase> pTxBase;
                 CScCertificate certAttempt;
                 uint256 hashBlock{};    
                 if (GetCertificate(key.certId, certAttempt, hashBlock, true))
                 {
-                    pTxBase.reset(new CScCertificate(certAttempt));
-                    CScCertificate cert(dynamic_cast<const CScCertificate&>(*pTxBase));
-                    CertToJSON(cert, uint256(), objCert);
+                    CertToJSON(certAttempt, uint256(), objCert);
                     matureCertificate.push_back(objCert);
+                }
+                else
+                {
+                    throw JSONRPCError(RPC_TYPE_ERROR, "Can not retrieve info about the certificate!");
                 }    
             }
             else

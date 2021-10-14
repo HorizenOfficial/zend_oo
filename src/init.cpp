@@ -376,7 +376,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-sysperms", _("Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)"));
 #endif
     strUsage += HelpMessageOpt("-txindex", strprintf(_("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)"), 0));
-    strUsage += HelpMessageOpt("-maturityheightindex", strprintf(_("Maintain a maturity height index that store for every height the cerficate that became mature, used by the getblockexpanded rpc call. It requires -txindex (default: %u)"), 0));
+    strUsage += HelpMessageOpt("-maturityheightindex", strprintf(_("Maintain a maturity height index that stores for every height the cerficates that became mature, used by the getblockexpanded rpc call. It requires -txindex (default: %u)"), 0));
 
 #ifdef ENABLE_ADDRESS_INDEXING
     strUsage += HelpMessageOpt("-addressindex", strprintf(_("Maintain a full address index, used to query for the balance, txids and unspent outputs for addresses (default: %u)"), DEFAULT_ADDRESSINDEX));
