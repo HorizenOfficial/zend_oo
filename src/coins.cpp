@@ -1707,7 +1707,7 @@ void CCoinsViewCache::RevertMaturityHeightIndexSidechainEvents(int height, CBloc
 
             // Restore lastTopQualityCert as valid (not superseded)
             CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(txIndexVal.maturityHeight * -1, pSidechain->lastTopQualityCertHash);
-            maturityHeightIndex.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue('1')));
+            maturityHeightIndex.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
         }
     }
 }

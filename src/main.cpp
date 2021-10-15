@@ -2836,13 +2836,13 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         if (isBlockTopQualityCert)
         {
             const uint256& prevBlockTopQualityCertHash = highQualityCertData.at(cert.GetHash());
-            int certMaturityHeight;
+            int certMaturityHeight = -1;
 
             //Remove the current certificate from the MaturityHeight DB
             if (fMaturityHeightIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON) {
                 CSidechain sidechain;
                 assert(view.GetSidechain(cert.GetScId(), sidechain));
-                int certMaturityHeight = sidechain.GetCertMaturityHeight(cert.epochNumber);
+                certMaturityHeight = sidechain.GetCertMaturityHeight(cert.epochNumber);
                 CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, cert.GetHash());
                 maturityHeightValues.push_back(make_pair(maturityHeightKey, CMaturityHeightValue()));
             }
@@ -2856,9 +2856,10 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
                 if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON) {
                     //Restore the previous top certificate in the MaturityHeight DB
+                    assert(certMaturityHeight != -1);
                     if (fMaturityHeightIndex) {
                         const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, prevBlockTopQualityCertHash);
-                        maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue('1')));
+                        maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
                     }
  #ifdef ENABLE_ADDRESS_INDEXING
                     // Set the lower quality BTs as top quality
@@ -3633,7 +3634,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             //Add the new certificate in the MaturityHeight collection
             if (fMaturityHeightIndex) {
                 const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, cert.GetHash());
-                maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue('1')));
+                maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
             }
 
             if (!view.UpdateSidechain(cert, blockundo) )

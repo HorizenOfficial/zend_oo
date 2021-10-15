@@ -3,11 +3,17 @@
 struct CMaturityHeightIteratorKey {
     int blockHeight;
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(blockHeight);
+    size_t GetSerializeSize(int nType, int nVersion) const {
+        return 4;
+    }
+    template<typename Stream>
+    void Serialize(Stream& s, int nType, int nVersion) const {
+        // Heights are stored big-endian for key sorting in LevelDB
+        ser_writedata32be(s, blockHeight);
+    }
+    template<typename Stream>
+    void Unserialize(Stream& s, int nType, int nVersion) {
+        blockHeight = ser_readdata32be(s);
     }
 
     CMaturityHeightIteratorKey(int height) {
@@ -27,11 +33,19 @@ struct CMaturityHeightKey {
     int blockHeight;
     uint256 certId;
 
-    ADD_SERIALIZE_METHODS;
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(blockHeight);
-        READWRITE(certId);       
+    size_t GetSerializeSize(int nType, int nVersion) const {
+        return 36;
+    } 
+    template<typename Stream>
+    void Serialize(Stream& s, int nType, int nVersion) const {
+        // Heights are stored big-endian for key sorting in LevelDB
+        ser_writedata32be(s, blockHeight);
+        certId.Serialize(s, nType, nVersion);
+    }
+    template<typename Stream>
+    void Unserialize(Stream& s, int nType, int nVersion) {
+        blockHeight = ser_readdata32be(s);
+        certId.Unserialize(s, nType, nVersion);
     }
 
     CMaturityHeightKey(int height, uint256 hash) {

@@ -156,8 +156,9 @@ class getblockexpanded(BitcoinTestFramework):
             self.nodes[1].getblockexpanded("640")
             assert(False)
         except JSONRPCException as e:
-            print("getblockexpanded failed with because maturityheightindex not enable")
-            assert(True)
+            errorString = e.error['message']
+            print(errorString)
+            assert("maturityHeightIndex option not set: can not retrieve info" in errorString)
 
         #Test that we see the certificate 3 but non the certificate 2 and 1
         for i in range (1,tipHeight+1):
