@@ -819,7 +819,7 @@ UniValue getblockexpanded(const UniValue& params, bool fHelp)
             "getblockexpanded \"hash|height\" ( verbose )\n"
             "\nIf verbosity is 1, returns an Object with information about the block.\n"
             "If verbosity is 2, returns an Object with information about the block and information about each transaction.\n"
-            "\nIt works only with -maturityheightindex=1 and -txindex=1.\n"
+            "\nIt works only with -maturityheightindex=1.\n"
             
             "\nArguments:\n"
             "1. \"hash|height\"                     (string, required) the block hash or height\n"

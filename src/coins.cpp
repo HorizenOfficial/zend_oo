@@ -1676,11 +1676,9 @@ void CCoinsViewCache::HandleMaturityHeightIndexSidechainEvents(int height, CBloc
             assert(sidechain.lastTopQualityCertHash.IsNull());
             continue;
         }
-        CTxIndexValue txIndexVal;
-        assert(pblocktree->ReadTxIndex(sidechain.lastTopQualityCertHash, txIndexVal));
 
         //Remove the certificate from the MaturityHeight DB
-        CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(txIndexVal.maturityHeight, sidechain.lastTopQualityCertHash);
+        CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(height, sidechain.lastTopQualityCertHash);
         maturityHeightIndex.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue()));
     }
 }
@@ -1702,11 +1700,8 @@ void CCoinsViewCache::RevertMaturityHeightIndexSidechainEvents(int height, CBloc
 
         if (pSidechain->lastTopQualityCertReferencedEpoch != CScCertificate::EPOCH_NULL)
         {
-            CTxIndexValue txIndexVal;
-            assert(pblocktree->ReadTxIndex(pSidechain->lastTopQualityCertHash, txIndexVal));
-
             // Restore lastTopQualityCert as valid (not superseded)
-            CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(txIndexVal.maturityHeight * -1, pSidechain->lastTopQualityCertHash);
+            CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(height, pSidechain->lastTopQualityCertHash);
             maturityHeightIndex.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
         }
     }

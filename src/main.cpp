@@ -2836,6 +2836,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         if (isBlockTopQualityCert)
         {
             const uint256& prevBlockTopQualityCertHash = highQualityCertData.at(cert.GetHash());
+            //Used only if fMaturityHeightIndex == true
             int certMaturityHeight = -1;
 
             //Remove the current certificate from the MaturityHeight DB
@@ -2856,8 +2857,8 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
                 if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON) {
                     //Restore the previous top certificate in the MaturityHeight DB
-                    assert(certMaturityHeight != -1);
                     if (fMaturityHeightIndex) {
+                        assert(certMaturityHeight != -1);
                         const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, prevBlockTopQualityCertHash);
                         maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
                     }

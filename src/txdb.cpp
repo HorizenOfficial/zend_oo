@@ -483,6 +483,7 @@ bool CBlockTreeDB::ReadMaturityHeightIndex(const int height, std::vector<CMaturi
 bool CBlockTreeDB::UpdateMaturityHeightIndex(const std::vector<std::pair<CMaturityHeightKey,CMaturityHeightValue>> &vect) {
     CLevelDBBatch batch;
     for (std::vector<std::pair<CMaturityHeightKey,CMaturityHeightValue> >::const_iterator it=vect.begin(); it!=vect.end(); it++)
+        //If the value is null we mean we want to erase the pair from the DB otherwise we persist it
         if (it->second.IsNull()) {
             batch.Erase(make_pair(DB_MATURITY_HEIGHT, it->first));
         } else {

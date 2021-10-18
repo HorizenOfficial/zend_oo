@@ -31,8 +31,8 @@ class getblockexpanded(BitcoinTestFramework):
 
     def setup_network(self, split=False):
         self.nodes=[]
-        self.nodes += [start_node(0, self.options.tmpdir,extra_args=['-txindex=1', '-maturityheightindex=1'])]
-        self.nodes += [start_node(1, self.options.tmpdir,extra_args=['-txindex=1'])]
+        self.nodes += [start_node(0, self.options.tmpdir,extra_args=['-maturityheightindex=1'])]
+        self.nodes += [start_node(1, self.options.tmpdir)]
 
         connect_nodes_bi(self.nodes,0,1)
 
