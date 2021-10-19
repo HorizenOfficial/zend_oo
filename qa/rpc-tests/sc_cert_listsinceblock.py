@@ -4,18 +4,16 @@
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.test_framework import MINIMAL_SC_HEIGHT, MINER_REWARD_POST_H200
+from test_framework.test_framework import MINIMAL_SC_HEIGHT
 from test_framework.authproxy import JSONRPCException
 from test_framework.util import assert_false, assert_true, assert_equal, initialize_chain_clean, \
-    start_nodes, start_node, sync_blocks, sync_mempools, connect_nodes_bi, mark_logs, \
+    start_nodes, connect_nodes_bi, mark_logs, \
     get_epoch_data, swap_bytes, get_spendable 
-from test_framework.mc_test.mc_test import *
+from test_framework.mc_test.mc_test import CertTestUtils, generate_random_field_element_hex
 import os
 import pprint
 from decimal import Decimal
 from test_framework.mininode import COIN
-import json
-import time
 
 NUMB_OF_NODES = 3
 DEBUG_MODE = 1
@@ -79,7 +77,7 @@ class ScCertListsinceblock(BitcoinTestFramework):
             scid = res['scid']
             pprint.pprint(res)
             self.sync_all()
-        except JSONRPCException, e:
+        except JSONRPCException as e:
             errorString = e.error['message']
             mark_logs(errorString,self.nodes,DEBUG_MODE)
             assert_true(False)
@@ -104,6 +102,7 @@ class ScCertListsinceblock(BitcoinTestFramework):
         taddr1 = self.nodes[1].getnewaddress()
         taddr2 = self.nodes[2].getnewaddress()
 
+        # advance some epochs and send a certificate for any of them
         for i in range(3):
 
             am_bwt1 = Decimal(i+1) + Decimal('0.01')
@@ -137,6 +136,7 @@ class ScCertListsinceblock(BitcoinTestFramework):
                 "scProof": proof, "withdrawalEpochNumber": epoch_number
             }
  
+            # use the raw version of the command for having more than one standard output
             try:
                 raw_cert    = self.nodes[1].createrawcertificate(raw_inputs, raw_outs, raw_bwt_outs, raw_params)
                 signed_cert = self.nodes[1].signrawtransaction(raw_cert)
@@ -165,9 +165,7 @@ class ScCertListsinceblock(BitcoinTestFramework):
         assert_equal(bal, Decimal('1.02') + Decimal('0.001') + Decimal('0.002') + Decimal('0.003'))
 
         mark_logs("Calling listsinceblock on Node2 for all transactions", self.nodes, DEBUG_MODE)
-        #raw_input("_____")
         ret = self.nodes[2].listsinceblock("", 1, False, True)
-        #pprint.pprint(ret)
 
         # first cert is there and its backward transfer to Node2 is mature
         # we also have one ordinary output from this cert 
@@ -231,7 +229,6 @@ class ScCertListsinceblock(BitcoinTestFramework):
         # calling the cmd targeting the block where the second certificate has been mined
         mark_logs("Calling listsinceblock on Node2 for h={}, hash={}".format(block_heights_d[1], blocks_d[1]), self.nodes, DEBUG_MODE)
         ret = self.nodes[2].listsinceblock(blocks_d[1], 1, False, True)
-        #pprint.pprint(ret)
 
         cert = certs_d[0]
         # first cert is there, it is mature and it refers to the block where it matured
@@ -278,7 +275,6 @@ class ScCertListsinceblock(BitcoinTestFramework):
         # There must be no certificates at all, since none of them is contained or matures in this block range 
         mark_logs("Calling listsinceblock on Node2 for h={}, hash={}".format(block_heights_d[2], blocks_d[2]), self.nodes, DEBUG_MODE)
         ret = self.nodes[2].listsinceblock(blocks_d[2], 1, False, True)
-        #pprint.pprint(ret)
         assert_true(len(ret['transactions']) == 0)
 
         # reach the height of the second certificate and re-issue the command
@@ -290,7 +286,6 @@ class ScCertListsinceblock(BitcoinTestFramework):
 
         mark_logs("Calling listsinceblock on Node2 for h={}, hash={}".format(block_heights_d[2], blocks_d[2]), self.nodes, DEBUG_MODE)
         ret = self.nodes[2].listsinceblock(blocks_d[2], 1, False, True)
-        #pprint.pprint(ret)
 
         cert = certs_d[0]
         # first cert is not there
@@ -327,7 +322,6 @@ class ScCertListsinceblock(BitcoinTestFramework):
 
         mark_logs("Calling listsinceblock on Node2 for h={}, hash={}".format(h, bl), self.nodes, DEBUG_MODE)
         ret = self.nodes[2].listsinceblock(bl, 1, False, True)
-        #pprint.pprint(ret)
 
         # last cert is there and is immature
         # we also have one ordinary output from this cert 
@@ -362,7 +356,6 @@ class ScCertListsinceblock(BitcoinTestFramework):
         
         mark_logs("Calling listsinceblock on Node2 for h={}, hash={}".format(h, bl), self.nodes, DEBUG_MODE)
         ret = self.nodes[2].listsinceblock(bl, 1, False, True)
-        #pprint.pprint(ret)
 
         # last cert bwt is not there anymore as expected
         # but we still have one ordinary output from this cert 

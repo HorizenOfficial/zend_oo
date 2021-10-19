@@ -244,7 +244,12 @@ static int getCertMaturityHeight(const CWalletTransactionBase& wtx)
     return it->second->nHeight + matDepth;
 }
 
-void WalletTxToJSON(const CWalletTransactionBase& wtx, UniValue& entry, isminefilter filter, bool isCertMaturingInRange = false)
+// the flag isCertMaturingInRange is passed along only when the listsinceblock rpc cmd is used: it is
+// set to true when we are dealing with a certificate reaching the maturity hight in the input blocks
+// range and the containing block is outside it 
+static void WalletTxToJSON(
+    const CWalletTransactionBase& wtx, UniValue& entry, isminefilter filter,
+    bool isCertMaturingInRange = false)
 {
     int confirms = wtx.GetDepthInMainChain();
     entry.pushKV("confirmations", confirms);
@@ -2839,6 +2844,9 @@ static void MaybePushAddress(UniValue & entry, const CTxDestination &dest)
         entry.pushKV("address", addr.ToString());
 }
 
+// the flag isCertMaturingInRange is passed along only when the listsinceblock rpc cmd is used: it is
+// set to true when we are dealing with a certificate reaching the maturity hight in the input blocks
+// range and the containing block is outside it 
 void ListTransactions(
     const CWalletTransactionBase& wtx, const string& strAccount, int nMinDepth, bool fLong,
     UniValue& transactions, const isminefilter& filter, bool includeImmatureBTs, bool isCertMaturingInRange = false)
