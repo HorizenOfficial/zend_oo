@@ -482,8 +482,7 @@ bool CBlockTreeDB::ReadMaturityHeightIndex(const int height, std::vector<CMaturi
                 break;
             }
         } catch (const std::exception& e) {
-            std::string s(e.what());
-            return error(s.c_str());
+            return error(e.what());
         }
     }
     return true;
