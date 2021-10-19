@@ -462,21 +462,31 @@ bool CBlockTreeDB::ReadMaturityHeightIndex(const int height, std::vector<CMaturi
         try {
             leveldb::Slice slKey = pcursor->key();
             CDataStream ssKey(slKey.data(), slKey.data()+slKey.size(), SER_DISK, CLIENT_VERSION);
+            
             char chType;
-            CMaturityHeightKey indexKey;
             ssKey >> chType;
-            ssKey >> indexKey;
-            if (chType == DB_MATURITY_HEIGHT && indexKey.blockHeight == height) {
-                val.push_back(indexKey);
-                pcursor->Next();
+            if (chType == DB_MATURITY_HEIGHT)
+            {
+                CMaturityHeightKey indexKey;
+                ssKey >> indexKey;
+
+                if (indexKey.blockHeight == height) {
+                    val.push_back(indexKey);
+                    pcursor->Next();
+                }
+                else
+                {
+                    break;
+                }
             } else {
                 break;
             }
         } catch (const std::exception& e) {
-            break;
+            std::string s(e.what());
+            std::cout << "msg:    " << s << std::endl;
+            return false;;
         }
     }
-
     return true;
 }
 

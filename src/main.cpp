@@ -2862,7 +2862,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                         const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, prevBlockTopQualityCertHash);
                         maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
                     }
- #ifdef ENABLE_ADDRESS_INDEXING
+#ifdef ENABLE_ADDRESS_INDEXING
                     // Set the lower quality BTs as top quality
                     if (fAddressIndex)
                     {

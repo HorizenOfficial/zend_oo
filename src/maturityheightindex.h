@@ -82,10 +82,10 @@ struct CMaturityHeightValue {
     }
 
     void SetNull() {
-        dummy = '0';
+        dummy = static_cast<char>(0);
     }
 
     bool IsNull() const {
-        return dummy == '0';
+        return dummy == static_cast<char>(0);
     }
 };
