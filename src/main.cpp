@@ -3633,7 +3633,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (isBlockTopQualityCert)
         {
             //Add the new certificate in the MaturityHeight collection
-            if (fMaturityHeightIndex) {
+            if (fMaturityHeightIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON) {
                 const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, cert.GetHash());
                 maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
             }
@@ -3916,10 +3916,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 return AbortNode(state, "Failed to write blockhash index");
         }
 #endif // ENABLE_ADDRESS_INDEXING
-    }
-
-    if (fTxIndex) {
-        assert(pblocktree->UpdateMaturityHeightIndex(maturityHeightValues));
     }
 
     // add this block to the view's block chain
