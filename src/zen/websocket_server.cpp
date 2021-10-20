@@ -560,14 +560,15 @@ private:
                 chainTopQualityCert.push_back(Pair("certHash", sidechainInfo.lastTopQualityCertHash.GetHex()));
                 chainTopQualityCert.push_back(Pair("epoch", sidechainInfo.lastTopQualityCertReferencedEpoch));
 
-                if (GetCertificate(sidechainInfo.lastTopQualityCertHash, topQualCert, blockHash, true)) {
+                // Passing allowSlow=true would imply using coindb trying to locate the containing block and then
+                // loading and parsing the full block from disk.
+                if (GetCertificate(sidechainInfo.lastTopQualityCertHash, topQualCert, blockHash, /*allowSlow*/false)) {
                     CDataStream ssCert(SER_NETWORK, PROTOCOL_VERSION);
                     ssCert << topQualCert;
                     std::string certHex = HexStr(ssCert.begin(), ssCert.end());
                     chainTopQualityCert.push_back(Pair("rawCertificateHex", certHex));
                 } else {
-                    // if we are running without the txindex enabled, if we have spent the utxos related to the cert
-                    // we are not able to fetch it (see getrawtransaction cmd help)
+                    // if we are running without the txindex enabled we might not be able to fetch it (see getrawtransaction cmd help)
                     LogPrint("ws", "%s():%d - could not get raw certificate hex for SC [%s]\n", __func__, __LINE__, scIdString);
                 }
             }
