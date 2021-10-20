@@ -556,18 +556,19 @@ private:
                 CScCertificate topQualCert;
                 uint256 blockHash;
 
+                chainTopQualityCert.push_back(Pair("quality", topQualityCertQuality));
+                chainTopQualityCert.push_back(Pair("certHash", sidechainInfo.lastTopQualityCertHash.GetHex()));
+                chainTopQualityCert.push_back(Pair("epoch", sidechainInfo.lastTopQualityCertReferencedEpoch));
+
                 if (GetCertificate(sidechainInfo.lastTopQualityCertHash, topQualCert, blockHash, true)) {
                     CDataStream ssCert(SER_NETWORK, PROTOCOL_VERSION);
                     ssCert << topQualCert;
                     std::string certHex = HexStr(ssCert.begin(), ssCert.end());
-
-                    chainTopQualityCert.push_back(Pair("quality", topQualityCertQuality));
-                    chainTopQualityCert.push_back(Pair("epoch", topQualCert.epochNumber));
-                    chainTopQualityCert.push_back(Pair("certHash", sidechainInfo.lastTopQualityCertHash.GetHex()));
                     chainTopQualityCert.push_back(Pair("rawCertificateHex", certHex));
                 } else {
-                    LogPrint("ws", "%s():%d - unable to retrieve last top quality certificate[%s]\n", __func__, __LINE__, sidechainInfo.lastTopQualityCertHash.GetHex());
-                    return INVALID_PARAMETER;
+                    // if we are running without the txindex enabled, if we have spent the utxos related to the cert
+                    // we are not able to fetch it (see getrawtransaction cmd help)
+                    LogPrint("ws", "%s():%d - could not get raw certificate hex for SC [%s]\n", __func__, __LINE__, scIdString);
                 }
             }
         }
