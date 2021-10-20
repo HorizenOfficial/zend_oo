@@ -190,7 +190,7 @@ class ScCertDust(BitcoinTestFramework):
             assert False
         except JSONRPCException as e:
             error_string = e.error['message']
-            print ("\n======> ", error_string)
+            print ("======> " + error_string)
 
         try:
             mark_logs("Node 0 sends a cert with a bwd transfers of {} coins to Node2 ... expecting failure".format(dust_amount), self.nodes, DEBUG_MODE)
@@ -199,12 +199,11 @@ class ScCertDust(BitcoinTestFramework):
             assert False
         except JSONRPCException as e:
             error_string = e.error['message']
-            print ("\n======> ", error_string)
+            print ("======> " + error_string)
 
         bal = self.nodes[2].getbalance()
         utx = self.nodes[2].listunspent()
         print ("Node2 balance = {}".format(bal))
-        #pprint.pprint(utx)
         assert_equal(bal, 2*bwt_amount)
 
         # the dust threshold for a bwt (54 Zat) is lower than the one for a standard output due to the replay protection
