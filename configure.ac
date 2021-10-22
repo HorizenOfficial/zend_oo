@@ -179,6 +179,13 @@ AC_ARG_ENABLE([debug],
     [enable_debug=$enableval],
     [enable_debug=no])
 
+# Turn on all compiler warnings
+AC_ARG_ENABLE([wall],
+    [AS_HELP_STRING([--enable-wall],
+                    [Enable all compiler warnings (default is no)])],
+    [enable-wall=$enableval],
+    [enable-wall=no])
+
 # Turn warnings into errors
 AC_ARG_ENABLE([werror],
     [AS_HELP_STRING([--enable-werror],
@@ -208,6 +215,14 @@ if test "x$enable_debug" = xyes; then
 fi
 
 ERROR_CXXFLAGS=
+
+if test "x$enable_wall" = "xyes"; then
+  if test "x$CXXFLAG_WERROR" = "x"; then
+    AC_MSG_ERROR("enable-wall set but -Wall is not usable")
+  fi
+  ERROR_CXXFLAGS="$ERROR_CXXFLAGS -Wall"
+fi
+
 if test "x$enable_werror" = "xyes"; then
   if test "x$CXXFLAG_WERROR" = "x"; then
     AC_MSG_ERROR("enable-werror set but -Werror is not usable")
