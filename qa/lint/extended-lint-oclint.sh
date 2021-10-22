@@ -74,7 +74,7 @@ function join_array {
 ENABLED_CHECKS_REGEXP=$(join_array "|" "${ENABLED_CHECKS[@]}")
 IGNORED_WARNINGS_REGEXP=$(join_array "|" "${IGNORED_WARNINGS[@]}")
 WARNINGS=$(git ls-files -- "*.cpp" "*.h" ":(exclude)src/leveldb/" ":(exclude)src/crc32c/" ":(exclude)src/secp256k1/" ":(exclude)src/univalue/" | \
-    xargs -I {} /home/paolo/oclint-21.05/bin/oclint {} -- -D__cplusplus -DCLIENT_VERSION_BUILD -DCLIENT_VERSION_IS_RELEASE -DCLIENT_VERSION_MAJOR -DCLIENT_VERSION_MINOR -DCOPYRIGHT_YEAR -DDEBUG -I src/ -I depends/work/build/x86_64-unknown-linux-gnu/ -q 2>&1 | sort -u)
+    xargs -I {} oclint {} -- -D__cplusplus -DCLIENT_VERSION_BUILD -DCLIENT_VERSION_IS_RELEASE -DCLIENT_VERSION_MAJOR -DCLIENT_VERSION_MINOR -DCOPYRIGHT_YEAR -DDEBUG -I src/ -I depends/work/build/x86_64-unknown-linux-gnu/ -q 2>&1 | sort -u)
     #grep -E "${ENABLED_CHECKS_REGEXP}" | \
     #grep -vE "${IGNORED_WARNINGS_REGEXP}")
 if [[ ${WARNINGS} != "" ]]; then
