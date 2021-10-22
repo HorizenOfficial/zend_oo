@@ -183,8 +183,8 @@ AC_ARG_ENABLE([debug],
 AC_ARG_ENABLE([wall],
     [AS_HELP_STRING([--enable-wall],
                     [Enable all compiler warnings (default is no)])],
-    [enable-wall=$enableval],
-    [enable-wall=no])
+    [enable_wall=$enableval],
+    [enable_wall=no])
 
 # Turn warnings into errors
 AC_ARG_ENABLE([werror],
@@ -1033,6 +1033,7 @@ echo "  with proton   = $use_proton"
 echo "  with zmq      = $use_zmq"
 echo "  with test     = $use_tests"
 echo "  debug enabled = $enable_debug"
+echo "  wall          = $enable_wall"
 echo "  werror        = $enable_werror"
 echo "  addr index    = $enable_address_indexing"
 echo 
