@@ -4,12 +4,17 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "amount.h"
+#include "base58.h"
 #include "chain.h"
 #include "chainparams.h"
 #include "checkpoints.h"
 #include "consensus/validation.h"
 #include "main.h"
 #include "primitives/transaction.h"
+#include "script/script.h"
+#include "script/script_error.h"
+#include "script/sign.h"
+#include "script/standard.h"
 #include "rpc/server.h"
 #include "streams.h"
 #include "sync.h"
@@ -27,6 +32,8 @@
 #include "sc/sidechainrpc.h"
 
 #include "validationinterface.h"
+#include "txdb.h"
+#include "maturityheightindex.h"
 
 using namespace std;
 
@@ -135,6 +142,114 @@ UniValue blockheaderToJSON(const CBlockIndex* blockindex)
         result.pushKV("nextblockhash", pnext->GetBlockHash().GetHex());
     return result;
 }
+
+#ifdef ENABLE_ADDRESS_INDEXING
+UniValue blockToDeltasJSON(const CBlock& block, const CBlockIndex* blockindex)
+{
+    UniValue result(UniValue::VOBJ);
+    result.pushKV("hash", block.GetHash().GetHex());
+    int confirmations = -1;
+    // Only report confirmations if the block is on the main chain
+    if (chainActive.Contains(blockindex)) {
+        confirmations = chainActive.Height() - blockindex->nHeight + 1;
+    } else {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block is an orphan");
+    }
+    result.pushKV("confirmations", confirmations);
+    result.pushKV("size", (int)::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION));
+    result.pushKV("height", blockindex->nHeight);
+    result.pushKV("version", block.nVersion);
+    result.pushKV("merkleroot", block.hashMerkleRoot.GetHex());
+
+    UniValue deltas(UniValue::VARR);
+
+    for (unsigned int i = 0; i < block.vtx.size(); i++) {
+        const CTransaction &tx = block.vtx[i];
+        const uint256 txhash = tx.GetHash();
+
+        UniValue entry(UniValue::VOBJ);
+        entry.pushKV("txid", txhash.GetHex());
+        entry.pushKV("index", (int)i);
+
+        UniValue inputs(UniValue::VARR);
+
+        if (!tx.IsCoinBase()) {
+
+            for (size_t j = 0; j < tx.GetVin().size(); j++) {
+                const CTxIn input = tx.GetVin()[j];
+
+                UniValue delta(UniValue::VOBJ);
+
+                CSpentIndexValue spentInfo;
+                CSpentIndexKey spentKey(input.prevout.hash, input.prevout.n);
+
+                if (GetSpentIndex(spentKey, spentInfo)) {
+                    if (spentInfo.addressType == 1) {
+                        delta.pushKV("address", CBitcoinAddress(CKeyID(spentInfo.addressHash)).ToString());
+                    } else if (spentInfo.addressType == 2)  {
+                        delta.pushKV("address", CBitcoinAddress(CScriptID(spentInfo.addressHash)).ToString());
+                    } else {
+                        continue;
+                    }
+                    delta.pushKV("satoshis", -1 * spentInfo.satoshis);
+                    delta.pushKV("index", (int)j);
+                    delta.pushKV("prevtxid", input.prevout.hash.GetHex());
+                    delta.pushKV("prevout", (int)input.prevout.n);
+
+                    inputs.push_back(delta);
+                } else {
+                    throw JSONRPCError(RPC_INTERNAL_ERROR, "Spent information not available");
+                }
+
+            }
+        }
+
+        entry.pushKV("inputs", inputs);
+
+        UniValue outputs(UniValue::VARR);
+
+        for (unsigned int k = 0; k < tx.GetVout().size(); k++) {
+            const CTxOut &out = tx.GetVout()[k];
+
+            UniValue delta(UniValue::VOBJ);
+
+            uint160 const addrHash = out.scriptPubKey.AddressHash();
+
+            if (out.scriptPubKey.IsPayToScriptHash()) {
+                delta.pushKV("address", CBitcoinAddress(CScriptID(addrHash)).ToString());
+
+            } else if (out.scriptPubKey.IsPayToPublicKeyHash()) {
+                delta.pushKV("address", CBitcoinAddress(CKeyID(addrHash)).ToString());
+            } else {
+                continue;
+            }
+
+            delta.pushKV("satoshis", out.nValue);
+            delta.pushKV("index", (int)k);
+
+            outputs.push_back(delta);
+        }
+
+        entry.pushKV("outputs", outputs);
+        deltas.push_back(entry);
+
+    }
+    result.pushKV("deltas", deltas);
+    result.pushKV("time", block.GetBlockTime());
+    result.pushKV("mediantime", (int64_t)blockindex->GetMedianTimePast());
+    result.pushKV("nonce", block.nNonce.GetHex());
+    result.pushKV("bits", strprintf("%08x", block.nBits));
+    result.pushKV("difficulty", GetDifficulty(blockindex));
+    result.pushKV("chainwork", blockindex->nChainWork.GetHex());
+
+    if (blockindex->pprev)
+        result.pushKV("previousblockhash", blockindex->pprev->GetBlockHash().GetHex());
+    CBlockIndex *pnext = chainActive.Next(blockindex);
+    if (pnext)
+        result.pushKV("nextblockhash", pnext->GetBlockHash().GetHex());
+    return result;
+}
+#endif // ENABLE_ADDRESS_INDEXING
 
 UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool txDetails = false)
 {
@@ -384,6 +499,104 @@ UniValue getrawmempool(const UniValue& params, bool fHelp)
     return mempoolToJSON(fVerbose);
 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
+UniValue getblockdeltas(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error("");
+
+    std::string strHash = params[0].get_str();
+    uint256 hash(uint256S(strHash));
+
+    if (mapBlockIndex.count(hash) == 0)
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
+
+    CBlock block;
+    CBlockIndex* pblockindex = mapBlockIndex[hash];
+
+    if (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0)
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not available (pruned data)");
+
+    if(!ReadBlockFromDisk(block, pblockindex))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Can't read block from disk");
+
+    return blockToDeltasJSON(block, pblockindex);
+}
+
+UniValue getblockhashes(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() < 2)
+        throw runtime_error(
+            "getblockhashes timestamp\n"
+            "\nReturns array of hashes of blocks within the timestamp range provided.\n"
+            "\nArguments:\n"
+            "1. high         (numeric, required) The newer block timestamp\n"
+            "2. low          (numeric, required) The older block timestamp\n"
+            "3. options      (string, required) A json object\n"
+            "    {\n"
+            "      \"noOrphans\":true   (boolean) will only include blocks on the main chain\n"
+            "      \"logicalTimes\":true   (boolean) will include logical timestamps with hashes\n"
+            "    }\n"
+            "\nResult:\n"
+            "[\n"
+            "  \"hash\"         (string) The block hash\n"
+            "]\n"
+            "[\n"
+            "  {\n"
+            "    \"blockhash\": (string) The block hash\n"
+            "    \"logicalts\": (numeric) The logical timestamp\n"
+            "  }\n"
+            "]\n"
+            "\nExamples:\n"
+            + HelpExampleCli("getblockhashes", "1231614698 1231024505")
+            + HelpExampleRpc("getblockhashes", "1231614698, 1231024505")
+            + HelpExampleCli("getblockhashes", "1231614698 1231024505 '{\"noOrphans\":false, \"logicalTimes\":true}'")
+            );
+
+    unsigned int high = params[0].get_int();
+    unsigned int low = params[1].get_int();
+    bool fActiveOnly = false;
+    bool fLogicalTS = false;
+
+    if (params.size() > 2) {
+        if (params[2].isObject()) {
+            UniValue noOrphans = find_value(params[2].get_obj(), "noOrphans");
+            UniValue returnLogical = find_value(params[2].get_obj(), "logicalTimes");
+
+            if (noOrphans.isBool())
+                fActiveOnly = noOrphans.get_bool();
+
+            if (returnLogical.isBool())
+                fLogicalTS = returnLogical.get_bool();
+        }
+    }
+
+    std::vector<std::pair<uint256, unsigned int> > blockHashes;
+
+    if (fActiveOnly)
+        LOCK(cs_main);
+
+    if (!GetTimestampIndex(high, low, fActiveOnly, blockHashes)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available for block hashes");
+    }
+
+    UniValue result(UniValue::VARR);
+
+    for (std::vector<std::pair<uint256, unsigned int> >::const_iterator it=blockHashes.begin(); it!=blockHashes.end(); it++) {
+        if (fLogicalTS) {
+            UniValue item(UniValue::VOBJ);
+            item.pushKV("blockhash", it->first.GetHex());
+            item.pushKV("logicalts", (int)it->second);
+            result.push_back(item);
+        } else {
+            result.push_back(it->first.GetHex());
+        }
+    }
+
+    return result;
+}
+#endif // ENABLE_ADDRESS_INDEXING
+
 UniValue getblockhash(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
@@ -597,6 +810,180 @@ UniValue getblock(const UniValue& params, bool fHelp)
     }
 
     return blockToJSON(block, pblockindex, verbosity >= 2);
+}
+
+UniValue getblockexpanded(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 2)
+        throw runtime_error(
+            "getblockexpanded \"hash|height\" ( verbose )\n"
+            "\nIf verbosity is 1, returns an Object with information about the block.\n"
+            "If verbosity is 2, returns an Object with information about the block and information about each transaction.\n"
+            "\nIt works only with -maturityheightindex=1 and -txindex=1.\n"
+            
+            "\nArguments:\n"
+            "1. \"hash|height\"                     (string, required) the block hash or height\n"
+            "2. verbosity                           (numeric, optional, default=1) 0 for hex encoded data, 1 for a json object, and 2 for json object with transaction data,\n"
+            "                                       also accept boolean for backward compatibility where true=1 and false=0\n"
+            
+            "\nResult (for verbose = 1):\n"
+            "{\n"
+            "  \"hash\": \"hash\",                  (string) the block hash (same as provided hash)\n"
+            "  \"confirmations\": n,                (numeric) the number of confirmations, or -1 if the block is not on the main chain\n"
+            "  \"size\": n,                         (numeric) the block size\n"
+            "  \"height\": n,                       (numeric) the block height or index (same as provided height)\n"
+            "  \"version\": n,                      (numeric) the block version\n"
+            "  \"merkleroot\": \"xxxx\",            (string) the merkle root\n"
+            "  \"tx\": [                            (array of string) the transaction ids\n"
+            "     \"transactionid\": \"hash\",      (string) the transaction id\n"
+            "     ,...\n"
+            "  ],\n"
+             "  \"cert\": [                         (array of string) the certificate ids\n"
+            "     \"certificateid\": \"hash\",      (string) the certificate id\n"
+            "     ,...\n"
+            "  ],\n"           
+            "  \"time\": ttt,                       (numeric) the block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"nonce\": n,                        (numeric) the nonce\n"
+            "  \"bits\": \"hex\",                   (string) the bits\n"
+            "  \"difficulty\": xxxx,                (numeric) the difficulty\n"
+            "  \"chainwork\": \"hex\",              (string) txpected number of hashes required to produce the chain up to this block (in hex)\n"
+            "  \"anchor\": \"hex\",                 (string) the anchor\n"
+            "  \"valuePools\": [                    (array) value pools\n"
+            "      \"id\": \"sprout\"|\"sapling\",  (string) the pool id\n"
+            "      \"monitored\": true|false,       (boolean) if is monitored or not\n"
+            "      \"chainValue\": n.nnn,           (numeric) the chain value\n"
+            "      \"chainValueZat\": n,            (numeric) the chain value zat\n"
+            "      \"valueDelta\": n.nnn,           (numeric)the delta value\n"
+            "      \"valueDeltaZat\": n             (numeric) the delta zat value\n"
+            "  ],\n"
+            "  \"previousblockhash\": \"hash\",     (string, optional) the hash of the previous block (if available)\n"
+            "  \"nextblockhash\": \"hash\"          (string, optional) the hash of the next block (if available)\n"
+
+            "}\n"
+            "  \"matureCertificate\": [             (array of string) the certificate ids the became mature with this block\n"
+            "     \"certificateid\": \"hash\",      (string) the certificate id\n"
+            "     ,...\n"
+            "  ],\n"  
+            
+            "\nResult (for verbosity = 2):\n"
+            "{\n"
+            "  ...,                                 same output as verbosity = 1\n"
+            "  \"tx\" : [                           (array of Objects) the transactions in the format of the getrawtransaction RPC\n"
+            "         ,...\n"
+            "  ],\n"
+            "  \"cert\" : [                         (array of Objects) the certificates in the format of the getrawtransaction RPC\n"
+            "         ,...\n"
+            "  ],\n"
+            "  \"matureCertificate\" : [            (array of Objects) the certificates that became mature with this block in the format of the getrawtransaction RPC\n"
+            "         ,...\n"
+            "  ],\n"
+            "  ,...                     same output as verbosity = 1\n"
+            "}\n"
+            
+            "\nExamples:\n"
+            + HelpExampleCli("getblockexpanded", "\"hash\"")
+            + HelpExampleRpc("getblockexpanded", "\"hash\"")
+            + HelpExampleCli("getblockexpanded", "height")
+            + HelpExampleRpc("getblockexpanded", "height")
+        );
+
+    LOCK(cs_main);
+
+    std::string strHash = params[0].get_str();
+
+    if (!fMaturityHeightIndex)
+    {
+        throw JSONRPCError(RPC_TYPE_ERROR, "maturityHeightIndex option not set: can not retrieve info");
+    }
+
+    // If height is supplied, find the hash
+    if (strHash.size() < (2 * sizeof(uint256))) {
+        // std::stoi allows characters, whereas we want to be strict
+        regex r("[[:digit:]]+");
+        if (!regex_match(strHash, r)) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid block height parameter");
+        }
+
+        int nHeight = -1;
+        try {
+            nHeight = std::stoi(strHash);
+        }
+        catch (const std::exception &e) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid block height parameter");
+        }
+
+        if (nHeight < 0 || nHeight > chainActive.Height()) {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Block height out of range");
+        }
+        strHash = chainActive[nHeight]->GetBlockHash().GetHex();
+    }
+
+    uint256 hash(uint256S(strHash));
+
+    int verbosity = 1;
+    if (params.size() > 1) {
+        if(params[1].isNum()) {
+            verbosity = params[1].get_int();
+        } else {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Verbosity must be in range from 1 to 2");
+        }
+    }
+
+    if (verbosity < 1 || verbosity > 2) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Verbosity must be in range from 1 to 2");
+    }
+
+    if (mapBlockIndex.count(hash) == 0)
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
+
+    CBlock block;
+    CBlockIndex* pblockindex = mapBlockIndex[hash];
+
+    if (fHavePruned && !(pblockindex->nStatus & BLOCK_HAVE_DATA) && pblockindex->nTx > 0)
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Block not available (pruned data)");
+
+    if(!ReadBlockFromDisk(block, pblockindex))
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Can't read block from disk");
+
+    UniValue blockJSON = blockToJSON(block, pblockindex, verbosity >= 2);
+    
+    //Add certificates that became mature with this block    
+    if (block.nVersion == BLOCK_VERSION_SC_SUPPORT)
+    {
+        UniValue matureCertificate(UniValue::VARR);
+
+        int height = pblockindex->nHeight;
+        if (pblocktree == NULL)
+        {
+            throw JSONRPCError(RPC_TYPE_ERROR, "DB not initialized: can not retrieve info");
+        }
+        std::vector<CMaturityHeightKey> matureCertificatesKeys;
+        pblocktree->ReadMaturityHeightIndex(height, matureCertificatesKeys);
+        for (const CMaturityHeightKey& key : matureCertificatesKeys) 
+        {
+            if (verbosity == 2)
+            {
+                UniValue objCert(UniValue::VOBJ);
+                CScCertificate certAttempt;
+                uint256 hashBlock{};    
+                if (GetCertificate(key.certId, certAttempt, hashBlock, false))
+                {
+                    CertToJSON(certAttempt, uint256(), objCert);
+                    matureCertificate.push_back(objCert);
+                }
+                else
+                {
+                    throw JSONRPCError(RPC_TYPE_ERROR, "Can not retrieve info about the certificate!");
+                }    
+            }
+            else
+            {
+                matureCertificate.push_back(key.certId.GetHex());
+            }
+        }
+        blockJSON.pushKV("matureCertificate", matureCertificate);
+    }
+    return blockJSON;
 }
 
 UniValue gettxoutsetinfo(const UniValue& params, bool fHelp)
@@ -1136,7 +1523,7 @@ static void addScUnconfCcData(const uint256& scId, UniValue& sc)
             if (scId == scCrAmount.GetScId())
             {
                  UniValue o(UniValue::VOBJ);
-                 o.pushKV("unconf amount", ValueFromAmount(scCrAmount.nValue));
+                 o.pushKV("unconfAmount", ValueFromAmount(scCrAmount.nValue));
                  ia.push_back(o);
              }
         }
@@ -1150,7 +1537,7 @@ static void addScUnconfCcData(const uint256& scId, UniValue& sc)
             if (scId == fwdAmount.scId)
             {
                  UniValue o(UniValue::VOBJ);
-                 o.pushKV("unconf amount", ValueFromAmount(fwdAmount.GetScValue()));
+                 o.pushKV("unconfAmount", ValueFromAmount(fwdAmount.GetScValue()));
                  ia.push_back(o);
              }
         }
@@ -1164,14 +1551,14 @@ static void addScUnconfCcData(const uint256& scId, UniValue& sc)
             if (scId == mbtrAmount.scId)
             {
                  UniValue o(UniValue::VOBJ);
-                 o.pushKV("unconf amount", ValueFromAmount(mbtrAmount.GetScValue()));
+                 o.pushKV("unconfAmount", ValueFromAmount(mbtrAmount.GetScValue()));
                  ia.push_back(o);
              }
         }
     }
 
     if (ia.size() > 0)
-        sc.pushKV("unconf immature amounts", ia);
+        sc.pushKV("unconfImmatureAmounts", ia);
 
     // there are no info about bwt requests in sc db, therefore we do not include them neither when they are in mempool
 }
@@ -1191,28 +1578,29 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
  
         sc.pushKV("balance", ValueFromAmount(info.balance));
         sc.pushKV("epoch", currentEpoch);
-        sc.pushKV("end epoch height", info.GetEndHeightForEpoch(currentEpoch));
+        sc.pushKV("endEpochHeight", info.GetEndHeightForEpoch(currentEpoch));
         sc.pushKV("state", CSidechain::stateToString(scState));
-        sc.pushKV("ceasing height", info.GetScheduledCeasingHeight());
+        sc.pushKV("ceasingHeight", info.GetScheduledCeasingHeight());
  
         if (bVerbose)
         {
-            sc.pushKV("creating tx hash", info.creationTxHash.GetHex());
+            sc.pushKV("creatingTxHash", info.creationTxHash.GetHex());
         }
  
-        sc.pushKV("created at block height", info.creationBlockHeight);
-        sc.pushKV("last certificate epoch", info.lastTopQualityCertReferencedEpoch);
-        sc.pushKV("last certificate hash", info.lastTopQualityCertHash.GetHex());
-        sc.pushKV("last certificate quality", info.lastTopQualityCertQuality);
-        sc.pushKV("last certificate amount", ValueFromAmount(info.lastTopQualityCertBwtAmount));
+        sc.pushKV("createdAtBlockHeight", info.creationBlockHeight);
+        sc.pushKV("lastCertificateEpoch", info.lastTopQualityCertReferencedEpoch);
+        sc.pushKV("lastCertificateHash", info.lastTopQualityCertHash.GetHex());
+        sc.pushKV("lastCertificateQuality", info.lastTopQualityCertQuality);
+        sc.pushKV("lastCertificateAmount", ValueFromAmount(info.lastTopQualityCertBwtAmount));
 
         const CScCertificateView& certView = scView.GetActiveCertView(scId);
-        sc.pushKV("active ftScFee", ValueFromAmount(certView.forwardTransferScFee));
-        sc.pushKV("active mbtrScFee", ValueFromAmount(certView.mainchainBackwardTransferRequestScFee));
+        sc.pushKV("activeFtScFee", ValueFromAmount(certView.forwardTransferScFee));
+        sc.pushKV("activeMbtrScFee", ValueFromAmount(certView.mainchainBackwardTransferRequestScFee));
  
         // creation parameters
         sc.pushKV("mbtrRequestDataLength", info.fixedParams.mainchainBackwardTransferRequestDataLength);
         sc.pushKV("withdrawalEpochLength", info.fixedParams.withdrawalEpochLength);
+        sc.pushKV("certSubmissionWindowLength", info.GetCertSubmissionWindowLength());
  
         if (bVerbose)
         {
@@ -1250,10 +1638,10 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
             }
             sc.pushKV("vBitVectorCertificateFieldConfig", arrBitVectorConfig);
 
-            sc.pushKV("past ftScFee", ValueFromAmount(info.pastEpochTopQualityCertView.forwardTransferScFee));
-            sc.pushKV("past mbtrScFee", ValueFromAmount(info.pastEpochTopQualityCertView.mainchainBackwardTransferRequestScFee));
-            sc.pushKV("last ftScFee", ValueFromAmount(info.lastTopQualityCertView.forwardTransferScFee));
-            sc.pushKV("last mbtrScFee", ValueFromAmount(info.lastTopQualityCertView.mainchainBackwardTransferRequestScFee));
+            sc.pushKV("pastFtScFee", ValueFromAmount(info.pastEpochTopQualityCertView.forwardTransferScFee));
+            sc.pushKV("pastMbtrScFee", ValueFromAmount(info.pastEpochTopQualityCertView.mainchainBackwardTransferRequestScFee));
+            sc.pushKV("lastFtScFee", ValueFromAmount(info.lastTopQualityCertView.forwardTransferScFee));
+            sc.pushKV("lastMbtrScFee", ValueFromAmount(info.lastTopQualityCertView.mainchainBackwardTransferRequestScFee));
         }
  
         UniValue ia(UniValue::VARR);
@@ -1264,17 +1652,17 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
             o.pushKV("amount", ValueFromAmount(entry.second));
             ia.push_back(o);
         }
-        sc.pushKV("immature amounts", ia);
+        sc.pushKV("immatureAmounts", ia);
 
         UniValue sf(UniValue::VARR);
         for(const auto& entry: info.scFees)
         {
             UniValue o(UniValue::VOBJ);
             o.pushKV("forwardTxScFee", ValueFromAmount(entry.forwardTxScFee));
-            o.pushKV("   mbtrTxScFee", ValueFromAmount(entry.mbtrTxScFee));
+            o.pushKV("mbtrTxScFee", ValueFromAmount(entry.mbtrTxScFee));
             sf.push_back(o);
         }
-        sc.pushKV("sc fees", sf);
+        sc.pushKV("scFees", sf);
 
         // get unconfirmed data if any
         if (mempool.hasSidechainCertificate(scId))
@@ -1282,10 +1670,10 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
             const uint256& topQualCertHash    = mempool.mapSidechains.at(scId).GetTopQualityCert()->second;
             const CScCertificate& topQualCert = mempool.mapCertificate.at(topQualCertHash).GetCertificate();
  
-            sc.pushKV("unconf top quality certificate epoch",   topQualCert.epochNumber);
-            sc.pushKV("unconf top quality certificate hash",    topQualCertHash.GetHex());
-            sc.pushKV("unconf top quality certificate quality", topQualCert.quality);
-            sc.pushKV("unconf top quality certificate amount",  ValueFromAmount(topQualCert.GetValueOfBackwardTransfers()));
+            sc.pushKV("unconfTopQualityCertificateEpoch",   topQualCert.epochNumber);
+            sc.pushKV("unconfTopQualityCertificateHash",    topQualCertHash.GetHex());
+            sc.pushKV("unconfTopQualityCertificateQuality", topQualCert.quality);
+            sc.pushKV("unconfTopQualityCertificateAmount",  ValueFromAmount(topQualCert.GetValueOfBackwardTransfers()));
         }
 
         addScUnconfCcData(scId, sc);
@@ -1315,34 +1703,35 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
             }
 
             sc.pushKV("state", CSidechain::stateToString(CSidechain::State::UNCONFIRMED));
-            sc.pushKV("unconf creating tx hash", info.creationTxHash.GetHex());
-            sc.pushKV("unconf withdrawalEpochLength", info.fixedParams.withdrawalEpochLength);
+            sc.pushKV("unconfCreatingTxHash", info.creationTxHash.GetHex());
+            sc.pushKV("unconfWithdrawalEpochLength", info.fixedParams.withdrawalEpochLength);
+            sc.pushKV("unconfCertSubmissionWindowLength", info.GetCertSubmissionWindowLength());
 
             if (bVerbose)
             {
-                sc.pushKV("unconf certProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.wCertVk.getProvingSystemType()));
-                sc.pushKV("unconf wCertVk", info.fixedParams.wCertVk.GetHexRepr());
-                sc.pushKV("unconf customData", HexStr(info.fixedParams.customData));
+                sc.pushKV("unconfCertProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.wCertVk.getProvingSystemType()));
+                sc.pushKV("unconfWCertVk", info.fixedParams.wCertVk.GetHexRepr());
+                sc.pushKV("unconfCustomData", HexStr(info.fixedParams.customData));
 
                 if(info.fixedParams.constant.is_initialized())
-                    sc.pushKV("unconf constant", info.fixedParams.constant->GetHexRepr());
+                    sc.pushKV("unconfConstant", info.fixedParams.constant->GetHexRepr());
                 else
-                    sc.pushKV("unconf constant", std::string{"NOT INITIALIZED"});
+                    sc.pushKV("unconfConstant", std::string{"NOT INITIALIZED"});
 
                 if(info.fixedParams.wCeasedVk.is_initialized())
                 {
-                    sc.pushKV("unconf cswProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.wCeasedVk.get().getProvingSystemType()));
-                    sc.pushKV("unconf wCeasedVk", info.fixedParams.wCeasedVk.get().GetHexRepr());
+                    sc.pushKV("unconfCswProvingSystem", Sidechain::ProvingSystemTypeToString(info.fixedParams.wCeasedVk.get().getProvingSystemType()));
+                    sc.pushKV("unconfWCeasedVk", info.fixedParams.wCeasedVk.get().GetHexRepr());
                 }
                 else
-                    sc.pushKV("unconf wCeasedVk", std::string{"NOT INITIALIZED"});
+                    sc.pushKV("unconfWCeasedVk", std::string{"NOT INITIALIZED"});
 
                 UniValue arrFieldElementConfig(UniValue::VARR);
                 for(const auto& cfgEntry: info.fixedParams.vFieldElementCertificateFieldConfig)
                 {
                     arrFieldElementConfig.push_back(cfgEntry.getBitSize());
                 }
-                sc.pushKV("unconf vFieldElementCertificateFieldConfig", arrFieldElementConfig);
+                sc.pushKV("unconfVFieldElementCertificateFieldConfig", arrFieldElementConfig);
 
                 UniValue arrBitVectorConfig(UniValue::VARR);
                 for(const auto& cfgEntry: info.fixedParams.vBitVectorCertificateFieldConfig)
@@ -1352,7 +1741,7 @@ bool FillScRecordFromInfo(const uint256& scId, const CSidechain& info, CSidechai
                     singlePair.push_back(cfgEntry.getMaxCompressedSizeBytes());
                     arrBitVectorConfig.push_back(singlePair);
                 }
-                sc.pushKV("unconf vBitVectorCertificateFieldConfig", arrBitVectorConfig);
+                sc.pushKV("unconfVBitVectorCertificateFieldConfig", arrBitVectorConfig);
             }
 
             addScUnconfCcData(scId, sc);
@@ -1502,38 +1891,42 @@ UniValue getscinfo(const UniValue& params, bool fHelp)
             "  \"to\":                    xx,      (numeric) index of the ending item (excluded in result)\n"
             "  \"items\":[\n"
             "   {\n"
-            "     \"scid\":                    xxxxx,   (string)  sidechain ID\n"
-            "     \"balance\":                 xxxxx,   (numeric) available balance\n"
-            "     \"epoch\":                   xxxxx,   (numeric) current epoch for this sidechain\n"
-            "     \"end epoch height\":        xxxxx,   (numeric) height of the last block of the current epoch\n"
-            "     \"state\":                   xxxxx,   (string)  state of the sidechain at the current chain height\n"
-            "     \"ceasing height\":          xxxxx,   (numeric) height at which the sidechain is considered ceased if a certificate has not been received\n"
-            "     \"creating tx hash\":        xxxxx,   (string)  txid of the creating transaction\n"
-            "     \"created at block height\": xxxxx,   (numeric) height of the above block\n"
-            "     \"last certificate epoch\":  xxxxx,   (numeric) last epoch number for which a certificate has been received\n"
-            "     \"last certificate hash\":   xxxxx,   (numeric) the hash of the last certificate that has been received\n"
-            "     \"last certificate quality\":xxxxx,   (numeric) the quality of the last certificate that has been received\n"
-            "     \"last certificate amount\": xxxxx,   (numeric) the amount of the last certificate that has been received\n"
-            "     \"active ftScFee\":          xxxxx,   (numeric) The currently active fee required to create a Forward Transfer to sidechain\n"
-            "     \"active mbtrScFee\":        xxxxx,   (numeric) The currently active fee required to create a Mainchain Backward Transfer Request to sidechain\n"
-            "     \"mbtrRequestDataLength\":   xxxxx,   (numeric) The size of the MBTR request data length\n"
-            "     \"withdrawalEpochLength\":   xxxxx,   (numeric) length of the withdrawal epoch\n"
-            "     \"certProvingSystem\"        xxxxx,   (numeric) The type of proving system used for certificate verification\n"
-            "     \"wCertVk\":                 xxxxx,   (string)  The verification key needed to verify a Withdrawal Certificate Proof, set at sc creation\n"
-            "     \"customData\":              xxxxx,   (string)  The arbitrary byte string of custom data set at sc creation\n"
-            "     \"constant\":                xxxxx,   (string)  The arbitrary byte string of constant set at sc creation\n"
-            "     \"cswProvingSystem\"         xxxxx,   (numeric) The type of proving system used for CSW verification\n"
-            "     \"wCeasedVk\":               xxxxx,   (string)  The verification key needed to verify a Ceased Sidechain Withdrawal input Proof, set at sc creation\n"
-            "     \"vFieldElementCertificateFieldConfig\"  xxxxx,   (string) A string representation of an array whose entries are sizes (in bits). Any certificate should have as many custom FieldElements with the corresponding size.\n"
-            "     \"vBitVectorCertificateFieldConfig\"    xxxxx,   (string) A string representation of an array whose entries are bitVectorSizeBits and maxCompressedSizeBytes pairs. Any certificate should have as many custom vBitVectorCertificateField with the corresponding sizes\n"
-            "     \"past ftScFee\":            xxxxx,   (numeric) The (past epoch) fee required to create a Forward Transfer to sidechain\n"
-            "     \"past mbtrScFee\":          xxxxx,   (numeric) The (past epoch) fee required to create a Mainchain Backward Transfer Request to sidechain\n"
-            "     \"last ftScFee\":            xxxxx,   (numeric) The (last epoch) fee required to create a Forward Transfer to sidechain\n"
-            "     \"last mbtrScFee\":          xxxxx,   (numeric) The (last epoch) fee required to create a Mainchain Backward Transfer Request to sidechain\n"
-            "     \"immature amounts\": [\n"
-            "       {\n"
-            "         \"maturityHeight\":      xxxxx,   (numeric) height at which fund will become part of spendable balance\n"
-            "         \"amount\":              xxxxx,   (numeric) immature fund\n"
+            "     \"scid\":                               xxxxx,   (string)  sidechain ID\n"
+            "     \"balance\":                            xxxxx,   (numeric) available balance\n"
+            "     \"epoch\":                              xxxxx,   (numeric) current epoch for this sidechain\n"
+            "     \"endEpochHeight\":                     xxxxx,   (numeric) height of the last block of the current epoch\n"
+            "     \"state\":                              xxxxx,   (string)  state of the sidechain at the current chain height\n"
+            "     \"ceasingHeight\":                      xxxxx,   (numeric) height at which the sidechain is considered ceased if a certificate has not been received\n"
+            "     \"creatingTxHash\":                     xxxxx,   (string)  txid of the creating transaction\n"
+            "     \"createdAtBlockHeight\":               xxxxx,   (numeric) block height at which the sidechain was registered\n"
+            "     \"lastCertificateEpoch\":               xxxxx,   (numeric) last epoch number for which a certificate has been received\n"
+            "     \"lastCertificateHash\":                xxxxx,   (numeric) the hash of the last certificate that has been received\n"
+            "     \"lastCertificateQuality\":             xxxxx,   (numeric) the quality of the last certificate that has been received\n"
+            "     \"lastCertificateAmount\":              xxxxx,   (numeric) the amount of the last certificate that has been received\n"
+            "     \"activeFtScFee\":                      xxxxx,   (numeric) The currently active fee required to create a Forward Transfer to sidechain;\n"
+            "                                                              it can be either pastFtScFee or lastFtScFee value depending on the current block height, current epoch and last received top quality certificate\n"
+            "     \"activeMbtrScFee\":                    xxxxx,   (numeric) The currently active fee required to create a Mainchain Backward Transfer Request to sidechain\n"
+            "                                                              it can be either pastMbtrScFee or lastMbtrScFee value depending on the current block height, current epoch and last received top quality certificate\n"
+            "     \"mbtrRequestDataLength\":              xxxxx,   (numeric) The size of the MBTR request data length\n"
+            "     \"withdrawalEpochLength\":              xxxxx,   (numeric) length in blocks of the withdrawal epoch\n"
+            "     \"certSubmissionWindowLength\":         xxxxx,   (numeric) length in blocks of the submission window for certificates\n"
+            "     \"certProvingSystem\"                   xxxxx,   (numeric) The type of proving system used for certificate verification\n"
+            "     \"wCertVk\":                            xxxxx,   (string)  The verification key needed to verify a Withdrawal Certificate Proof, set at sc creation\n"
+            "     \"customData\":                         xxxxx,   (string)  The arbitrary byte string of custom data set at sc creation\n"
+            "     \"constant\":                           xxxxx,   (string)  The arbitrary byte string of constant set at sc creation\n"
+            "     \"cswProvingSystem\"                    xxxxx,   (numeric) The type of proving system used for CSW verification\n"
+            "     \"wCeasedVk\":                          xxxxx,   (string)  The verification key needed to verify a Ceased Sidechain Withdrawal input Proof, set at sc creation\n"
+            "     \"vFieldElementCertificateFieldConfig\" xxxxx,   (string)  A string representation of an array whose entries are sizes (in bits). Any certificate should have as many custom FieldElements with the corresponding size.\n"
+            "     \"vBitVectorCertificateFieldConfig\"    xxxxx,   (string)  A string representation of an array whose entries are bitVectorSizeBits and maxCompressedSizeBytes pairs. Any certificate should have\n"
+            "                                                              as many custom vBitVectorCertificateField with the corresponding sizes\n"
+            "     \"pastFtScFee\":                        xxxxx,   (numeric) The (past epoch) fee required to create a Forward Transfer to sidechain; it is the value set by the top quality certificate of the previous epoch\n"
+            "     \"pastMbtrScFee\":                      xxxxx,   (numeric) The (past epoch) fee required to create a Mainchain Backward Transfer Request to sidechain; it is the value set by the top quality certificate of the previous epoch\n"
+            "     \"lastFtScFee\":                        xxxxx,   (numeric) The (last epoch) fee required to create a Forward Transfer to sidechain; it refers to the most recent epoch for which a valid certificate has been received\n"
+            "     \"lastMbtrScFee\":                      xxxxx,   (numeric) The (last epoch) fee required to create a Mainchain Backward Transfer Request to sidechain; it refers to the most recent epoch for which a valid certificate has been received\n"
+            "     \"immatureAmounts\": [\n"              
+            "       {\n"                                  
+            "         \"maturityHeight\":                 xxxxx,   (numeric) height at which fund will become part of spendable balance\n"
+            "         \"amount\":                         xxxxx,   (numeric) immature fund\n"
             "       },\n"
             "       ... ]\n"
             "    },\n"
@@ -2114,4 +2507,144 @@ UniValue setproofverifierlowpriorityguard(const UniValue& params, bool fHelp)
     obj.pushKV("enabled",  isEnabled);
 
     return obj;
+}
+
+UniValue getcertmaturityinfo(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "getcertmaturityinfo (\"hash\")\n"
+            "\nArgument:\n"
+            "   \"hash\"   (string, mandatory) certificate hash (txid)\n"
+            "\nReturns the informations about certificate maturity. The cmd line option -txindex must be enabled, otherwise it works only\n"
+            "for certificates in the mempool\n"
+            "\nResult:\n"
+            "{\n"
+            "    \"maturityHeight\"     (number) The maturity height when the backwardtransfer output are spendable\n"           
+            "    \"blocksToMaturity\"   (number) The number of blocks to be mined for achieving maturity (0 means already spendable)\n"           
+            "    \"certificateState\"   (string) Can be one of [\"MATURE\", \"IMMATURE\", \"SUPERSEDED\", \"TOP_QUALITY_MEMPOOL\", \"LOW_QUALITY_MEMPOOL\", \"INVALID\"]\n"  
+            "}\n"
+
+            "\nExamples\n"
+            + HelpExampleCli("getcertmaturityinfo", "\"1a3e7ccbfd40c4e2304c3215f76d204e4de63c578ad835510f580d529516a874\"")
+        );
+
+    UniValue ret(UniValue::VOBJ);
+    uint256 hash;
+
+    string hashString = params[0].get_str();
+    {
+        if (hashString.find_first_not_of("0123456789abcdefABCDEF", 0) != std::string::npos)
+            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid hash format: not an hex");
+    }
+
+    hash.SetHex(hashString);
+
+    // Search for the certificate in the mempool
+    CScCertificate certOut;
+
+    {
+        LOCK(mempool.cs);
+        if (mempool.lookup(hash, certOut))
+        {
+            ret.pushKV("maturityHeight", -1);
+            ret.pushKV("blocksToMaturity", -1);
+            std::string s;
+            mempool.CertQualityStatusString(certOut, s);
+            ret.pushKV("certificateState", s);
+            return ret;
+        }
+    }
+
+    if (!fTxIndex)
+    {
+        throw JSONRPCError(RPC_TYPE_ERROR, "txindex option not set: can not retrieve info");
+    }
+
+    if (pblocktree == NULL)
+    {
+        throw JSONRPCError(RPC_TYPE_ERROR, "DB not initialized: can not retrieve info");
+    }
+
+    int currentTipHeight = -1;
+    CTxIndexValue txIndexValue;
+ 
+    {
+        LOCK(cs_main);
+        currentTipHeight = (int)chainActive.Height();
+        if (!pblocktree->ReadTxIndex(hash, txIndexValue))
+        {
+            throw JSONRPCError(RPC_TYPE_ERROR, "No info in Tx DB for the specified certificate");
+        }
+    }
+
+    int bwtMatHeight = txIndexValue.maturityHeight;
+
+    if (bwtMatHeight == 0)
+    {
+        // for instance when the hash is related to a tx
+        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid (null) certificate maturity height: is the input a tx hash?");
+    }
+
+    ret.pushKV("maturityHeight", bwtMatHeight);
+
+    if (bwtMatHeight < 0)
+    {
+        ret.pushKV("blocksToMaturity", -1);
+        if (bwtMatHeight == CTxIndexValue::INVALID_MATURITY_HEIGHT)
+        {
+            // this is the case when the certificate is not in the active chain
+            ret.pushKV("certificateState", "INVALID");
+        }
+        else
+        {
+            ret.pushKV("certificateState", "SUPERSEDED");
+        }
+    }
+    else
+    {
+        int deltaMaturity    = bwtMatHeight - currentTipHeight;
+        bool isMature        = (deltaMaturity <= 0);
+
+        if (!isMature)
+        {
+            ret.pushKV("blocksToMaturity", deltaMaturity);
+            ret.pushKV("certificateState", "IMMATURE");
+        }
+        else
+        {
+            ret.pushKV("blocksToMaturity", 0);
+            ret.pushKV("certificateState", "MATURE");
+        }
+    }
+    
+    return ret;
+}
+
+/**
+ * @brief Removes any transaction from the mempool.
+ */
+UniValue clearmempool(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+    {
+        throw runtime_error(
+            "clearmempool\n"
+            "\nRemoves any transaction and certificate from the mempool. Wallets are NOT synchronized.\n"
+            "Regtest and Testnet only.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("clearmempool", "")
+            + HelpExampleRpc("clearmempool", "")
+        );
+    }
+
+    if (Params().NetworkIDString() == "main")
+    {
+        throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This method can not be used in main network");
+    }
+
+    LOCK(cs_main);
+    mempool.clear();
+
+    return NullUniValue;
 }

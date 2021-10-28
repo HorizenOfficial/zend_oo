@@ -133,7 +133,7 @@ class CeasingSplitTest(BitcoinTestFramework):
 
         mark_logs("\n==> certificate for epoch {} {}l".format(epoch_number, cert), self.nodes, DEBUG_MODE)
 
-        ceas_height = self.nodes[0].getscinfo(scid, False, False)['items'][0]['ceasing height']
+        ceas_height = self.nodes[0].getscinfo(scid, False, False)['items'][0]['ceasingHeight']
         numbBlocks = ceas_height - self.nodes[0].getblockcount() + sc_epoch_len - 1
 
         mark_logs("\nNode0 generates {} block reaching the sg for the next epoch".format(numbBlocks), self.nodes, DEBUG_MODE)
@@ -142,9 +142,9 @@ class CeasingSplitTest(BitcoinTestFramework):
 
         cur_h = self.nodes[0].getblockcount()
         ret=self.nodes[0].getscinfo(scid, True, False)['items'][0]
-        cr_height=ret['created at block height']
-        ceas_h = ret['ceasing height']
-        mark_logs("epoch number={}, current height={}, creation height={}, ceasing height={}, epoch_len={}"
+        cr_height=ret['createdAtBlockHeight']
+        ceas_h = ret['ceasingHeight']
+        mark_logs("epoch number={}, current height={}, creation height={}, ceasingHeight={}, epoch_len={}"
             .format(epoch_number, cur_h, cr_height, ceas_h, sc_epoch_len), self.nodes, DEBUG_MODE)
         print
 
@@ -161,7 +161,8 @@ class CeasingSplitTest(BitcoinTestFramework):
         fwt_amount = Decimal("2.0")
         mc_return_address = self.nodes[0].getnewaddress()
         mark_logs("\nNTW part 1) Node0 sends {} coins to SC".format(fwt_amount), self.nodes, DEBUG_MODE)
-        tx_fwd = self.nodes[0].dep_sc_send("abcd", fwt_amount, scid, mc_return_address)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid, 'mcReturnAddress': mc_return_address}]
+        tx_fwd = self.nodes[0].sc_send(cmdInput)
         sync_mempools(self.nodes[0:3])
 
         mark_logs("              Check fwd tx {} is in mempool".format(tx_fwd), self.nodes, DEBUG_MODE)
@@ -274,7 +275,7 @@ class CeasingSplitTest(BitcoinTestFramework):
 
         mark_logs("And that no info are available too...", self.nodes, DEBUG_MODE)
         try:
-            dec = self.nodes[0].getrawcertificate(cert_bad, 1)
+            dec = self.nodes[0].getrawtransaction(cert_bad, 1)
             print "FIX FIX FIX!!! cert has info in Node0" 
             any_error = True
             #assert (False)

@@ -190,13 +190,14 @@ class sc_rawcert(BitcoinTestFramework):
             print "\n======> ", errorString
             assert_true(False)
 
-        decoded_cert_pre = self.nodes[0].decoderawcertificate(signed_cert['hex'])
+        decoded_cert_pre = self.nodes[0].decoderawtransaction(signed_cert['hex'])
         decoded_cert_pre_list = sorted(decoded_cert_pre.items())
 
         sync_mempools(self.nodes[1:3])
 
         mark_logs("Node0 generating 4 block, also reverting other nodes' chains", self.nodes, DEBUG_MODE)
         mined = self.nodes[0].generate(1)[0]
+        minedBlock = self.nodes[0].getblock(mined)
         #epoch_number = 1
         self.nodes[0].generate(3)
         epoch_number, epoch_cum_tree_hash = get_epoch_data(scid, self.nodes[0], EPOCH_LENGTH)
@@ -226,11 +227,17 @@ class sc_rawcert(BitcoinTestFramework):
         assert_equal(decoded_cert_post['hex'], signed_cert['hex'])
         assert_equal(decoded_cert_post['blockhash'], mined)
         assert_equal(decoded_cert_post['confirmations'], 4)
+        assert_equal(decoded_cert_post['height'], minedBlock['height'])
+        assert_equal(decoded_cert_post['blocktime'], minedBlock['time'])
+        assert_equal(decoded_cert_post['time'], minedBlock['time'])
+
         #remove fields not included in decoded_cert_pre_list
         del decoded_cert_post['hex']
         del decoded_cert_post['blockhash']
         del decoded_cert_post['confirmations']
         del decoded_cert_post['blocktime']
+        del decoded_cert_post['height']
+        del decoded_cert_post['time']
         decoded_cert_post_list = sorted(decoded_cert_post.items())
 
         mark_logs("check that cert decodes correctly", self.nodes, DEBUG_MODE)
@@ -286,6 +293,7 @@ class sc_rawcert(BitcoinTestFramework):
 
         mark_logs("Node2 generating 1 block", self.nodes, DEBUG_MODE)
         mined = self.nodes[2].generate(1)[0]
+        minedBlock = self.nodes[2].getblock(mined)
         self.sync_all()
 
         # we enabled -txindex in zend therefore also node 2 can see it
@@ -299,12 +307,17 @@ class sc_rawcert(BitcoinTestFramework):
         assert_equal(decoded_cert_post['blockhash'], mined)
         assert_equal(decoded_cert_post['confirmations'], 1)
         assert_equal(Decimal(decoded_cert_post['cert']['totalAmount']), 0.0)
+        assert_equal(decoded_cert_post['height'], minedBlock['height'])
+        assert_equal(decoded_cert_post['blocktime'], minedBlock['time'])
+        assert_equal(decoded_cert_post['time'], minedBlock['time'])
 
         #remove fields not included in decoded_cert_pre_list
         del decoded_cert_post['hex']
         del decoded_cert_post['blockhash']
         del decoded_cert_post['confirmations']
         del decoded_cert_post['blocktime']
+        del decoded_cert_post['height']
+        del decoded_cert_post['time']
         decoded_cert_post_list = sorted(decoded_cert_post.items())
 
         mark_logs("check that cert decodes correctly", self.nodes, DEBUG_MODE)
@@ -685,7 +698,7 @@ class sc_rawcert(BitcoinTestFramework):
         mark_logs("Node0 creating raw certificate with valid FT and MBTR fees", self.nodes, DEBUG_MODE)
         try:
             raw_cert = self.nodes[0].createrawcertificate(raw_inputs, raw_outs, raw_bwt_outs, raw_params)
-            decoded_cert = self.nodes[0].decoderawcertificate(raw_cert)
+            decoded_cert = self.nodes[0].decoderawtransaction(raw_cert)
         except JSONRPCException, e:
             errorString = e.error['message']
             print "\n======> ", errorString

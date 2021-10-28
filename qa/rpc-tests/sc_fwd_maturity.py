@@ -97,7 +97,15 @@ class sc_fwd_maturity(BitcoinTestFramework):
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[1].dep_sc_create(123, "dada", creation_amount, vk, "", constant)
+        cmdInput = {
+            "withdrawalEpochLength": 123,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant
+        }
+
+        ret = self.nodes[1].sc_create(cmdInput)
         scid_1 = ret['scid']
         self.sync_all()
         mark_logs("created SC id: {}".format(scid_1), self.nodes, DEBUG_MODE)
@@ -111,7 +119,7 @@ class sc_fwd_maturity(BitcoinTestFramework):
         print "Current height: ", curh
         dump_sc_info_record(self.nodes[2].getscinfo(scid_1)['items'][0], 2)
         print "Check that %f coins will be mature at h=%d" % (creation_amount, curh + 2)
-        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immature amounts"]
+        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immatureAmounts"]
         for entry in ia:
             if entry["maturityHeight"] == curh + 2:
                 assert_equal(entry["amount"], creation_amount)
@@ -121,38 +129,56 @@ class sc_fwd_maturity(BitcoinTestFramework):
         # raw_input("Press enter to send...")
         mark_logs("\nNode 1 sends " + str(fwt_amount_1) + " coins to SC", self.nodes, DEBUG_MODE)
         mc_return_address = self.nodes[1].getnewaddress()
-        self.nodes[1].dep_sc_send("abcd", fwt_amount_1, scid_1, mc_return_address)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount_1, "scid": scid_1, 'mcReturnAddress': mc_return_address}]
+        self.nodes[1].sc_send(cmdInput)
         self.sync_all()
 
         mark_logs("\nNode 1 sends 3 amounts to SC 1 (tot: " + str(fwt_amount_many) + ")", self.nodes, DEBUG_MODE)
         mc_return_address = self.nodes[1].getnewaddress()
         amounts = []
-        amounts.append({"address": "add1", "amount": fwt_amount_1, "scid": scid_1, "mcReturnAddress": mc_return_address})
-        amounts.append({"address": "add2", "amount": fwt_amount_2, "scid": scid_1, "mcReturnAddress": mc_return_address})
-        amounts.append({"address": "add3", "amount": fwt_amount_3, "scid": scid_1, "mcReturnAddress": mc_return_address})
-        tx = self.nodes[1].sc_sendmany(amounts)
 
-        tx_details = self.nodes[1].gettransaction(tx)["details"]
-        assert_equal(1, len(tx_details))
-        assert_equal(tx_details[0]["category"], "send")
-        assert_equal(tx_details[0]["account"], "")
-        assert_equal(tx_details[0]["amount"], -fwt_amount_many)
-        # print "tx=" + tx
+        amounts.append({"toaddress": "add1", "amount": fwt_amount_1, "scid": scid_1, "mcReturnAddress": mc_return_address})
+        amounts.append({"toaddress": "add2", "amount": fwt_amount_2, "scid": scid_1, "mcReturnAddress": mc_return_address})
+        amounts.append({"toaddress": "add3", "amount": fwt_amount_3, "scid": scid_1, "mcReturnAddress": mc_return_address})
+        tx = self.nodes[1].sc_send(amounts)
+
         self.sync_all()
 
         mark_logs("\nNode 1 creates SC 2,3,4, all with " + str(creation_amount) + " coins", self.nodes, DEBUG_MODE)
         amounts = []
-        amounts.append({"address": "dada", "amount": creation_amount})
+        amounts.append({"toaddress": "dada", "amount": creation_amount})
+
+        cmdInput = {
+            "withdrawalEpochLength": 123,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": mcTest.generate_params("sc2"),
+            "constant": generate_random_field_element_hex()
+        }
         
-        ret = self.nodes[1].dep_sc_create(123, "dada", creation_amount, mcTest.generate_params("sc2"), "", generate_random_field_element_hex())
+        ret = self.nodes[1].sc_create(cmdInput)
         scid_2 = ret['scid']
         mark_logs("created SC id: {}".format(scid_2), self.nodes, DEBUG_MODE)
 
-        ret = self.nodes[1].dep_sc_create(123, "dada", creation_amount, mcTest.generate_params("sc3"), "", generate_random_field_element_hex())
+        cmdInput = {
+            "withdrawalEpochLength": 123,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": mcTest.generate_params("sc3"),
+            "constant": generate_random_field_element_hex()
+        }
+        ret = self.nodes[1].sc_create(cmdInput)
         scid_3 = ret['scid']
         mark_logs("created SC id: {}".format(scid_3), self.nodes, DEBUG_MODE)
 
-        ret = self.nodes[1].dep_sc_create(123, "dada", creation_amount, mcTest.generate_params("sc4"), "", generate_random_field_element_hex())
+        cmdInput = {
+            "withdrawalEpochLength": 123,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": mcTest.generate_params("sc4"),
+            "constant": generate_random_field_element_hex()
+        }
+        ret = self.nodes[1].sc_create(cmdInput)
         scid_4 = ret['scid']
         mark_logs("created SC id: {}".format(scid_4), self.nodes, DEBUG_MODE)
 
@@ -162,6 +188,12 @@ class sc_fwd_maturity(BitcoinTestFramework):
         self.nodes[0].generate(1)
         self.sync_all()
 
+        tx_details = self.nodes[1].gettransaction(tx)["details"]
+        assert_equal(1, len(tx_details))
+        assert_equal(tx_details[0]["category"], "send")
+        assert_equal(tx_details[0]["account"], "")
+        assert_equal(tx_details[0]["amount"], -fwt_amount_many)
+
         # ----------------------------------------------------------------------------
         curh = self.nodes[2].getblockcount()
         print "Current height: ", curh
@@ -170,7 +202,7 @@ class sc_fwd_maturity(BitcoinTestFramework):
         count = 0
         print "Check that %f coins will be mature at h=%d" % (creation_amount, curh + 1)
         print "Check that %f coins will be mature at h=%d" % (fwt_amount_many + fwt_amount_1, curh + 2)
-        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immature amounts"]
+        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immatureAmounts"]
         for entry in ia:
             count += 1
             if entry["maturityHeight"] == curh + 2:
@@ -184,9 +216,9 @@ class sc_fwd_maturity(BitcoinTestFramework):
 
         mark_logs("\nNode 1 sends 2 amounts to SC 2 (tot: " + str(fwt_amount_2 + fwt_amount_3) + ")", self.nodes, DEBUG_MODE)
         amounts = []
-        amounts.append({"address": "add2", "amount": fwt_amount_2, "scid": scid_2, "mcReturnAddress": mc_return_address})
-        amounts.append({"address": "add3", "amount": fwt_amount_3, "scid": scid_2, "mcReturnAddress": mc_return_address})
-        self.nodes[1].sc_sendmany(amounts)
+        amounts.append({"toaddress": "add2", "amount": fwt_amount_2, "scid": scid_2, "mcReturnAddress": mc_return_address})
+        amounts.append({"toaddress": "add3", "amount": fwt_amount_3, "scid": scid_2, "mcReturnAddress": mc_return_address})
+        self.nodes[1].sc_send(amounts)
         self.sync_all()
 
         mark_logs("\n...Node0 generating 1 block", self.nodes, DEBUG_MODE)
@@ -200,7 +232,7 @@ class sc_fwd_maturity(BitcoinTestFramework):
         dump_sc_info_record(self.nodes[2].getscinfo(scid_1)['items'][0], 2)
         count = 0
         print "Check that %f coins will be mature at h=%d" % (fwt_amount_many + fwt_amount_1, curh + 1)
-        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immature amounts"]
+        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immatureAmounts"]
         for entry in ia:
             if entry["maturityHeight"] == curh + 1:
                 assert_equal(entry["amount"], fwt_amount_many + fwt_amount_1)
@@ -220,7 +252,7 @@ class sc_fwd_maturity(BitcoinTestFramework):
         dump_sc_info_record(self.nodes[2].getscinfo(scid_1)['items'][0], 2)
         count = 0
         print "Check that there are no immature coins"
-        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immature amounts"]
+        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immatureAmounts"]
         assert_equal(len(ia), 0)
         print "...OK"
         print
@@ -239,7 +271,7 @@ class sc_fwd_maturity(BitcoinTestFramework):
         dump_sc_info_record(self.nodes[2].getscinfo(scid_1)['items'][0], 2)
         count = 0
         print "Check that %f coins will be mature at h=%d" % (fwt_amount_many + fwt_amount_1, curh + 1)
-        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immature amounts"]
+        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immatureAmounts"]
         for entry in ia:
             if entry["maturityHeight"] == curh + 1:
                 assert_equal(entry["amount"], fwt_amount_many + fwt_amount_1)
@@ -264,7 +296,7 @@ class sc_fwd_maturity(BitcoinTestFramework):
         count = 0
         print "Check that %f coins will be mature at h=%d" % (creation_amount, curh + 1)
         print "Check that %f coins will be mature at h=%d" % (fwt_amount_many + fwt_amount_1, curh + 2)
-        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immature amounts"]
+        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immatureAmounts"]
         for entry in ia:
             count += 1
             if entry["maturityHeight"] == curh + 2:
@@ -289,14 +321,14 @@ class sc_fwd_maturity(BitcoinTestFramework):
         print "Current height: ", curh
         dump_sc_info(self.nodes, NUMB_OF_NODES)
         print "Check that %f coins will be mature at h=%d" % (creation_amount, curh + 2)
-        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immature amounts"]
+        ia = self.nodes[2].getscinfo(scid_1)['items'][0]["immatureAmounts"]
         for entry in ia:
             if entry["maturityHeight"] == curh + 2:
                 assert_equal(entry["amount"], creation_amount)
             print "...OK"
             print
 
-        creating_tx = self.nodes[2].getscinfo(scid_1)['items'][0]['creating tx hash']
+        creating_tx = self.nodes[2].getscinfo(scid_1)['items'][0]['creatingTxHash']
         
         mark_logs("\nNode 2 invalidates best block", self.nodes, DEBUG_MODE)
         try:
@@ -308,8 +340,8 @@ class sc_fwd_maturity(BitcoinTestFramework):
         print "Current height: ", self.nodes[2].getblockcount()
         print "Checking that sc info on Node2 is not available in blockchain (just in mempool)..."
         scinfo = self.nodes[2].getscinfo(scid_1)['items'][0]
-        assert_false('creating tx hash' in scinfo)
-        assert_true(scinfo['unconf creating tx hash'], creating_tx)
+        assert_false('creatingTxHash' in scinfo)
+        assert_true(scinfo['unconfCreatingTxHash'], creating_tx)
 
         print "...OK"
         print

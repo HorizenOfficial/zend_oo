@@ -88,7 +88,16 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
         # SCs creation
         #----------------------------------------------------------------------
         vk = mcTest.generate_params("sc1")
-        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "abcdef", constant)
+        cmdInput = {
+            "withdrawalEpochLength": EPOCH_LENGTH,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant,
+            'customData': "abcdef"
+        }
+
+        ret = self.nodes[0].sc_create(cmdInput)
         creating_tx = ret['txid']
         mark_logs("Node 0 created SC spending {} coins via tx1 {}.".format(creation_amount, creating_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
@@ -106,9 +115,9 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
 
         ret = self.nodes[0].getscinfo(scid, False, False)['items'][0]
         pprint.pprint(ret)
-        assert_equal(ret['created at block height'], MINIMAL_SC_HEIGHT+1)
-        assert_equal(ret['end epoch height'], MINIMAL_SC_HEIGHT+EPOCH_LENGTH)
-        assert_equal(ret['ceasing height'], MINIMAL_SC_HEIGHT+EPOCH_LENGTH+EPOCH_LENGTH/5)
+        assert_equal(ret['createdAtBlockHeight'], MINIMAL_SC_HEIGHT+1)
+        assert_equal(ret['endEpochHeight'], MINIMAL_SC_HEIGHT+EPOCH_LENGTH)
+        assert_equal(ret['ceasingHeight'], MINIMAL_SC_HEIGHT+EPOCH_LENGTH+EPOCH_LENGTH/5)
         assert_equal(ret['epoch'], 0)
         assert_equal(ret['scid'], scid)
         assert_equal(ret['withdrawalEpochLength'], EPOCH_LENGTH)
@@ -137,11 +146,11 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
         epoch_number, epoch_cum_tree_hash = get_epoch_data(scid, self.nodes[0], EPOCH_LENGTH)
 
         ret = self.nodes[0].getscinfo(scid, False, False)['items'][0]
-        print "ceasing height   =", ret['ceasing height']
-        print "end epoch height =", ret['end epoch height']
+        print "ceasingHeight   =", ret['ceasingHeight']
+        print "endEpochHeight =", ret['endEpochHeight']
         print "epoch number     =", ret['epoch']
-        assert_equal(ret['ceasing height'], MINIMAL_SC_HEIGHT+2*EPOCH_LENGTH+EPOCH_LENGTH/5) 
-        assert_equal(ret['end epoch height'], MINIMAL_SC_HEIGHT+2*EPOCH_LENGTH)
+        assert_equal(ret['ceasingHeight'], MINIMAL_SC_HEIGHT+2*EPOCH_LENGTH+EPOCH_LENGTH/5) 
+        assert_equal(ret['endEpochHeight'], MINIMAL_SC_HEIGHT+2*EPOCH_LENGTH)
         assert_equal(ret['epoch'], 1)
         print "#### chain height=", self.nodes[0].getblockcount()
         print
@@ -170,11 +179,11 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
         epoch_number, epoch_cum_tree_hash = get_epoch_data(scid, self.nodes[0], EPOCH_LENGTH)
 
         ret = self.nodes[0].getscinfo(scid, False, False)['items'][0]
-        print "ceasing height   =", ret['ceasing height']
-        print "end epoch height =", ret['end epoch height']
+        print "ceasingHeight   =", ret['ceasingHeight']
+        print "endEpochHeight =", ret['endEpochHeight']
         print "epoch number     =", ret['epoch']
-        assert_equal(ret['ceasing height'], MINIMAL_SC_HEIGHT+3*EPOCH_LENGTH+EPOCH_LENGTH/5) 
-        assert_equal(ret['end epoch height'], MINIMAL_SC_HEIGHT+3*EPOCH_LENGTH)
+        assert_equal(ret['ceasingHeight'], MINIMAL_SC_HEIGHT+3*EPOCH_LENGTH+EPOCH_LENGTH/5) 
+        assert_equal(ret['endEpochHeight'], MINIMAL_SC_HEIGHT+3*EPOCH_LENGTH)
         assert_equal(ret['epoch'], 2)
         print "#### chain height=", self.nodes[0].getblockcount()
         print
@@ -198,8 +207,8 @@ class sc_cert_ceasing_sg(BitcoinTestFramework):
         self.sync_all()
 
         ret = self.nodes[0].getscinfo(scid, False, False)['items'][0]
-        print "ceasing height   =", ret['ceasing height']
-        print "end epoch height =", ret['end epoch height']
+        print "ceasingHeight   =", ret['ceasingHeight']
+        print "endEpochHeight =", ret['endEpochHeight']
         print "epoch number     =", ret['epoch']
         print "#### chain height=", self.nodes[0].getblockcount()
         print

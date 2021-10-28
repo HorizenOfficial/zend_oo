@@ -174,6 +174,12 @@ extern std::string HelpExampleRpc(const std::string& methodname, const std::stri
 extern void EnsureWalletIsUnlocked();
 
 extern UniValue getconnectioncount(const UniValue& params, bool fHelp); // in rpcnet.cpp
+extern UniValue getaddressmempool(const UniValue& params, bool fHelp);
+extern UniValue getaddressutxos(const UniValue& params, bool fHelp);
+extern UniValue getaddressdeltas(const UniValue& params, bool fHelp);
+extern UniValue getaddresstxids(const UniValue& params, bool fHelp);
+extern UniValue getaddressbalance(const UniValue& params, bool fHelp);
+
 extern UniValue getpeerinfo(const UniValue& params, bool fHelp);
 extern UniValue ping(const UniValue& params, bool fHelp);
 extern UniValue addnode(const UniValue& params, bool fHelp);
@@ -249,14 +255,12 @@ extern UniValue zc_raw_joinsplit(const UniValue& params, bool fHelp);
 extern UniValue zc_raw_receive(const UniValue& params, bool fHelp);
 extern UniValue zc_sample_joinsplit(const UniValue& params, bool fHelp);
 extern UniValue getrawtransaction(const UniValue& params, bool fHelp); // in rcprawtransaction.cpp
-extern UniValue getrawcertificate(const UniValue& params, bool fHelp); // in rcprawtransaction.cpp
 extern UniValue listunspent(const UniValue& params, bool fHelp);
 extern UniValue lockunspent(const UniValue& params, bool fHelp);
 extern UniValue listlockunspent(const UniValue& params, bool fHelp);
 extern UniValue createrawtransaction(const UniValue& params, bool fHelp);
 extern UniValue decoderawtransaction(const UniValue& params, bool fHelp);
 extern UniValue createrawcertificate(const UniValue& params, bool fHelp);
-extern UniValue decoderawcertificate(const UniValue& params, bool fHelp);
 extern UniValue decodescript(const UniValue& params, bool fHelp);
 extern UniValue fundrawtransaction(const UniValue& params, bool fHelp);
 extern UniValue signrawtransaction(const UniValue& params, bool fHelp);
@@ -270,6 +274,12 @@ extern UniValue getdifficulty(const UniValue& params, bool fHelp);
 extern UniValue settxfee(const UniValue& params, bool fHelp);
 extern UniValue getmempoolinfo(const UniValue& params, bool fHelp);
 extern UniValue getrawmempool(const UniValue& params, bool fHelp);
+
+#ifdef ENABLE_ADDRESS_INDEXING
+extern UniValue getblockdeltas(const UniValue& params, bool fHelp);
+extern UniValue getblockhashes(const UniValue& params, bool fHelp);
+#endif // ENABLE_ADDRESS_INDEXING
+
 extern UniValue getblockhash(const UniValue& params, bool fHelp);
 extern UniValue getblockheader(const UniValue& params, bool fHelp);
 extern UniValue getblock(const UniValue& params, bool fHelp);
@@ -281,6 +291,10 @@ extern UniValue verifychain(const UniValue& params, bool fHelp);
 extern UniValue getchaintips(const UniValue& params, bool fHelp);
 extern UniValue invalidateblock(const UniValue& params, bool fHelp);
 extern UniValue reconsiderblock(const UniValue& params, bool fHelp);
+extern UniValue getcertmaturityinfo(const UniValue& params, bool fHelp);
+extern UniValue clearmempool(const UniValue& params, bool fHelp);
+extern UniValue getspentinfo(const UniValue& params, bool fHelp);
+extern UniValue getblockexpanded(const UniValue& params, bool fHelp);
 
 extern UniValue getblocksubsidy(const UniValue& params, bool fHelp);
 extern UniValue getblockmerkleroots(const UniValue& params, bool fHelp);
@@ -297,12 +311,9 @@ extern UniValue z_listreceivedbyaddress(const UniValue& params, bool fHelp); // 
 extern UniValue z_getbalance(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue z_gettotalbalance(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue z_sendmany(const UniValue& params, bool fHelp); // in rpcwallet.cpp
-extern UniValue sc_send_certificate(const UniValue& params, bool fHelp);
-extern UniValue dep_sc_send(const UniValue& params, bool fHelp);
-extern UniValue sc_sendmany(const UniValue& params, bool fHelp); // in rpcwallet.cpp
-extern UniValue dep_sc_create(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue sc_create(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue sc_send(const UniValue& params, bool fHelp); // in rpcwallet.cpp
+extern UniValue sc_send_certificate(const UniValue& params, bool fHelp);
 extern UniValue sc_request_transfer(const UniValue& params, bool fHelp); // in rpcwallet.cpp
 extern UniValue getscinfo(const UniValue& params, bool fHelp); 
 extern UniValue getactivecertdatahash(const UniValue& params, bool fHelp);

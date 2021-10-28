@@ -26,6 +26,7 @@
 #include "validationinterface.h"
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
+#include "maturityheightindex.h"
 
 #include <sstream>
 
@@ -76,6 +77,14 @@ bool fImporting = false;
 bool fReindex = false;
 bool fReindexFast = false;
 bool fTxIndex = false;
+bool fMaturityHeightIndex = false;
+
+#ifdef ENABLE_ADDRESS_INDEXING
+bool fAddressIndex = false;
+bool fTimestampIndex = false;
+bool fSpentIndex = false;
+#endif // ENABLE_ADDRESS_INDEXING
+
 bool fHavePruned = false;
 bool fPruneMode = false;
 bool fIsBareMultisigStd = true;
@@ -1412,8 +1421,19 @@ MempoolReturnValue AcceptCertificateToMemoryPool(CTxMemPool& pool, CValidationSt
 
         // Store transaction in memory
         pool.addUnchecked(certHash, entry, !IsInitialBlockDownload());
-    }
 
+#ifdef ENABLE_ADDRESS_INDEXING
+        // Add memory address index
+        if (fAddressIndex) {
+            pool.addAddressIndex(entry.GetCertificate(), entry.GetTime(), view);
+        }
+
+        // Add memory spent index
+        if (fSpentIndex) {
+            pool.addSpentIndex(entry.GetCertificate(), view);
+        }
+#endif // ENABLE_ADDRESS_INDEXING
+    }
     return MempoolReturnValue::VALID;
 }
 
@@ -1713,6 +1733,18 @@ MempoolReturnValue AcceptTxToMemoryPool(CTxMemPool& pool, CValidationState &stat
         }
 
         pool.addUnchecked(hash, entry, !IsInitialBlockDownload());
+
+#ifdef ENABLE_ADDRESS_INDEXING
+        // Add memory address index
+        if (fAddressIndex) {
+            pool.addAddressIndex(entry.GetTx(), entry.GetTime(), view);
+        }
+
+        // Add memory spent index
+        if (fSpentIndex) {
+            pool.addSpentIndex(entry.GetTx(), view);
+        }
+#endif // ENABLE_ADDRESS_INDEXING
     }
 
     return MempoolReturnValue::VALID;
@@ -1742,6 +1774,57 @@ MempoolReturnValue AcceptTxBaseToMemoryPool(CTxMemPool& pool, CValidationState &
     return MempoolReturnValue::INVALID;
 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
+bool GetTimestampIndex(const unsigned int &high, const unsigned int &low, const bool fActiveOnly, std::vector<std::pair<uint256, unsigned int> > &hashes)
+{
+    if (!fTimestampIndex)
+        return error("Timestamp index not enabled");
+
+    if (!pblocktree->ReadTimestampIndex(high, low, fActiveOnly, hashes))
+        return error("Unable to get hashes for timestamps");
+
+    return true;
+}
+
+bool GetSpentIndex(CSpentIndexKey &key, CSpentIndexValue &value)
+{
+    if (!fSpentIndex)
+        return false;
+
+    if (mempool.getSpentIndex(key, value))
+        return true;
+
+    if (!pblocktree->ReadSpentIndex(key, value))
+        return false;
+
+    return true;
+}
+
+bool GetAddressIndex(uint160 addressHash, int type,
+                     std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > &addressIndex, int start, int end)
+{
+    if (!fAddressIndex)
+        return error("address index not enabled");
+
+    if (!pblocktree->ReadAddressIndex(addressHash, type, addressIndex, start, end))
+        return error("unable to get txids for address");
+
+    return true;
+}
+
+bool GetAddressUnspent(uint160 addressHash, int type,
+                       std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > &unspentOutputs)
+{
+    if (!fAddressIndex)
+        return error("address index not enabled");
+
+    if (!pblocktree->ReadAddressUnspentIndex(addressHash, type, unspentOutputs))
+        return error("unable to get txids for address");
+
+    return true;
+}
+#endif // ENABLE_ADDRESS_INDEXING
+
 /** Return transaction in tx, and if it was found inside a block, its hash is placed in hashBlock */
 bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock, bool fAllowSlow)
 {
@@ -1752,17 +1835,17 @@ bool GetTransaction(const uint256 &hash, CTransaction &txOut, uint256 &hashBlock
 
     if (fTxIndex)
     {
-        CDiskTxPos postx;
-        if (pblocktree->ReadTxIndex(hash, postx))
+        CTxIndexValue txIndexValue;
+        if (pblocktree->ReadTxIndex(hash, txIndexValue))
         {
-            CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
+            CAutoFile file(OpenBlockFile(txIndexValue.txPosition, true), SER_DISK, CLIENT_VERSION);
             if (file.IsNull())
                 return error("%s: OpenBlockFile failed", __func__);
             CBlockHeader header;
             try
             {
                 file >> header;
-                fseek(file.Get(), postx.nTxOffset, SEEK_CUR);
+                fseek(file.Get(), txIndexValue.txPosition.nTxOffset, SEEK_CUR);
                 file >> txOut;
             } catch (const std::exception& e)
             {
@@ -1819,17 +1902,17 @@ bool GetCertificate(const uint256 &hash, CScCertificate &certOut, uint256 &hashB
 
     if (fTxIndex)
     {
-        CDiskTxPos postx;
-        if (pblocktree->ReadTxIndex(hash, postx))
+        CTxIndexValue txIndexValue;
+        if (pblocktree->ReadTxIndex(hash, txIndexValue))
         {
-            CAutoFile file(OpenBlockFile(postx, true), SER_DISK, CLIENT_VERSION);
+            CAutoFile file(OpenBlockFile(txIndexValue.txPosition, true), SER_DISK, CLIENT_VERSION);
             if (file.IsNull())
                 return error("%s: OpenBlockFile failed", __func__);
             CBlockHeader header;
             try
             {
                 file >> header;
-                fseek(file.Get(), postx.nTxOffset, SEEK_CUR);
+                fseek(file.Get(), txIndexValue.txPosition.nTxOffset, SEEK_CUR);
                 file >> certOut;
             } catch (const std::exception& e)
             {
@@ -2608,9 +2691,17 @@ bool AbortNode(CValidationState& state, const std::string& strMessage, const std
 
 } // anon namespace
 
-bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view,
-    bool* pfClean, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo)
+bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, flagLevelDBIndexesWrite explorerIndexesWrite,
+                     bool* pfClean, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo)
 {
+#ifdef ENABLE_ADDRESS_INDEXING
+    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndex;
+    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
+    std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
+#endif // ENABLE_ADDRESS_INDEXING
+    std::vector<std::pair<uint256, CTxIndexValue> > vTxIndexValues;
+    std::vector<std::pair<CMaturityHeightKey, CMaturityHeightValue> > maturityHeightValues;  
+
     assert(pindex->GetBlockHash() == view.GetBestBlock());
 
     if (pfClean)
@@ -2640,6 +2731,26 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         return error("DisconnectBlock(): cannot revert sidechains scheduled events");
     }
 
+    if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+    {
+        if (fTxIndex)
+        {
+            view.RevertTxIndexSidechainEvents(pindex->nHeight, blockUndo, pblocktree, vTxIndexValues);
+        }
+
+        if (fMaturityHeightIndex) {
+            //Restore the previous ceased sidechain
+            view.RevertMaturityHeightIndexSidechainEvents(pindex->nHeight, blockUndo, pblocktree, maturityHeightValues);
+        }
+
+#ifdef ENABLE_ADDRESS_INDEXING
+        if (fAddressIndex)
+        {
+            view.RevertIndexesSidechainEvents(pindex->nHeight, blockUndo, pblocktree, addressIndex, addressUnspentIndex);
+        }
+#endif // ENABLE_ADDRESS_INDEXING
+    }
+
     // not including coinbase
     const int certOffset = block.vtx.size() - 1;
     std::map<uint256, uint256> highQualityCertData = HighQualityCertData(block, blockUndo);
@@ -2652,6 +2763,42 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         bool isBlockTopQualityCert = highQualityCertData.count(cert.GetHash()) != 0;
 
         LogPrint("cert", "%s():%d - reverting outs of cert[%s]\n", __func__, __LINE__, hash.ToString());
+
+        if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+        {
+            if (fTxIndex)
+            {
+                // Set the disconnected certificate as invalid with maturityHeight -1
+                CTxIndexValue txIndexVal;
+                assert(pblocktree->ReadTxIndex(hash, txIndexVal));
+                txIndexVal.maturityHeight = CTxIndexValue::INVALID_MATURITY_HEIGHT;
+                vTxIndexValues.push_back(std::make_pair(hash, txIndexVal));
+            }
+
+#ifdef ENABLE_ADDRESS_INDEXING
+            // Update the explorer indexes according to the removed outputs
+            if (fAddressIndex)
+            {
+                for (unsigned int k = cert.GetVout().size(); k-- > 0;)
+                {
+                    const CTxOut &out = cert.GetVout()[k];
+
+                    CScript::ScriptType scriptType = out.scriptPubKey.GetType();
+                    if (scriptType != CScript::UNKNOWN)
+                    {
+                        uint160 const addrHash = out.scriptPubKey.AddressHash();
+
+                        // undo receiving activity
+                        addressIndex.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, i, hash, k, false),
+                                                         CAddressIndexValue()));
+
+                        // undo unspent index
+                        addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(scriptType, addrHash, hash, k), CAddressUnspentValue()));
+                    }
+                }
+            }
+#endif // ENABLE_ADDRESS_INDEXING
+        }
 
         // Check that all outputs are available and match the outputs in the block itself
         // exactly.
@@ -2689,6 +2836,17 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         if (isBlockTopQualityCert)
         {
             const uint256& prevBlockTopQualityCertHash = highQualityCertData.at(cert.GetHash());
+            //Used only if fMaturityHeightIndex == true
+            int certMaturityHeight = -1;
+
+            //Remove the current certificate from the MaturityHeight DB
+            if (fMaturityHeightIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON) {
+                CSidechain sidechain;
+                assert(view.GetSidechain(cert.GetScId(), sidechain));
+                certMaturityHeight = sidechain.GetCertMaturityHeight(cert.epochNumber);
+                CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, cert.GetHash());
+                maturityHeightValues.push_back(make_pair(maturityHeightKey, CMaturityHeightValue()));
+            }
 
             // cancels scEvents only if cert is first in its epoch, i.e. if it won't restore any other cert
             if (!prevBlockTopQualityCertHash.IsNull())
@@ -2696,6 +2854,26 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                 // resurrect prevBlockTopQualityCertHash bwts
                 assert(blockUndo.scUndoDatabyScId.at(cert.GetScId()).contentBitMask & CSidechainUndoData::AvailableSections::SUPERSEDED_CERT_DATA);
                 view.RestoreBackwardTransfers(prevBlockTopQualityCertHash, blockUndo.scUndoDatabyScId.at(cert.GetScId()).lowQualityBwts);
+
+                if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON) {
+                    //Restore the previous top certificate in the MaturityHeight DB
+                    if (fMaturityHeightIndex) {
+                        assert(certMaturityHeight != -1);
+                        const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, prevBlockTopQualityCertHash);
+                        maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
+                    }
+#ifdef ENABLE_ADDRESS_INDEXING
+                    // Set the lower quality BTs as top quality
+                    if (fAddressIndex)
+                    {
+                        CTxIndexValue txIndexVal;
+                        assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
+
+                        view.UpdateBackwardTransferIndexes(prevBlockTopQualityCertHash, txIndexVal.txIndex, addressIndex, addressUnspentIndex,
+                                                        CCoinsViewCache::flagIndexesUpdateType::RESTORE_CERTIFICATE);
+                    }
+#endif // ENABLE_ADDRESS_INDEXING               
+                }
             }
 
             // Refresh previous certificate in wallet, whether it has been just restored or it is from previous epoch
@@ -2727,6 +2905,34 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                 fClean = false;
             }
 
+#ifdef ENABLE_ADDRESS_INDEXING
+            if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+            {
+                    // Update the explorer indexes according to the removed inputs
+                    if (fAddressIndex) {
+
+                        CScript::ScriptType scriptType = undo.txout.scriptPubKey.GetType();
+
+                        if (scriptType != CScript::UNKNOWN) {
+                            uint160 const addrHash = undo.txout.scriptPubKey.AddressHash();
+
+                            // undo spending activity
+                            addressIndex.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, i, hash, j, true),
+                                                            CAddressIndexValue()));
+
+                            // restore unspent index
+                            addressUnspentIndex.push_back(make_pair(
+                                CAddressUnspentKey(scriptType, addrHash, undo.txout.GetHash(), out.n),
+                                CAddressUnspentValue(undo.txout.nValue, undo.txout.scriptPubKey, undo.nHeight, 0)));
+                        }
+                    }
+
+                    if (fSpentIndex) {
+                        // undo and delete the spent index
+                        spentIndex.push_back(make_pair(CSpentIndexKey(out.hash, out.n), CSpentIndexValue()));
+                    }
+            }
+#endif // ENABLE_ADDRESS_INDEXING
         }
     }
 
@@ -2734,6 +2940,29 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
         const CTransaction &tx = block.vtx[i];
         uint256 hash = tx.GetHash();
+
+#ifdef ENABLE_ADDRESS_INDEXING
+        if (fAddressIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+        {
+            for (unsigned int k = tx.GetVout().size(); k-- > 0;)
+            {
+                const CTxOut &out = tx.GetVout()[k];
+
+                CScript::ScriptType scriptType = out.scriptPubKey.GetType();
+                if (scriptType != CScript::UNKNOWN)
+                {
+                    uint160 const addrHash = out.scriptPubKey.AddressHash();
+
+                    // undo receiving activity
+                    addressIndex.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, i, hash, k, false),
+                                                     CAddressIndexValue()));
+
+                    // undo unspent index
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(scriptType, addrHash, hash, k), CAddressUnspentValue()));
+                }
+            }
+        }
+#endif // ENABLE_ADDRESS_INDEXING
 
         // Check that all outputs are available and match the outputs in the block itself
         // exactly.
@@ -2791,6 +3020,40 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                     fClean = false;
                 }
 
+#ifdef ENABLE_ADDRESS_INDEXING
+                if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+                {
+                    const CTxIn input = tx.GetVin()[j];
+
+                    if (fAddressIndex)
+                    {
+                        const CTxOut &prevout = view.GetOutputFor(tx.GetVin()[j]);
+
+                        CScript::ScriptType scriptType = prevout.scriptPubKey.GetType();
+
+                        if (scriptType != CScript::UNKNOWN)
+                        {
+                            uint160 const addrHash = prevout.scriptPubKey.AddressHash();
+
+                            // undo spending activity
+                            addressIndex.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, i, hash, j, true),
+                                                             CAddressIndexValue()));
+
+                            // restore unspent index
+                            addressUnspentIndex.push_back(make_pair(
+                                CAddressUnspentKey(scriptType, addrHash, input.prevout.hash, input.prevout.n),
+                                CAddressUnspentValue(prevout.nValue, prevout.scriptPubKey, undo.nHeight, 0)));
+                        }
+                    }
+
+                    if (fSpentIndex)
+                    {
+                        // undo and delete the spent index
+                        spentIndex.push_back(make_pair(CSpentIndexKey(input.prevout.hash, input.prevout.n), CSpentIndexValue()));
+                    }
+                }
+#endif // ENABLE_ADDRESS_INDEXING
+
             }
         }
     }
@@ -2804,6 +3067,41 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     if (pfClean) {
         *pfClean = fClean;
         return true;
+    }
+
+    if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+    {
+        if (fTxIndex) {
+            if (!pblocktree->WriteTxIndex(vTxIndexValues))
+                return AbortNode(state, "Failed to write transaction index");
+        }
+        if (fMaturityHeightIndex) {
+            if (!pblocktree->UpdateMaturityHeightIndex(maturityHeightValues)) {
+                return AbortNode(state, "Failed to write maturity height index");
+            }
+        }
+
+#ifdef ENABLE_ADDRESS_INDEXING
+        if (fAddressIndex)
+        {
+            if (!pblocktree->UpdateAddressIndex(addressIndex))
+            {
+                return AbortNode(state, "Failed to update address index");
+            }
+            if (!pblocktree->UpdateAddressUnspentIndex(addressUnspentIndex))
+            {
+                return AbortNode(state, "Failed to write address unspent index");
+            }
+        }
+
+        if (fSpentIndex)
+        {
+            if (!pblocktree->UpdateSpentIndex(spentIndex))
+            {
+                return AbortNode(state, "Failed to write address spent index");
+            }
+        }
+#endif // ENABLE_ADDRESS_INDEXING
     }
 
     return fClean;
@@ -2912,8 +3210,19 @@ static int64_t nTimeTotal = 0;
 
 bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view,
     const CChain& chain, flagBlockProcessingType processingType, flagScRelatedChecks fScRelatedChecks,
-    flagScProofVerification fScProofVerification, std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo)
+    flagScProofVerification fScProofVerification, flagLevelDBIndexesWrite explorerIndexesWrite,
+    std::vector<CScCertificateStatusUpdateInfo>* pCertsStateInfo)
 {
+    /**
+     * When using CHECK_ONLY there is no need to write explorer indexes.
+     * When ConnectBlock() is called from VerifyDB() the type of block processing
+     * is COMPLETE but writing on the Level DB of explorer indexes must be disabled.
+     */
+    if (processingType == flagBlockProcessingType::CHECK_ONLY)
+    {
+        assert(explorerIndexesWrite == flagLevelDBIndexesWrite::OFF);
+    }
+
     int64_t nTime0 = GetTimeMicros();
 
     const CChainParams& chainparams = Params();
@@ -3012,9 +3321,16 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     int nInputs = 0;
     unsigned int nSigOps = 0;
     CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
-    std::vector<std::pair<uint256, CDiskTxPos> > vPos;
-    vPos.reserve(block.vtx.size());
+    std::vector<std::pair<uint256, CTxIndexValue> > vTxIndexValues;
+    vTxIndexValues.reserve(block.vtx.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1 + block.vcert.size());
+    std::vector<std::pair<CMaturityHeightKey,CMaturityHeightValue>> maturityHeightValues;
+
+#ifdef ENABLE_ADDRESS_INDEXING
+    std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndex;
+    std::vector<std::pair<CAddressUnspentKey, CAddressUnspentValue> > addressUnspentIndex;
+    std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
+#endif // ENABLE_ADDRESS_INDEXING
 
     // Construct the incremental merkle tree at the current
     // block position,
@@ -3077,6 +3393,44 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 return state.DoS(100, error("%s():%d: JoinSplit requirements not met",__func__, __LINE__),
                                  CValidationState::Code::INVALID, "bad-txns-joinsplit-requirements-not-met");
 
+#ifdef ENABLE_ADDRESS_INDEXING
+            if ((fAddressIndex || fSpentIndex) && explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+            {
+                for (size_t j = 0; j < tx.GetVin().size(); j++)
+                {
+
+                    const CTxIn input = tx.GetVin()[j];
+                    const CTxOut &prevout = view.GetOutputFor(tx.GetVin()[j]);
+                    CScript::ScriptType scriptType = prevout.scriptPubKey.GetType();
+                    const uint160 addrHash = prevout.scriptPubKey.AddressHash();
+
+                    if (fAddressIndex && scriptType != CScript::UNKNOWN)
+                    {
+                        // record spending activity
+                        addressIndex.push_back(make_pair(
+                            CAddressIndexKey(scriptType, addrHash, pindex->nHeight, txIdx, tx.GetHash(), j, true),
+                            CAddressIndexValue(prevout.nValue * -1, 0)));
+
+                        // remove address from unspent index
+                        addressUnspentIndex.push_back(make_pair(
+                            CAddressUnspentKey(scriptType, addrHash, input.prevout.hash, input.prevout.n),
+                            CAddressUnspentValue()));
+                    }
+
+                    if (fSpentIndex)
+                    {
+                        // Add the spent index to determine the txid and input that spent an output
+                        // and to find the amount and address from an input.
+                        // If we do not recognize the script type, we still add an entry to the
+                        // spentindex db, with a script type of 0 and addrhash of all zeroes.
+                        spentIndex.push_back(make_pair(
+                            CSpentIndexKey(input.prevout.hash, input.prevout.n),
+                            CSpentIndexValue(tx.GetHash(), j, pindex->nHeight, prevout.nValue, scriptType, addrHash)));
+                    }
+                }
+            }
+#endif // ENABLE_ADDRESS_INDEXING
+
             // Add in sigops done by pay-to-script-hash inputs;
             // this is to prevent a "rogue miner" from creating
             // an incredibly-expensive-to-validate block.
@@ -3093,6 +3447,30 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
             control.Add(vChecks);
         }
+
+#ifdef ENABLE_ADDRESS_INDEXING
+        if (fAddressIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+        {
+            for (unsigned int k = 0; k < tx.GetVout().size(); k++)
+            {
+                const CTxOut &out = tx.GetVout()[k];
+
+                CScript::ScriptType scriptType = out.scriptPubKey.GetType();
+                if (scriptType != CScript::UNKNOWN)
+                {
+                    uint160 const addrHash = out.scriptPubKey.AddressHash();
+
+                    // record receiving activity
+                    addressIndex.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, txIdx, tx.GetHash(), k, false),
+                                                     CAddressIndexValue(out.nValue, 0)));
+
+                    // record unspent output
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(scriptType, addrHash, tx.GetHash(), k),
+                                                            CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight, 0)));
+                }
+            }
+        }
+#endif // ENABLE_ADDRESS_INDEXING
 
         CTxUndo undoDummy;
         if (txIdx > 0) {
@@ -3124,7 +3502,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             }
         }
 
-        vPos.push_back(std::make_pair(tx.GetHash(), pos));
+        vTxIndexValues.push_back(std::make_pair(tx.GetHash(), CTxIndexValue(pos, txIdx, 0)));
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
 
         if (fScRelatedChecks == flagScRelatedChecks::ON)
@@ -3147,6 +3525,44 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         if (!view.HaveInputs(cert))
             return state.DoS(100, error("%s():%d: certificate inputs missing/spent",__func__, __LINE__),
                                  CValidationState::Code::INVALID, "bad-cert-inputs-missingorspent");
+
+#ifdef ENABLE_ADDRESS_INDEXING
+        // Update the explorer indexes with the inputs
+        if ((fAddressIndex || fSpentIndex) && explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+        {
+            for (size_t j = 0; j < cert.GetVin().size(); j++)
+            {
+                const CTxIn input = cert.GetVin()[j];
+                const CTxOut &prevout = view.GetOutputFor(cert.GetVin()[j]);
+                CScript::ScriptType scriptType = prevout.scriptPubKey.GetType();
+                const uint160 addrHash = prevout.scriptPubKey.AddressHash();
+
+                if (fAddressIndex && scriptType != CScript::UNKNOWN)
+                {
+                    // record spending activity
+                    addressIndex.push_back(make_pair(
+                        CAddressIndexKey(scriptType, addrHash, pindex->nHeight, certIdx, cert.GetHash(), j, true),
+                        CAddressIndexValue(prevout.nValue * -1, 0)));
+
+                    // remove address from unspent index
+                    addressUnspentIndex.push_back(make_pair(
+                        CAddressUnspentKey(scriptType, addrHash, input.prevout.hash, input.prevout.n),
+                        CAddressUnspentValue()));
+                }
+
+                if (fSpentIndex)
+                {
+                    // Add the spent index to determine the txid and input that spent an output
+                    // and to find the amount and address from an input.
+                    // If we do not recognize the script type, we still add an entry to the
+                    // spentindex db, with a script type of 0 and addrhash of all zeroes.
+                    spentIndex.push_back(make_pair(
+                        CSpentIndexKey(input.prevout.hash, input.prevout.n),
+                        CSpentIndexValue(cert.GetHash(), j, pindex->nHeight, prevout.nValue, scriptType, addrHash)));
+                }
+            }
+        }
+#endif // ENABLE_ADDRESS_INDEXING
 
         // Add in sigops done by pay-to-script-hash inputs;
         // this is to prevent a "rogue miner" from creating
@@ -3177,12 +3593,51 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             scVerifier.LoadDataForCertVerification(view, cert);
         }
 
+#ifdef ENABLE_ADDRESS_INDEXING
+        // Update the explorer indexes with the "normal" outputs
+        if (fAddressIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+        {
+            for (unsigned int k = 0; k < cert.nFirstBwtPos; k++)
+            {
+                const CTxOut &out = cert.GetVout()[k];
+
+                CScript::ScriptType scriptType = out.scriptPubKey.GetType();
+                if (scriptType != CScript::UNKNOWN)
+                {
+                    uint160 const addrHash = out.scriptPubKey.AddressHash();
+
+                    // record receiving activity
+                    addressIndex.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, certIdx, cert.GetHash(), k, false),
+                                                     CAddressIndexValue(out.nValue, 0)));
+
+                    // record unspent output
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(scriptType, addrHash, cert.GetHash(), k),
+                                                            CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight, 0)));
+                }
+            }
+        }
+#endif // ENABLE_ADDRESS_INDEXING
+
         blockundo.vtxundo.push_back(CTxUndo());
         bool isBlockTopQualityCert = highQualityCertData.count(cert.GetHash()) != 0;
         UpdateCoins(cert, view, blockundo.vtxundo.back(), pindex->nHeight, isBlockTopQualityCert);
 
+        CSidechain sidechain;
+        assert(view.GetSidechain(cert.GetScId(), sidechain));
+        int certMaturityHeight = sidechain.GetCertMaturityHeight(cert.epochNumber);
+
+        if (!isBlockTopQualityCert) {
+            certMaturityHeight *= -1;   // A negative maturity height indicates that the certificate is superseded
+        }
+
         if (isBlockTopQualityCert)
         {
+            //Add the new certificate in the MaturityHeight collection
+            if (fMaturityHeightIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON) {
+                const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, cert.GetHash());
+                maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
+            }
+
             if (!view.UpdateSidechain(cert, blockundo) )
             {
                 return state.DoS(100, error("%s():%d: could not add in scView: cert[%s]",__func__, __LINE__, cert.GetHash().ToString()),
@@ -3193,6 +3648,33 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             if (!prevBlockTopQualityCertHash.IsNull())
             {
                 // if prevBlockTopQualityCertHash is not null, it has same scId/epochNumber as cert
+
+                if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+                {
+                    if (fTxIndex)
+                    {
+                        // Update the prevBlockTopQualityCert maturity inside the txIndex DB to appear as superseded
+                        CTxIndexValue txIndexVal;
+                        assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
+                        txIndexVal.maturityHeight *= -1;
+                        vTxIndexValues.push_back(std::make_pair(prevBlockTopQualityCertHash, txIndexVal));
+
+#ifdef ENABLE_ADDRESS_INDEXING
+                        // Set any lower quality BT as superseded on the explorer indexes
+                        if (fAddressIndex)
+                        {
+                            // Set the lower quality BTs as superseded
+                            view.UpdateBackwardTransferIndexes(prevBlockTopQualityCertHash, txIndexVal.txIndex, addressIndex, addressUnspentIndex,
+                                                               CCoinsViewCache::flagIndexesUpdateType::SUPERSEDE_CERTIFICATE);
+                        }
+#endif // ENABLE_ADDRESS_INDEXING
+                    }
+                    if (fMaturityHeightIndex) {
+                        //Remove the superseded certificate from the MaturityHeight DB
+                        const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, prevBlockTopQualityCertHash);
+                        maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue()));
+                    }
+                }
 
                 view.NullifyBackwardTransfers(prevBlockTopQualityCertHash, blockundo.scUndoDatabyScId.at(cert.GetScId()).lowQualityBwts);
                 blockundo.scUndoDatabyScId.at(cert.GetScId()).contentBitMask |= CSidechainUndoData::AvailableSections::SUPERSEDED_CERT_DATA;
@@ -3219,7 +3701,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             pos.nTxOffset += sz;
             LogPrint("cert", "%s():%d - nTxOffset=%d\n", __func__, __LINE__, pos.nTxOffset );
         }
-        vPos.push_back(std::make_pair(cert.GetHash(), pos));
+
+        vTxIndexValues.push_back(std::make_pair(cert.GetHash(), CTxIndexValue(pos, certIdx, certMaturityHeight)));
         pos.nTxOffset += cert.GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
 
         if (fScRelatedChecks == flagScRelatedChecks::ON)
@@ -3227,8 +3710,53 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             scCommitmentBuilder.add(cert, view);
         }
 
+#ifdef ENABLE_ADDRESS_INDEXING
+        // Update the explorer indexes according to the Backward Transfer outputs
+        if (fAddressIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+        {
+            for (unsigned int k = cert.nFirstBwtPos; k < cert.GetVout().size(); k++)
+            {
+                const CTxOut &out = cert.GetVout()[k];
+
+                CScript::ScriptType scriptType = out.scriptPubKey.GetType();
+                if (scriptType != CScript::UNKNOWN)
+                {
+                    uint160 const addrHash = out.scriptPubKey.AddressHash();
+
+                    // record receiving activity
+                    addressIndex.push_back(make_pair(CAddressIndexKey(scriptType, addrHash, pindex->nHeight, certIdx, cert.GetHash(), k, false),
+                                                     CAddressIndexValue(out.nValue, certMaturityHeight)));
+
+                    // record unspent output
+                    addressUnspentIndex.push_back(make_pair(CAddressUnspentKey(scriptType, addrHash, cert.GetHash(), k),
+                                                            CAddressUnspentValue(out.nValue, out.scriptPubKey, pindex->nHeight, certMaturityHeight)));
+                }
+            }
+        }
+#endif // ENABLE_ADDRESS_INDEXING
+
         LogPrint("cert", "%s():%d - nTxOffset=%d\n", __func__, __LINE__, pos.nTxOffset );
     } //end of Processing certificates loop
+
+    if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+    {
+#ifdef ENABLE_ADDRESS_INDEXING
+        if (fAddressIndex)
+        {
+            view.HandleIndexesSidechainEvents(pindex->nHeight, pblocktree, addressIndex, addressUnspentIndex);
+        }
+#endif // ENABLE_ADDRESS_INDEXING
+
+        if (fMaturityHeightIndex)
+        {
+            //Remove the certificates from the MaturityHeight DB related to the ceased sidechains
+            view.HandleMaturityHeightIndexSidechainEvents(pindex->nHeight, pblocktree, maturityHeightValues);
+        }
+        if (fTxIndex) 
+        {
+            view.HandleTxIndexSidechainEvents(pindex->nHeight, pblocktree, vTxIndexValues);
+        }
+    }
 
     if (!view.HandleSidechainEvents(pindex->nHeight, blockundo, pCertsStateInfo))
     {
@@ -3332,9 +3860,63 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         setDirtyBlockIndex.insert(pindex);
     }
 
-    if (fTxIndex)
-        if (!pblocktree->WriteTxIndex(vPos))
-            return AbortNode(state, "Failed to write transaction index");
+    if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
+    {
+        if (fTxIndex) {
+            if (!pblocktree->WriteTxIndex(vTxIndexValues))
+                return AbortNode(state, "Failed to write transaction index");
+        }
+        if (fMaturityHeightIndex) {
+            if (!pblocktree->UpdateMaturityHeightIndex(maturityHeightValues))
+                return AbortNode(state, "Failed to write maturity height index");
+        }
+
+#ifdef ENABLE_ADDRESS_INDEXING
+        if (fAddressIndex)
+        {
+            if (!pblocktree->WriteAddressIndex(addressIndex))
+            {
+                return AbortNode(state, "Failed to write address index");
+            }
+
+            if (!pblocktree->UpdateAddressUnspentIndex(addressUnspentIndex))
+            {
+                return AbortNode(state, "Failed to write address unspent index");
+            }
+        }
+
+        if (fSpentIndex)
+        {
+            if (!pblocktree->UpdateSpentIndex(spentIndex))
+            {
+                return AbortNode(state, "Failed to write address spent index");
+            }
+        }
+
+        if (fTimestampIndex)
+        {
+            unsigned int logicalTS = pindex->nTime;
+            unsigned int prevLogicalTS = 0;
+
+            // retrieve logical timestamp of the previous block
+            if (pindex->pprev)
+                if (!pblocktree->ReadTimestampBlockIndex(pindex->pprev->GetBlockHash(), prevLogicalTS))
+                    LogPrintf("%s: Failed to read previous block's logical timestamp\n", __func__);
+
+            if (logicalTS <= prevLogicalTS)
+            {
+                logicalTS = prevLogicalTS + 1;
+                LogPrintf("%s: Previous logical timestamp is newer Actual[%d] prevLogical[%d] Logical[%d]\n", __func__, pindex->nTime, prevLogicalTS, logicalTS);
+            }
+
+            if (!pblocktree->WriteTimestampIndex(CTimestampIndexKey(logicalTS, pindex->GetBlockHash())))
+                return AbortNode(state, "Failed to write timestamp index");
+
+            if (!pblocktree->WriteTimestampBlockIndex(CTimestampBlockIndexKey(pindex->GetBlockHash()), CTimestampBlockIndexValue(logicalTS)))
+                return AbortNode(state, "Failed to write blockhash index");
+        }
+#endif // ENABLE_ADDRESS_INDEXING
+    }
 
     // add this block to the view's block chain
     view.SetBestBlock(pindex->GetBlockHash());
@@ -3513,7 +4095,7 @@ bool static DisconnectTip(CValidationState &state) {
     std::vector<CScCertificateStatusUpdateInfo> certsStateInfo;
     {
         CCoinsViewCache view(pcoinsTip);
-        if (!DisconnectBlock(block, state, pindexDelete, view, NULL, &certsStateInfo))
+        if (!DisconnectBlock(block, state, pindexDelete, view, flagLevelDBIndexesWrite::ON, nullptr, &certsStateInfo))
             return error("DisconnectTip(): DisconnectBlock %s failed", pindexDelete->GetBlockHash().ToString());
         assert(view.Flush());
     }
@@ -3628,7 +4210,7 @@ bool static ConnectTip(CValidationState &state, CBlockIndex *pindexNew, CBlock *
     {
         CCoinsViewCache view(pcoinsTip);
         bool rv = ConnectBlock(*pblock, state, pindexNew, view, chainActive, flagBlockProcessingType::COMPLETE,
-                               flagScRelatedChecks::ON, flagScProofVerification::ON, &certsStateInfo);
+                               flagScRelatedChecks::ON, flagScProofVerification::ON, flagLevelDBIndexesWrite::ON, &certsStateInfo);
         GetMainSignals().BlockChecked(*pblock, state);
         if (!rv) {
             if (state.IsInvalid())
@@ -4764,7 +5346,8 @@ bool TestBlockValidity(CValidationState &state, const CBlock& block, CBlockIndex
     if (!ContextualCheckBlock(block, state, pindexPrev))
         return false;
 
-    if (!ConnectBlock(block, state, &indexDummy, viewNew, chainActive, flagBlockProcessingType::CHECK_ONLY, fScRelatedChecks, flagScProofVerification::OFF))
+    if (!ConnectBlock(block, state, &indexDummy, viewNew, chainActive, flagBlockProcessingType::CHECK_ONLY,
+                      fScRelatedChecks, flagScProofVerification::OFF, flagLevelDBIndexesWrite::OFF))
         return false;
     assert(state.IsValid());
 
@@ -5051,6 +5634,24 @@ bool static LoadBlockIndexDB()
     pblocktree->ReadFlag("txindex", fTxIndex);
     LogPrintf("%s: transaction index %s\n", __func__, fTxIndex ? "enabled" : "disabled");
 
+    // Check whether we have a maturityHeight index
+    pblocktree->ReadFlag("maturityheightindex", fMaturityHeightIndex);
+    LogPrintf("%s: maturityHeight index %s\n", __func__, fMaturityHeightIndex ? "enabled" : "disabled");  
+
+#ifdef ENABLE_ADDRESS_INDEXING
+    // Check whether we have an address index
+    pblocktree->ReadFlag("addressindex", fAddressIndex);
+    LogPrintf("%s: address index %s\n", __func__, fAddressIndex ? "enabled" : "disabled");
+
+    // Check whether we have a timestamp index
+    pblocktree->ReadFlag("timestampindex", fTimestampIndex);
+    LogPrintf("%s: timestamp index %s\n", __func__, fTimestampIndex ? "enabled" : "disabled");
+
+    // Check whether we have a spent index
+    pblocktree->ReadFlag("spentindex", fSpentIndex);
+    LogPrintf("%s: spent index %s\n", __func__, fSpentIndex ? "enabled" : "disabled");
+#endif // ENABLE_ADDRESS_INDEXING
+
     // Fill in-memory data
     BOOST_FOREACH(const PAIRTYPE(uint256, CBlockIndex*)& item, mapBlockIndex)
     {
@@ -5147,7 +5748,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
         // check level 3: check for inconsistencies during memory-only disconnect of tip blocks
         if (nCheckLevel >= 3 && pindex == pindexState && (coins.DynamicMemoryUsage() + pcoinsTip->DynamicMemoryUsage()) <= nCoinCacheUsage) {
             bool fClean = true;
-            if (!DisconnectBlock(block, state, pindex, coins, &fClean))
+            if (!DisconnectBlock(block, state, pindex, coins, flagLevelDBIndexesWrite::OFF, &fClean, nullptr))
                 return error("VerifyDB(): *** irrecoverable inconsistency in block data at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
             pindexState = pindex->pprev;
             if (!fClean) {
@@ -5181,7 +5782,7 @@ bool CVerifyDB::VerifyDB(CCoinsView *coinsview, int nCheckLevel, int nCheckDepth
             chainHistorical.SetHeight(pindex->nHeight - 1);
 
             if (!ConnectBlock(block, state, pindex, coins, chainHistorical, flagBlockProcessingType::COMPLETE,
-                              flagScRelatedChecks::ON, flagScProofVerification::ON))
+                              flagScRelatedChecks::ON, flagScProofVerification::ON, flagLevelDBIndexesWrite::OFF))
                 return error("VerifyDB(): *** found unconnectable block at %d, hash=%s", pindex->nHeight, pindex->GetBlockHash().ToString());
         }
     }
@@ -5246,6 +5847,24 @@ bool InitBlockIndex() {
     // Use the provided setting for -txindex in the new database
     fTxIndex = GetBoolArg("-txindex", false);
     pblocktree->WriteFlag("txindex", fTxIndex);
+
+    // Use the provided setting for -maturityheightindex in the new database
+    fMaturityHeightIndex = GetBoolArg("-maturityheightindex", false);
+    pblocktree->WriteFlag("maturityheightindex", fMaturityHeightIndex);
+
+#ifdef ENABLE_ADDRESS_INDEXING
+    // Use the provided setting for -addressindex in the new database
+    fAddressIndex = GetBoolArg("-addressindex", DEFAULT_ADDRESSINDEX);
+    pblocktree->WriteFlag("addressindex", fAddressIndex);
+
+    // Use the provided setting for -timestampindex in the new database
+    fTimestampIndex = GetBoolArg("-timestampindex", DEFAULT_TIMESTAMPINDEX);
+    pblocktree->WriteFlag("timestampindex", fTimestampIndex);
+
+    fSpentIndex = GetBoolArg("-spentindex", DEFAULT_SPENTINDEX);
+    pblocktree->WriteFlag("spentindex", fSpentIndex);
+#endif // ENABLE_ADDRESS_INDEXING
+
     LogPrintf("Initializing databases...\n");
 
     // Only add the genesis block if not reindexing (in which case we reuse the one already on disk)
