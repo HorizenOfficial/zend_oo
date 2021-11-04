@@ -62,7 +62,7 @@ class ScRpcCmdsFeeHandling(BitcoinTestFramework):
         def isclose(d1, d2, tolerance=Decimal('0.005')):
             dec1 = Decimal(d1)
             dec2 = Decimal(d2)
-            return abs(d1-d2) <= tolerance
+            return abs(dec1-dec2) <= tolerance
 
         mark_logs("Node 1 generates 2 block",self.nodes,DEBUG_MODE)
         self.nodes[1].generate(2)
