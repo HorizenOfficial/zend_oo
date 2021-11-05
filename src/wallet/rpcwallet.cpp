@@ -5153,7 +5153,7 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
             "     }, ... ]\n"
             " 7. forwardTransferScFee            (numeric, required) The amount of fee due to sidechain actors when creating a FT\n"
             " 8. mainchainBackwardTransferScFee  (numeric, required) The amount of fee due to sidechain actors when creating a MBTR\n"
-            " 9. fee                             (numeric, optional) The fee amount of the certificate in " + CURRENCY_UNIT + ". If not specified it is automatically computed using a fixed fee rate (default is 1Zat/Byte)\n"
+            " 9. fee                             (numeric, optional) The fee amount of the certificate in " + CURRENCY_UNIT + ". If it is not specified or has a negative value it is automatically computed using a fixed fee rate (default is 1Zat/Byte)\n"
             "10. fromAddress                     (string, optional) The address UTXO will be taken from\n"
             "11. vFieldElementCertificateField   (array, optional) An array of byte strings...TODO add description\n"
             "    [\n"                     
@@ -5346,19 +5346,23 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
     }
 
     //--------------------------------------------------------------------------
-    // fee, default to a small amount
+    // fee, default to a negative value, that means automatically computed
     CAmount nCertFee = SC_RPC_OPERATION_AUTO_MINERS_FEE;
     if (params.size() > 8)
     {
+        UniValue feeVal = params[8];
         try {
-            nCertFee = AmountFromValue(params[8]);
+            nCertFee = SignedAmountFromValue(feeVal);
         } catch (const UniValue& error) {
             UniValue errMsg  = find_value(error, "message");
             throw JSONRPCError(RPC_TYPE_ERROR, ("Invalid fee param:" + errMsg.getValStr() ));
         } 
 
         if (nCertFee < 0)
-            throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount for fee, can not be negative");
+        {
+            // negative values mean: compute automatically
+            nCertFee = SC_RPC_OPERATION_AUTO_MINERS_FEE;
+        }
         // any check for upper threshold is left to cert processing
     }
 

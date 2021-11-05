@@ -269,10 +269,37 @@ class ScRpcCmdsFeeHandling(BitcoinTestFramework):
             "sc1", scid_swapped, epoch_number, q, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash,
             constant, addr_array, bwt_amount_array)
 
-        # automatic fee computation is OK. Automatic computation takes place if the user does not specify the fee.
+        mark_logs("Sending certificate without specifying fee amount (aoutom comp)", self.nodes, DEBUG_MODE)
+        # automatic fee computation is OK. Automatic computation takes place if the user does not specify the fee...
         try:
             cert = self.nodes[1].sc_send_certificate(scid, epoch_number, q,
                 epoch_cum_tree_hash, proof, bwt_cert, FT_SC_FEE, MBTR_SC_FEE)
+        except JSONRPCException, e:
+            errorString = e.error['message']
+            print "Send certificate failed with reason {}".format(errorString)
+            assert(False)
+        self.sync_all()
+ 
+        mark_logs("cert={}".format(cert), self.nodes, DEBUG_MODE)
+
+        cert_fee  = self.nodes[1].getrawmempool(True)[cert]['fee']
+        cert_size = self.nodes[1].getrawmempool(True)[cert]['size']
+        rate = get_fee_rate(cert_size, cert_fee)
+        print "cert fee={}, sz={}, feeRate={}".format(cert_fee, cert_size, rate)
+        assert_true(isclose(CUSTOM_FEE_RATE_ZAT_PER_BYTE, rate))
+
+        #==============================================================
+        q = 13
+        proof = mcTest.create_test_proof(
+            "sc1", scid_swapped, epoch_number, q, MBTR_SC_FEE, FT_SC_FEE, epoch_cum_tree_hash,
+            constant, addr_array, bwt_amount_array)
+
+        mark_logs("Sending certificate with a negative fee amount (aoutom comp)", self.nodes, DEBUG_MODE)
+        # ...or set it as a negative value
+        fee = Decimal("-1")
+        try:
+            cert = self.nodes[1].sc_send_certificate(scid, epoch_number, q,
+                epoch_cum_tree_hash, proof, bwt_cert, FT_SC_FEE, MBTR_SC_FEE, fee)
         except JSONRPCException, e:
             errorString = e.error['message']
             print "Send certificate failed with reason {}".format(errorString)
