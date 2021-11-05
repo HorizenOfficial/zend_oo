@@ -244,12 +244,10 @@ static int getCertMaturityHeight(const CWalletTransactionBase& wtx)
     return it->second->nHeight + matDepth;
 }
 
-// the flag isCertMaturingInRange is passed along only when the listsinceblock rpc cmd is used: it is
-// set to true when we are dealing with a certificate reaching the maturity hight in the input blocks
-// range and the containing block is outside it 
+// the flags minedInRange and certMaturingInRange are passed along only when the listsinceblock rpc cmd is used
 static void WalletTxToJSON(
     const CWalletTransactionBase& wtx, UniValue& entry, isminefilter filter,
-    bool isCertMaturingInRange = false)
+    bool minedInRange = true, bool certMaturingInRange = false)
 {
     int confirms = wtx.GetDepthInMainChain();
     entry.pushKV("confirmations", confirms);
@@ -257,7 +255,7 @@ static void WalletTxToJSON(
         entry.pushKV("generated", true);
     if (confirms > 0)
     {
-        if (isCertMaturingInRange)
+        if (!minedInRange && certMaturingInRange)
         {
             int matHeight = getCertMaturityHeight(wtx);
             if (matHeight == -1)
@@ -2844,12 +2842,11 @@ static void MaybePushAddress(UniValue & entry, const CTxDestination &dest)
         entry.pushKV("address", addr.ToString());
 }
 
-// the flag isCertMaturingInRange is passed along only when the listsinceblock rpc cmd is used: it is
-// set to true when we are dealing with a certificate reaching the maturity hight in the input blocks
-// range and the containing block is outside it 
+// the flags minedInRange and certMaturingInRange are passed along only when the listsinceblock rpc cmd is used
 void ListTransactions(
     const CWalletTransactionBase& wtx, const string& strAccount, int nMinDepth, bool fLong,
-    UniValue& transactions, const isminefilter& filter, bool includeImmatureBTs, bool isCertMaturingInRange = false)
+    UniValue& transactions, const isminefilter& filter, bool includeImmatureBTs,
+    bool minedInRange = true, bool certMaturingInRange = false)
 {
     CAmount nFee;
     string strSentAccount;
@@ -2888,11 +2885,11 @@ void ListTransactions(
     if (listReceived.size() > 0 && wtx.GetDepthInMainChain() >= nMinDepth) {
         for(const COutputEntry& r: listReceived) {
 
-            if (isCertMaturingInRange && !r.isBackwardTransfer)
+            if ((!minedInRange && certMaturingInRange) && !r.isBackwardTransfer)
             {
                 // we must process nothing but backward transfers if we are explicitly
                 // handling a certificate on behalf of the listsinceblock cmd, which is setting
-                // the flag isCertMaturingInRange=true
+                // the flag minedInRange=false and certMaturingInRange=true
                 continue;
             }
 
@@ -2936,7 +2933,7 @@ void ListTransactions(
                 if (r.vout != -1)
                    entry.pushKV("vout", r.vout);
                 if (fLong)
-                    WalletTxToJSON(wtx, entry, filter, isCertMaturingInRange);
+                    WalletTxToJSON(wtx, entry, filter, minedInRange, certMaturingInRange);
 
                 entry.pushKV("size", (int)(wtx.getTxBase()->GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION)) );
                 transactions.push_back(entry);
@@ -3451,8 +3448,8 @@ UniValue listsinceblock(const UniValue& params, bool fHelp)
         const CWalletTransactionBase& tx = *((*it).second);
         int depthInMainChain = tx.GetDepthInMainChain();
 
-        // have we a certificate which has matured in one of the blocks included in the interval we are focusing on?
-        bool isCertMaturingInRange = false; 
+        bool minedInRange = (depth == -1) || depthInMainChain < depth;
+        bool certMaturingInRange = false; 
 
         // for that check we consider only confirmed certificate
         if (tx.getTxBase()->IsCertificate() && depthInMainChain > 0)
@@ -3460,20 +3457,17 @@ UniValue listsinceblock(const UniValue& params, bool fHelp)
             int matHeight = getCertMaturityHeight(tx);
             int matDepth  = tx.bwtMaturityDepth;
 
-            isCertMaturingInRange = (
-                depth != -1                  // we are not considering all transactions, but are focusing on a block range
-                && depthInMainChain >= depth // certificate has been mined in a block before the start of the block range
-                && ( heightFrom <= matHeight && matHeight <= heightTo) // certificate has matured in a block included in this range
-            );
+            // has certificate matured in a block included in this range?
+            certMaturingInRange = heightFrom <= matHeight && matHeight <= heightTo;
 
-            LogPrint("cert", "%s():%d - cert[%s]: depthInMc[%d], matHeight[%d], matDepth[%d], cmdDepth[%d], matInRange[%s]\n",
+            LogPrint("cert", "%s():%d - cert[%s]: depthInMc[%d], matHeight[%d], matDepth[%d], cmdDepth[%d], minedInRange[%s], matInRange[%s]\n",
                 __func__, __LINE__, tx.getTxBase()->GetHash().ToString(), depthInMainChain, matHeight,
-                matDepth, depth, isCertMaturingInRange?"Y":"N");
+                matDepth, depth, minedInRange?"Y":"N", certMaturingInRange?"Y":"N");
         }
 
-        if (depth == -1 || depthInMainChain < depth || isCertMaturingInRange)
+        if (minedInRange || certMaturingInRange)
         {
-            ListTransactions(tx, "*", 0, true, transactions, filter, includeImmatureBTs, isCertMaturingInRange);
+            ListTransactions(tx, "*", 0, true, transactions, filter, includeImmatureBTs, minedInRange, certMaturingInRange);
         }
     }
 
