@@ -244,10 +244,10 @@ static int getCertMaturityHeight(const CWalletTransactionBase& wtx)
     return it->second->nHeight + matDepth;
 }
 
-// the flags minedInRange and certMaturingInRange are passed along only when the listsinceblock rpc cmd is used
+// the flag addCertMaturityInfo is passed along only when the listsinceblock rpc cmd is used
 static void WalletTxToJSON(
     const CWalletTransactionBase& wtx, UniValue& entry, isminefilter filter,
-    bool minedInRange = true, bool certMaturingInRange = false)
+    bool addCertMaturityInfo = false)
 {
     int confirms = wtx.GetDepthInMainChain();
     entry.pushKV("confirmations", confirms);
@@ -255,7 +255,11 @@ static void WalletTxToJSON(
         entry.pushKV("generated", true);
     if (confirms > 0)
     {
-        if (!minedInRange && certMaturingInRange)
+        entry.pushKV("blockhash", wtx.hashBlock.GetHex());
+        entry.pushKV("blockindex", wtx.nIndex);
+        entry.pushKV("blocktime", mapBlockIndex[wtx.hashBlock]->GetBlockTime());
+
+        if (addCertMaturityInfo)
         {
             int matHeight = getCertMaturityHeight(wtx);
             if (matHeight == -1)
@@ -272,20 +276,9 @@ static void WalletTxToJSON(
 
             uint256 matBlock = pindexMat->GetBlockHash();
 
-            entry.pushKV("blockhash", matBlock.GetHex());
             entry.pushKV("maturityblockheight", matHeight);
-            entry.pushKV("minedblockhash", wtx.hashBlock.GetHex());
-
-            // if we display the maturity block, this does not make sense
-            entry.pushKV("blockindex", -1);
-
-            entry.pushKV("blocktime", pindexMat->GetBlockTime());
-        }
-        else
-        {
-            entry.pushKV("blockhash", wtx.hashBlock.GetHex());
-            entry.pushKV("blockindex", wtx.nIndex);
-            entry.pushKV("blocktime", mapBlockIndex[wtx.hashBlock]->GetBlockTime());
+            entry.pushKV("maturityblockhash", matBlock.GetHex());
+            entry.pushKV("maturityblocktime", pindexMat->GetBlockTime());
         }
     }
 
@@ -2929,11 +2922,15 @@ void ListTransactions(
                     if (r.isBackwardTransfer)
                         entry.pushKV("isBackwardTransfer", r.isBackwardTransfer);
                 }
+
                 entry.pushKV("amount", ValueFromAmount(r.amount));
                 if (r.vout != -1)
                    entry.pushKV("vout", r.vout);
                 if (fLong)
-                    WalletTxToJSON(wtx, entry, filter, minedInRange, certMaturingInRange);
+                {
+                    bool fAddCertMaturityInfo = certMaturingInRange && r.isBackwardTransfer;
+                    WalletTxToJSON(wtx, entry, filter, fAddCertMaturityInfo);
+                }
 
                 entry.pushKV("size", (int)(wtx.getTxBase()->GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION)) );
                 transactions.push_back(entry);

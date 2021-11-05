@@ -137,6 +137,11 @@ class ScCertListsinceblock(BitcoinTestFramework):
             }
  
             # use the raw version of the command for having more than one standard output
+            # -------------------------------------
+            # vout 1: standard output (taddr1) - change
+            # vout 2: standard output (taddr2)
+            # vout 3: bwt (taddr1)
+            # vout 3: bwt (taddr2)
             try:
                 raw_cert    = self.nodes[1].createrawcertificate(raw_inputs, raw_outs, raw_bwt_outs, raw_params)
                 signed_cert = self.nodes[1].signrawtransaction(raw_cert)
@@ -166,9 +171,11 @@ class ScCertListsinceblock(BitcoinTestFramework):
 
         mark_logs("Calling listsinceblock on Node2 for all transactions", self.nodes, DEBUG_MODE)
         ret = self.nodes[2].listsinceblock("", 1, False, True)
+        # pprint.pprint(ret)
 
+        mat_block_hash    = self.nodes[2].getblockhash(mat_height_d[0])
         # first cert is there and its backward transfer to Node2 is mature
-        # we also have one ordinary output from this cert 
+        # we also have one ordinary output from this cert, and we should have no maturity info 
         cert = certs_d[0]
         found_bwt = False
         found_out = False
@@ -179,8 +186,10 @@ class ScCertListsinceblock(BitcoinTestFramework):
                 if 'isBackwardTransfer' in x:
                     assert_equal(x['amount'],   Decimal('1.02'))
                     assert_equal(x['isBackwardTransfer'], True)
+                    assert_equal(x['maturityblockhash'], mat_block_hash)
                     found_bwt = True
                 else:
+                    assert_false('maturityblockhash' in x)
                     assert_equal(x['amount'],   Decimal('0.001'))
                     found_out = True
         assert_true(found_bwt)
@@ -229,7 +238,8 @@ class ScCertListsinceblock(BitcoinTestFramework):
         # calling the cmd targeting the block where the second certificate has been mined
         mark_logs("Calling listsinceblock on Node2 for h={}, hash={}".format(block_heights_d[1], blocks_d[1]), self.nodes, DEBUG_MODE)
         ret = self.nodes[2].listsinceblock(blocks_d[1], 1, False, True)
-
+        pprint.pprint(ret)
+        
         cert = certs_d[0]
         # first cert is there, it is mature and it refers to the block where it matured
         # we should not see the standard output anymore 
@@ -240,7 +250,8 @@ class ScCertListsinceblock(BitcoinTestFramework):
                 found = True
                 assert_equal(x['amount'],   Decimal('1.02'))
                 assert_equal(x['category'], 'receive')
-                assert_equal(x['blockhash'], mat_block_hash)
+                assert_equal(x['blockhash'], blocks_d[0])
+                assert_equal(x['maturityblockhash'], mat_block_hash)
                 assert_equal(x['isBackwardTransfer'], True)
         assert_true(found)
 
@@ -304,7 +315,8 @@ class ScCertListsinceblock(BitcoinTestFramework):
                 found = True
                 assert_equal(x['amount'],   Decimal('2.02'))
                 assert_equal(x['category'], 'receive')
-                assert_equal(x['blockhash'], mat_block_hash)
+                assert_equal(x['blockhash'], blocks_d[1])
+                assert_equal(x['maturityblockhash'], mat_block_hash)
                 assert_equal(x['isBackwardTransfer'], True)
         assert_true(found)
 
