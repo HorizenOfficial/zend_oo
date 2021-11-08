@@ -221,7 +221,33 @@ void TxExpandedToJSON(const CWalletTransactionBase& tx,  UniValue& entry)
     }
 }
 
-void WalletTxToJSON(const CWalletTransactionBase& wtx, UniValue& entry, isminefilter filter)
+static int getCertMaturityHeight(const CWalletTransactionBase& wtx)
+{
+    if (wtx.hashBlock.IsNull())
+    {
+        // this is the case when wtx has not yet been mined (zero conf)
+        return -1;
+    }
+
+    int matDepth = wtx.bwtMaturityDepth;
+
+    // get index of the block which containn this cert
+    CBlockIndex *pindex = nullptr;
+    BlockMap::iterator it = mapBlockIndex.find(wtx.hashBlock);
+    if (it == mapBlockIndex.end())
+    {
+        throw JSONRPCError(RPC_TYPE_ERROR, strprintf(
+            "coluld not find cert maturity height since block %s is not in active chain",
+            wtx.hashBlock.ToString()));
+    }
+
+    return it->second->nHeight + matDepth;
+}
+
+// the flag addCertMaturityInfo is passed along only when the listsinceblock rpc cmd is used
+static void WalletTxToJSON(
+    const CWalletTransactionBase& wtx, UniValue& entry, isminefilter filter,
+    bool addCertMaturityInfo = false)
 {
     int confirms = wtx.GetDepthInMainChain();
     entry.pushKV("confirmations", confirms);
@@ -232,6 +258,28 @@ void WalletTxToJSON(const CWalletTransactionBase& wtx, UniValue& entry, isminefi
         entry.pushKV("blockhash", wtx.hashBlock.GetHex());
         entry.pushKV("blockindex", wtx.nIndex);
         entry.pushKV("blocktime", mapBlockIndex[wtx.hashBlock]->GetBlockTime());
+
+        if (addCertMaturityInfo)
+        {
+            int matHeight = getCertMaturityHeight(wtx);
+            if (matHeight == -1)
+            {
+                throw JSONRPCError(RPC_TYPE_ERROR, strprintf("invalid maturity height"));
+            }
+
+            CBlockIndex *pindexMat = chainActive[matHeight];
+            if (pindexMat == nullptr)
+            {
+                // the certificate is supposed to mature in a block in the active chain
+                throw JSONRPCError(RPC_TYPE_ERROR, strprintf("coluld not find the block where the cert reached maturity height"));
+            }
+
+            uint256 matBlock = pindexMat->GetBlockHash();
+
+            entry.pushKV("maturityblockheight", matHeight);
+            entry.pushKV("maturityblockhash", matBlock.GetHex());
+            entry.pushKV("maturityblocktime", pindexMat->GetBlockTime());
+        }
     }
 
     uint256 hash = wtx.getTxBase()->GetHash();
@@ -710,8 +758,8 @@ UniValue sc_create(const UniValue& params, bool fHelp)
 
     if (fHelp ||  params.size() != 1)
         throw runtime_error(
-            "sc_create {\"withdrawalEpochLength\":... , \"fromaddress\":..., \"toaddress\":... ,\"amount\":... ,\"minconf\":..., \"fee\":..., \"wCertVk\":..., \"customData\":..., \"constant\":...}\n"
-            "\nCreate a Side chain.\n"
+            "sc_create <argument_list>\n"
+            "\nCreate a Sidechain and send funds to it.\n"
             "\nArguments:\n"
             "{\n"                     
             " \"withdrawalEpochLength\": epoch  (numeric, optional, default=" + strprintf("%d", SC_RPC_OPERATION_DEFAULT_EPOCH_LENGTH) +
@@ -719,9 +767,9 @@ UniValue sc_create(const UniValue& params, bool fHelp)
                                                " is: " +  strprintf("%d", Params().ScMinWithdrawalEpochLength()) + "\n"
                                                ", the maximum (for any network type) is: " +  strprintf("%d", Params().ScMaxWithdrawalEpochLength()) + "\n"
             " \"fromaddress\":taddr             (string, optional) The taddr to send the funds from. If omitted funds are taken from all available UTXO\n"
-            " \"changeaddress\":taddr           (string, optional) The taddr to send the change to, if any. If not set, \"fromaddress\" is used. If the latter is not set too, a new generated address will be used\n"
+            " \"changeaddress\":taddr           (string, optional) The taddr to send the change to, if any. If not set, \"fromaddress\" is used. If the latter is not set too, a newly generated address will be used\n"
             " \"toaddress\":scaddr              (string, required) The receiver PublicKey25519Proposition in the SC\n"
-            " \"amount\":amount                 (numeric, required) Value expressed in " + CURRENCY_UNIT + "\n"
+            " \"amount\":amount                 (numeric, required) Funds to be sent to the newly created Sidechain. Value expressed in " + CURRENCY_UNIT + "\n"
             " \"minconf\":conf                  (numeric, optional, default=1) Only use funds confirmed at least this many times.\n"
             " \"fee\":fee                       (numeric, optional) The fee amount to attach to this transaction in " + CURRENCY_UNIT + ". If not specified it is automatically computed using a fixed fee rate (default is 1zat per byte)\n"
             " \"wCertVk\":data                  (string, required) It is an arbitrary byte string of even length expressed in\n"
@@ -732,11 +780,11 @@ UniValue sc_create(const UniValue& params, bool fHelp)
             "                                       hexadecimal format. Used as public input for WCert proof verification. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
             " \"wCeasedVk\":data                (string, optional) It is an arbitrary byte string of even length expressed in\n"
             "                                       hexadecimal format. Used to verify a Ceased sidechain withdrawal proofs for given SC. Its size must be " + strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
-            " \"vFieldElementCertificateFieldConfig\"         (array, optional) An array whose entries are sizes (in bits). Any certificate should have as many custom FieldElements with the corresponding size.\n"
-            " \"vBitVectorCertificateFieldConfig\"            (array, optional) An array whose entries are bitVectorSizeBits and maxCompressedSizeBytes pairs. Any certificate should have as many custom BitVectorCertificateField with the corresponding sizes\n"
-            " \"forwardTransferScFee\"                        (numeric, optional, default=0) The amount of fee in " + CURRENCY_UNIT + " due to sidechain actors when creating a FT\n"
-            " \"mainchainBackwardTransferScFee\"              (numeric, optional, default=0) The amount of fee in " + CURRENCY_UNIT + " due to sidechain actors when creating a MBTR\n"
-            " \"mainchainBackwardTransferRequestDataLength\"  (numeric, optional, default=0) The expected size (max=" + strprintf("%d", MAX_SC_MBTR_DATA_LEN) + ") of the request data vector (made of field elements) in a MBTR\n"
+            " \"vFieldElementCertificateFieldConfig\":array         (array, optional) An array whose entries are sizes (in bits). Any certificate should have as many custom FieldElements with the corresponding size.\n"
+            " \"vBitVectorCertificateFieldConfig\":array            (array, optional) An array whose entries are bitVectorSizeBits and maxCompressedSizeBytes pairs. Any certificate should have as many custom BitVectorCertificateField with the corresponding sizes\n"
+            " \"forwardTransferScFee\":fee                        (numeric, optional, default=0) The amount of fee in " + CURRENCY_UNIT + " due to sidechain actors when creating a FT\n"
+            " \"mainchainBackwardTransferScFee\":fee              (numeric, optional, default=0) The amount of fee in " + CURRENCY_UNIT + " due to sidechain actors when creating a MBTR\n"
+            " \"mainchainBackwardTransferRequestDataLength\":len (numeric, optional, default=0) The expected size (max=" + strprintf("%d", MAX_SC_MBTR_DATA_LEN) + ") of the request data vector (made of field elements) in a MBTR\n"
             "}\n"
             "\nResult:\n"
             "{\n"
@@ -1065,26 +1113,27 @@ UniValue sc_send(const UniValue& params, bool fHelp)
 
     if (fHelp || (params.size() != 1 && params.size() != 2))
         throw runtime_error(
-            "sc_send {...}\n"
+            "sc_send <outputs> [params]\n"
+            "\nSend funds to a list of sidechains\n"
             "\nArguments:\n"
             "1. \"outputs\"                       (string, required) A json array of json objects representing the amounts to send.\n"
             "[{\n"
             "   \"scid\": id                      (string, required) The uint256 side chain ID\n"
             "   \"toaddress\":scaddr              (string, required) The receiver PublicKey25519Proposition in the SC\n"
             "   \"amount\":amount                 (numeric, required) Value expressed in " + CURRENCY_UNIT + "\n"
-            "   \"mcReturnAddress\":\"address\"   (string, required) The Horizen address where to send the backward transfer in case Forward Transfer is rejected by sidechain\n"
+            "   \"mcReturnAddress\":\"address\"   (string, required) The Horizen mainchain address where to send the backward transfer in case Forward Transfer is rejected by the sidechain\n"
             "},...,]\n"
             "2. \"params\"                        (string, optional) A json object with the command parameters\n"
             "{\n"                     
             "   \"fromaddress\":taddr             (string, optional) The taddr to send the funds from. If omitted funds are taken from all available UTXO\n"
-            "   \"changeaddress\":taddr           (string, optional) The taddr to send the change to, if any. If not set, \"fromaddress\" is used. If the latter is not set too, a new generated address will be used\n"
+            "   \"changeaddress\":taddr           (string, optional) The taddr to send the change to, if any. If not set, \"fromaddress\" is used. If the latter is not set too, a newly generated address will be used\n"
             "   \"minconf\":conf                  (numeric, optional, default=1) Only use funds confirmed at least this many times.\n"
             "   \"fee\":fee                       (numeric, optional) The fee amount to attach to this transaction in " + CURRENCY_UNIT + ". If not specified it is automatically computed using a fixed fee rate (default is 1zat per byte)\n"
             "}\n"
             "\nResult:\n"
-            "\"transactionid\"    (string) The resulting transaction id.\n"
+            "\"txid\"    (string) The resulting transaction id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("sc_send", "'{TODO}]'")
+            + HelpExampleCli("sc_send", "'[{ \"toaddress\": \"abcd\", \"amount\": 3.0, \"scid\": \"13a3083bdcf42635c8ce5d46c2cae26cfed7dc889d9b4ac0b9939c6631a73bdc\", \"mcReturnAddress\": \"taddr\"}]'")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -1298,29 +1347,30 @@ UniValue sc_request_transfer(const UniValue& params, bool fHelp)
 
     if (fHelp || (params.size() != 1 && params.size() != 2))
         throw runtime_error(
-            "sc_request_transfer {TODO}\n"
+            "sc_request_transfer <outputs> [params]\n"
+            "\nRequest a list of sidechains to send some backward transfer to mainchain in one of the next certificates\n"
             "\nArguments:\n"
-            "1. \"outputs\"                       (string, required) A json array of json objects representing the amounts to send.\n"
+            "1. \"outputs\"                       (string, required) A json array of json objects representing the request to send.\n"
             "[{\n"
             "   \"scid\":side chain ID               (string, required) The uint256 side chain ID\n"
             "   \"vScRequestData\":                  (array, required) It is an arbitrary array of byte strings of even length expressed in\n"
-            "                                           hexadecimal format representing the SC Utxo ID for which a backward transafer is being requested. The size of each string must be \n" +
+            "                                           hexadecimal format representing a SC reference (for instance an Utxo ID) for which a backward transfer is being requested. The size of each string must be \n" +
                                                       strprintf("%d", CFieldElement::ByteSize()) + " bytes\n"
-            "   \"mcDestinationAddress\":\"address\" (string, required) The Horizen address where to send the backward transferred amount\n"
-            "   \"scFee\":amount,                    (numeric, required) The numeric amount in " + CURRENCY_UNIT + " representing the value spent by the sender that will be gained by a SC forger\n"
+            "   \"mcDestinationAddress\":\"address\" (string, required) The Horizen mainchain address where to send the backward transfer\n"
+            "   \"scFee\":amount,                    (numeric, required) The amount in " + CURRENCY_UNIT + " representing the value spent by the sender that will be gained by a SC forger\n"
             "},...,]\n"
             "2. \"params\"                        (string, optional) A json object with the command parameters\n"
             "{\n"                     
             "   \"fromaddress\":taddr             (string, optional) The taddr to send the funds from. If omitted funds are taken from all available UTXO\n"
-            "   \"changeaddress\":taddr           (string, optional) The taddr to send the change to, if any. If not set, \"fromaddress\" is used. If the latter is not set too, a new generated address will be used\n"
+            "   \"changeaddress\":taddr           (string, optional) The taddr to send the change to, if any. If not set, \"fromaddress\" is used. If the latter is not set too, a newly generated address will be used\n"
             "   \"minconf\":conf                  (numeric, optional, default=1) Only use funds confirmed at least this many times.\n"
             "   \"fee\":fee                       (numeric, optional) The fee amount to attach to this transaction in " + CURRENCY_UNIT + ". If not specified it is automatically computed using a fixed fee rate (default is 1zat per byte)\n"
             "}\n"
             "\nResult:\n"
-            "\"transactionid\"    (string) The resulting transaction id.\n"
+            "\"txid\"    (string) The resulting transaction id.\n"
 
             "\nExamples:\n"
-            + HelpExampleCli("sc_request_transfer", "'[{ \"mcDestinationAddress\": \"taddr\", \"vScRequestData\": [\"06f75b4e1c1f49e6f329aa23f57e42bf305644b5b85c4d4ac60d7ef3b50679e81ec06841065f425fe3f11f903672c73be5a70e3e254efca4ac01a5795d125c3ded49dedac58a48ee94070b24106126bc1ffd57653f0974a0e93ab5729e870000\"], \"scid\": \"13a3083bdcf42635c8ce5d46c2cae26cfed7dc889d9b4ac0b9939c6631a73bdc\", \"scFee\": 19.0 }]'")
+            + HelpExampleCli("sc_request_transfer", "'[{ \"mcDestinationAddress\": \"taddr\", \"vScRequestData\": [\"06f75b4e1c1f49e6f329aa23f57e42bf305644b5b85c4d4ac60d7ef3b50679e8\"], \"scid\": \"13a3083bdcf42635c8ce5d46c2cae26cfed7dc889d9b4ac0b9939c6631a73bdc\", \"scFee\": 19.0 }]'")
         );
 
     LOCK2(cs_main, pwalletMain->cs_wallet);
@@ -2470,7 +2520,11 @@ static void MaybePushAddress(UniValue & entry, const CTxDestination &dest)
         entry.pushKV("address", addr.ToString());
 }
 
-void ListTransactions(const CWalletTransactionBase& wtx, const string& strAccount, int nMinDepth, bool fLong, UniValue& ret, const isminefilter& filter, bool includeImmatureBTs)
+// the flags minedInRange and certMaturingInRange are passed along only when the listsinceblock rpc cmd is used
+void ListTransactions(
+    const CWalletTransactionBase& wtx, const string& strAccount, int nMinDepth, bool fLong,
+    UniValue& transactions, const isminefilter& filter, bool includeImmatureBTs,
+    bool minedInRange = true, bool certMaturingInRange = false)
 {
     CAmount nFee;
     string strSentAccount;
@@ -2501,13 +2555,22 @@ void ListTransactions(const CWalletTransactionBase& wtx, const string& strAccoun
                 WalletTxToJSON(wtx, entry, filter);
 
             entry.pushKV("size", (int)(wtx.getTxBase()->GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION)) );
-            ret.push_back(entry);
+            transactions.push_back(entry);
         }
     }
 
     // Received
     if (listReceived.size() > 0 && wtx.GetDepthInMainChain() >= nMinDepth) {
         for(const COutputEntry& r: listReceived) {
+
+            if ((!minedInRange && certMaturingInRange) && !r.isBackwardTransfer)
+            {
+                // we must process nothing but backward transfers if we are explicitly
+                // handling a certificate on behalf of the listsinceblock cmd, which is setting
+                // the flag minedInRange=false and certMaturingInRange=true
+                continue;
+            }
+
             string account;
             if (pwalletMain->mapAddressBook.count(r.destination))
                 account = pwalletMain->mapAddressBook[r.destination].name;
@@ -2530,20 +2593,32 @@ void ListTransactions(const CWalletTransactionBase& wtx, const string& strAccoun
                 else
                 {
                     if (r.maturity == CCoins::outputMaturity::MATURE)
+                    {
                         entry.pushKV("category", "receive");
+                    }
                     else if(includeImmatureBTs)
+                    {
                         entry.pushKV("category", "immature");
+                    }
                     else
                         continue; // Don't add immature BT entry
+
+                    // add this only if we have a backward transfer output 
+                    if (r.isBackwardTransfer)
+                        entry.pushKV("isBackwardTransfer", r.isBackwardTransfer);
                 }
+
                 entry.pushKV("amount", ValueFromAmount(r.amount));
                 if (r.vout != -1)
                    entry.pushKV("vout", r.vout);
                 if (fLong)
-                    WalletTxToJSON(wtx, entry, filter);
+                {
+                    bool fAddCertMaturityInfo = certMaturingInRange && r.isBackwardTransfer;
+                    WalletTxToJSON(wtx, entry, filter, fAddCertMaturityInfo);
+                }
 
                 entry.pushKV("size", (int)(wtx.getTxBase()->GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION)) );
-                ret.push_back(entry);
+                transactions.push_back(entry);
             }
         }
     }
@@ -2976,7 +3051,7 @@ UniValue listsinceblock(const UniValue& params, bool fHelp)
             
             "\nArguments:\n"
             "1. \"blockhash\"                       (string, optional) the block hash to list transactions since\n"
-            "2. target-confirmations:               (numeric, optional) the confirmations required, must be 1 or more\n"
+            "2. target-confirmations:               (numeric, optional, default=1) the confirmations required, must be 1 or more\n"
             "3. includeWatchonly:                   (bool, optional, default=false) include transactions to watchonly addresses (see 'importaddress')"
             "4. includeImmatureBTs:                 (bool, optional, default=false) Whether to include immature certificate Backward transfers\n"
 
@@ -3044,19 +3119,38 @@ UniValue listsinceblock(const UniValue& params, bool fHelp)
 
     int depth = pindex ? (1 + chainActive.Height() - pindex->nHeight) : -1;
 
+    int heightFrom = pindex ? pindex->nHeight : 0;
+    int heightTo   = chainActive.Height();
+    LogPrint("cert", "%s():%d - heightFrom[%d], heightTo[%d]\n", __func__, __LINE__, heightFrom, heightTo);
+
     UniValue transactions(UniValue::VARR);
 
-#if 0
-    for (map<uint256, CWalletTx>::iterator it = pwalletMain->getMapWallet().begin(); it != pwalletMain->getMapWallet().end(); ++it)
-    {
-        const CWalletTx& tx = (*it).second;
-#else
     for (auto it = pwalletMain->getMapWallet().begin(); it != pwalletMain->getMapWallet().end(); ++it)
     {
         const CWalletTransactionBase& tx = *((*it).second);
-#endif
-        if (depth == -1 || tx.GetDepthInMainChain() < depth)
-            ListTransactions(tx, "*", 0, true, transactions, filter, includeImmatureBTs);
+        int depthInMainChain = tx.GetDepthInMainChain();
+
+        bool minedInRange = (depth == -1) || depthInMainChain < depth;
+        bool certMaturingInRange = false; 
+
+        // for that check we consider only confirmed certificate
+        if (tx.getTxBase()->IsCertificate() && depthInMainChain > 0)
+        {
+            int matHeight = getCertMaturityHeight(tx);
+            int matDepth  = tx.bwtMaturityDepth;
+
+            // has certificate matured in a block included in this range?
+            certMaturingInRange = heightFrom <= matHeight && matHeight <= heightTo;
+
+            LogPrint("cert", "%s():%d - cert[%s]: depthInMc[%d], matHeight[%d], matDepth[%d], cmdDepth[%d], minedInRange[%s], matInRange[%s]\n",
+                __func__, __LINE__, tx.getTxBase()->GetHash().ToString(), depthInMainChain, matHeight,
+                matDepth, depth, minedInRange?"Y":"N", certMaturingInRange?"Y":"N");
+        }
+
+        if (minedInRange || certMaturingInRange)
+        {
+            ListTransactions(tx, "*", 0, true, transactions, filter, includeImmatureBTs, minedInRange, certMaturingInRange);
+        }
     }
 
     CBlockIndex *pblockLast = chainActive[chainActive.Height() + 1 - target_confirms];
@@ -5138,36 +5232,36 @@ UniValue sc_send_certificate(const UniValue& params, bool fHelp)
 
     if (fHelp || params.size() < 8  )
         throw runtime_error(
-            "sc_send_certificate scid epochNumber quality endEpochCumScTxCommTreeRoot scProof [{\"pubkeyhash\":... ,\"amount\":...},...] (subtractfeefromamount) (fee)\n"
+            "sc_send_certificate scid epochNumber quality endEpochCumScTxCommTreeRoot scProof transfers forwardTransferScFee mainchainBackwardTransferScFee [fee] [vFieldElementCertificateField] [vBitVectorCertificateField]\n"
             "\nSend cross chain backward transfers from SC to MC as a certificate."
             "\nArguments:\n"
             " 1. \"scid\"                        (string, required) The uint256 side chain ID\n"
-            " 2. epochNumber                     (numeric, required) The epoch number this certificate refers to, zero-based numbered\n"
+            " 2. epochNumber                     (numeric, required) The epoch number this certificate refers to, zero-based numbering\n"
             " 3. quality                         (numeric, required) The quality of this withdrawal certificate. \n"
             " 4. \"endEpochCumScTxCommTreeRoot\" (string, required) The hex string representation of the field element corresponding to the root of the cumulative scTxCommitment tree stored at the block marking the end of the referenced epoch\n"
-            " 5. \"scProof\"                     (string, required) SNARK proof whose verification key wCertVk was set upon sidechain registration. Its size must be " + strprintf("%d", CScProof::MaxByteSize()) + " bytes max\n"
+            " 5. \"scProof\"                     (string, required) SNARK proof whose verification key wCertVk was set at sidechain creation. Its size must be " + strprintf("%d", CScProof::MaxByteSize()) + " bytes max\n"
             " 6. transfers:                      (array, required) An array of json objects representing the amounts of the backward transfers. Can also be empty\n"
             "     [{\n"                     
-            "       \"address\":\"address\"      (string, required) The Horizen address of the receiver\n"
+            "       \"address\":\"address\"      (string, required) The Horizen mainchain address of the receiver\n"
             "       \"amount\":amount            (numeric, required) The numeric amount in ZEN\n"
             "     }, ... ]\n"
             " 7. forwardTransferScFee            (numeric, required) The amount of fee due to sidechain actors when creating a FT\n"
             " 8. mainchainBackwardTransferScFee  (numeric, required) The amount of fee due to sidechain actors when creating a MBTR\n"
             " 9. fee                             (numeric, optional) The fee amount of the certificate in " + CURRENCY_UNIT + ". If it is not specified or has a negative value it is automatically computed using a fixed fee rate (default is 1Zat/Byte)\n"
-            "10. fromAddress                     (string, optional) The address UTXO will be taken from\n"
-            "11. vFieldElementCertificateField   (array, optional) An array of byte strings...TODO add description\n"
+            "10. fromAddress                     (string, optional) The taddr to send the coins from. If omitted, coins are chosen among all available UTXOs\n"
+            "11. vFieldElementCertificateField   (array, optional) a list of hexadecimal strings each of them representing data used to verify the SNARK proof of the certificate\n"
             "    [\n"                     
-            "      \"fieldElement\"              (string, required) The HEX string representing a generic field element\n"
+            "      \"fieldElement\"             (string, required) The HEX string representing generic data\n"
             "    , ... ]\n"
-            "12. vBitVectorCertificateField      (array, optional) An array of byte strings...TODO add description\n"
+            "12. vBitVectorCertificateField      (array, optional) a list of hexadecimal strings each of them representing a compressed bit vector used to verify the SNARK proof of the certificate\n"
             "    [\n"                     
-            "      \"fieldElement\"              (string, required) The HEX string representing a generic field element\n"
+            "      \"bitVector\"                (string, required) The HEX string representing a compressed bit vector\n"
             "    , ... ]\n"
             "\nResult:\n"
             "  \"certificateId\"   (string) The resulting certificate id.\n"
             "\nExamples:\n"
-            + HelpExampleCli("sc_send_certificate", "\"054671870079a64a491ea68e08ed7579ec2e0bd148c51c6e2fe6385b597540f4\" 10 7 \"0a85efb37d1130009f1b588dcddd26626bbb159ae4a19a703715277b51033144\" \"abcd..ef\" \"abcd..ef\" '[{\"address\":\"taddr\", \"amount\":33.5}]' false 0.00001")
-            + HelpExampleCli("sc_send_certificate", "\"ea3e7ccbfd40c4e2304c4215f76d204e4de63c578ad835510f580d529516a874\" 12 5 \"04a1527384c67d9fce3d091ababfc1de325dbac9b3b14025a53722ff6c53d40e\" \"abcd..ef\" \"abcd..ef\" '[{\"address\":\"taddr\" ,\"amount\": 5.0}]'")
+            + HelpExampleCli("sc_send_certificate", "\"054671870079a64a491ea68e08ed7579ec2e0bd148c51c6e2fe6385b597540f4\" 10 7 \"0a85efb37d1130009f1b588dcddd26626bbb159ae4a19a703715277b51033144\" \"abcd..ef\" '[{\"address\":\"taddr\", \"amount\":33.5}]' 0.00001")
+            + HelpExampleCli("sc_send_certificate", "\"ea3e7ccbfd40c4e2304c4215f76d204e4de63c578ad835510f580d529516a874\" 12 5 \"04a1527384c67d9fce3d091ababfc1de325dbac9b3b14025a53722ff6c53d40e\" \"abcd..ef\" '[{\"address\":\"taddr\" ,\"amount\": 5.0}]'")
 
         );
 

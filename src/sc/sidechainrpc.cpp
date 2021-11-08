@@ -1201,6 +1201,8 @@ void ScRpcCmdCert::addBackwardTransfers()
     for (const auto& entry : _bwdParams)
     {
         CTxOut txout(entry._nAmount, entry._scriptPubKey);
+        if (txout.IsDust(::minRelayTxFee))
+            throw JSONRPCError(RPC_WALLET_ERROR, "backward transfer amount too small");
         _cert.addBwt(txout);
     }
 }
