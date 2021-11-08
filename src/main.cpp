@@ -26,6 +26,7 @@
 #include "validationinterface.h"
 #include "wallet/asyncrpcoperation_sendmany.h"
 #include "wallet/asyncrpcoperation_shieldcoinbase.h"
+#include "maturityheightindex.h"
 
 #include <sstream>
 
@@ -76,6 +77,7 @@ bool fImporting = false;
 bool fReindex = false;
 bool fReindexFast = false;
 bool fTxIndex = false;
+bool fMaturityHeightIndex = false;
 
 #ifdef ENABLE_ADDRESS_INDEXING
 bool fAddressIndex = false;
@@ -89,6 +91,7 @@ bool fIsBareMultisigStd = true;
 bool fCheckBlockIndex = false;
 bool fCheckpointsEnabled = true;
 bool fCoinbaseEnforcedProtectionEnabled = true;
+bool fRegtestAllowDustOutput = true;
 //true in case we still have not reached the highest known block from server startup
 bool fIsStartupSyncing = true;
 size_t nCoinCacheUsage = 5000 * 300;
@@ -747,7 +750,7 @@ bool IsStandardTx(const CTransactionBase& txBase, string& reason, const int nHei
             reason = "bare-multisig";
             return false;
         } else if (txout.IsDust(::minRelayTxFee)) {
-            if (Params().NetworkIDString() == "regtest")
+            if (Params().NetworkIDString() == "regtest" && fRegtestAllowDustOutput)
             {
                 // do not reject this tx in regtest, there are py tests intentionally using zero values
                 // and expecting this to be processable
@@ -756,10 +759,12 @@ bool IsStandardTx(const CTransactionBase& txBase, string& reason, const int nHei
             }
             else
             {
-            reason = "dust";
-            return false;
+                LogPrintf("%s():%d - ERROR: txout pos=%d, amount=%f is dust (min %f )\n",
+                    __func__, __LINE__, pos, txout.nValue, txout.GetDustThreshold(::minRelayTxFee));
+                reason = "dust (minimum output value is " + std::to_string(txout.GetDustThreshold(::minRelayTxFee)) + " zat)";
+                return false;
+            }
         }
-    }
     }
 
     // only one OP_RETURN txout is permitted
@@ -2698,6 +2703,7 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     std::vector<std::pair<CSpentIndexKey, CSpentIndexValue> > spentIndex;
 #endif // ENABLE_ADDRESS_INDEXING
     std::vector<std::pair<uint256, CTxIndexValue> > vTxIndexValues;
+    std::vector<std::pair<CMaturityHeightKey, CMaturityHeightValue> > maturityHeightValues;  
 
     assert(pindex->GetBlockHash() == view.GetBestBlock());
 
@@ -2733,6 +2739,11 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         if (fTxIndex)
         {
             view.RevertTxIndexSidechainEvents(pindex->nHeight, blockUndo, pblocktree, vTxIndexValues);
+        }
+
+        if (fMaturityHeightIndex) {
+            //Restore the previous ceased sidechain
+            view.RevertMaturityHeightIndexSidechainEvents(pindex->nHeight, blockUndo, pblocktree, maturityHeightValues);
         }
 
 #ifdef ENABLE_ADDRESS_INDEXING
@@ -2828,6 +2839,17 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
         if (isBlockTopQualityCert)
         {
             const uint256& prevBlockTopQualityCertHash = highQualityCertData.at(cert.GetHash());
+            //Used only if fMaturityHeightIndex == true
+            int certMaturityHeight = -1;
+
+            //Remove the current certificate from the MaturityHeight DB
+            if (fMaturityHeightIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON) {
+                CSidechain sidechain;
+                assert(view.GetSidechain(cert.GetScId(), sidechain));
+                certMaturityHeight = sidechain.GetCertMaturityHeight(cert.epochNumber);
+                CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, cert.GetHash());
+                maturityHeightValues.push_back(make_pair(maturityHeightKey, CMaturityHeightValue()));
+            }
 
             // cancels scEvents only if cert is first in its epoch, i.e. if it won't restore any other cert
             if (!prevBlockTopQualityCertHash.IsNull())
@@ -2836,17 +2858,25 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
                 assert(blockUndo.scUndoDatabyScId.at(cert.GetScId()).contentBitMask & CSidechainUndoData::AvailableSections::SUPERSEDED_CERT_DATA);
                 view.RestoreBackwardTransfers(prevBlockTopQualityCertHash, blockUndo.scUndoDatabyScId.at(cert.GetScId()).lowQualityBwts);
 
+                if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON) {
+                    //Restore the previous top certificate in the MaturityHeight DB
+                    if (fMaturityHeightIndex) {
+                        assert(certMaturityHeight != -1);
+                        const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, prevBlockTopQualityCertHash);
+                        maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
+                    }
 #ifdef ENABLE_ADDRESS_INDEXING
-                // Set the lower quality BTs as top quality
-                if (fAddressIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
-                {
-                    CTxIndexValue txIndexVal;
-                    assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
+                    // Set the lower quality BTs as top quality
+                    if (fAddressIndex)
+                    {
+                        CTxIndexValue txIndexVal;
+                        assert(pblocktree->ReadTxIndex(prevBlockTopQualityCertHash, txIndexVal));
 
-                    view.UpdateBackwardTransferIndexes(prevBlockTopQualityCertHash, txIndexVal.txIndex, addressIndex, addressUnspentIndex,
-                                                       CCoinsViewCache::flagIndexesUpdateType::RESTORE_CERTIFICATE);
+                        view.UpdateBackwardTransferIndexes(prevBlockTopQualityCertHash, txIndexVal.txIndex, addressIndex, addressUnspentIndex,
+                                                        CCoinsViewCache::flagIndexesUpdateType::RESTORE_CERTIFICATE);
+                    }
+#endif // ENABLE_ADDRESS_INDEXING               
                 }
-#endif // ENABLE_ADDRESS_INDEXING
             }
 
             // Refresh previous certificate in wallet, whether it has been just restored or it is from previous epoch
@@ -3044,9 +3074,15 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
     if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
     {
-        if (fTxIndex)
+        if (fTxIndex) {
             if (!pblocktree->WriteTxIndex(vTxIndexValues))
                 return AbortNode(state, "Failed to write transaction index");
+        }
+        if (fMaturityHeightIndex) {
+            if (!pblocktree->UpdateMaturityHeightIndex(maturityHeightValues)) {
+                return AbortNode(state, "Failed to write maturity height index");
+            }
+        }
 
 #ifdef ENABLE_ADDRESS_INDEXING
         if (fAddressIndex)
@@ -3291,6 +3327,7 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     std::vector<std::pair<uint256, CTxIndexValue> > vTxIndexValues;
     vTxIndexValues.reserve(block.vtx.size());
     blockundo.vtxundo.reserve(block.vtx.size() - 1 + block.vcert.size());
+    std::vector<std::pair<CMaturityHeightKey,CMaturityHeightValue>> maturityHeightValues;
 
 #ifdef ENABLE_ADDRESS_INDEXING
     std::vector<std::pair<CAddressIndexKey, CAddressIndexValue> > addressIndex;
@@ -3598,6 +3635,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
         if (isBlockTopQualityCert)
         {
+            //Add the new certificate in the MaturityHeight collection
+            if (fMaturityHeightIndex && explorerIndexesWrite == flagLevelDBIndexesWrite::ON) {
+                const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, cert.GetHash());
+                maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue(static_cast<char>(1))));
+            }
+
             if (!view.UpdateSidechain(cert, blockundo) )
             {
                 return state.DoS(100, error("%s():%d: could not add in scView: cert[%s]",__func__, __LINE__, cert.GetHash().ToString()),
@@ -3628,6 +3671,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                                                                CCoinsViewCache::flagIndexesUpdateType::SUPERSEDE_CERTIFICATE);
                         }
 #endif // ENABLE_ADDRESS_INDEXING
+                    }
+                    if (fMaturityHeightIndex) {
+                        //Remove the superseded certificate from the MaturityHeight DB
+                        const CMaturityHeightKey maturityHeightKey = CMaturityHeightKey(certMaturityHeight, prevBlockTopQualityCertHash);
+                        maturityHeightValues.push_back(std::make_pair(maturityHeightKey, CMaturityHeightValue()));
                     }
                 }
 
@@ -3702,7 +3750,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         }
 #endif // ENABLE_ADDRESS_INDEXING
 
-        if (fTxIndex)
+        if (fMaturityHeightIndex)
+        {
+            //Remove the certificates from the MaturityHeight DB related to the ceased sidechains
+            view.HandleMaturityHeightIndexSidechainEvents(pindex->nHeight, pblocktree, maturityHeightValues);
+        }
+        if (fTxIndex) 
         {
             view.HandleTxIndexSidechainEvents(pindex->nHeight, pblocktree, vTxIndexValues);
         }
@@ -3812,9 +3865,14 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     if (explorerIndexesWrite == flagLevelDBIndexesWrite::ON)
     {
-        if (fTxIndex)
+        if (fTxIndex) {
             if (!pblocktree->WriteTxIndex(vTxIndexValues))
                 return AbortNode(state, "Failed to write transaction index");
+        }
+        if (fMaturityHeightIndex) {
+            if (!pblocktree->UpdateMaturityHeightIndex(maturityHeightValues))
+                return AbortNode(state, "Failed to write maturity height index");
+        }
 
 #ifdef ENABLE_ADDRESS_INDEXING
         if (fAddressIndex)
@@ -5579,6 +5637,10 @@ bool static LoadBlockIndexDB()
     pblocktree->ReadFlag("txindex", fTxIndex);
     LogPrintf("%s: transaction index %s\n", __func__, fTxIndex ? "enabled" : "disabled");
 
+    // Check whether we have a maturityHeight index
+    pblocktree->ReadFlag("maturityheightindex", fMaturityHeightIndex);
+    LogPrintf("%s: maturityHeight index %s\n", __func__, fMaturityHeightIndex ? "enabled" : "disabled");  
+
 #ifdef ENABLE_ADDRESS_INDEXING
     // Check whether we have an address index
     pblocktree->ReadFlag("addressindex", fAddressIndex);
@@ -5788,6 +5850,10 @@ bool InitBlockIndex() {
     // Use the provided setting for -txindex in the new database
     fTxIndex = GetBoolArg("-txindex", false);
     pblocktree->WriteFlag("txindex", fTxIndex);
+
+    // Use the provided setting for -maturityheightindex in the new database
+    fMaturityHeightIndex = GetBoolArg("-maturityheightindex", false);
+    pblocktree->WriteFlag("maturityheightindex", fMaturityHeightIndex);
 
 #ifdef ENABLE_ADDRESS_INDEXING
     // Use the provided setting for -addressindex in the new database

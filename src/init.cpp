@@ -376,6 +376,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-sysperms", _("Create new files with system default permissions, instead of umask 077 (only effective with disabled wallet functionality)"));
 #endif
     strUsage += HelpMessageOpt("-txindex", strprintf(_("Maintain a full transaction index, used by the getrawtransaction rpc call (default: %u)"), 0));
+    strUsage += HelpMessageOpt("-maturityheightindex", strprintf(_("Maintain a maturity height index that stores for every height the cerficates that became mature, used by the getblockexpanded rpc call. It requires -txindex (default: %u)"), 0));
 
 #ifdef ENABLE_ADDRESS_INDEXING
     strUsage += HelpMessageOpt("-addressindex", strprintf(_("Maintain a full address index, used to query for the balance, txids and unspent outputs for addresses (default: %u)"), DEFAULT_ADDRESSINDEX));
@@ -546,6 +547,9 @@ std::string HelpMessage(HelpMessageMode mode)
 
     strUsage += HelpMessageOpt("-allownonstandardtx",
         "regtest/testnet only - allow non-standard tx (default depends on regtest/testnet params)");
+
+    strUsage += HelpMessageOpt("-allowdustoutput",
+        "regtest only - when checking a tx to be standard, regtest allows by default a tx to have a null or dust output. Setting this option to 0 will prevent that (default: 1 = allow dust output)");
 
     strUsage += HelpMessageOpt("-subsidyhalvinginterval=<n>", "regtest only - Set halving interval for testing purposes (default=2000; must be > 100)");
         
@@ -1629,6 +1633,18 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
                     break;
                 }
 
+                // Check for changed -maturityheightindex state
+                if (fMaturityHeightIndex != GetBoolArg("-maturityheightindex", false)) {
+                    strLoadError = _("You need to rebuild the database using -reindex to change -maturityheightindex");
+                    break;
+                }
+
+                // Check that -txindex is enabled when -maturityheightindex is enabled
+                if (fMaturityHeightIndex && !fTxIndex) {
+                    strLoadError = _("You need to enable -txindex in order to use -maturityheightindex");
+                    break;
+                }
+
 #ifdef ENABLE_ADDRESS_INDEXING
                 // Check for changed -addressindex state
                 if (fAddressIndex != GetBoolArg("-addressindex", false)) {
@@ -1961,6 +1977,11 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
     GenerateBitcoins(GetBoolArg("-gen", false), GetArg("-genproclimit", 1));
  #endif
 #endif
+
+    if (Params().NetworkIDString() == "regtest")
+    {
+        fRegtestAllowDustOutput = GetBoolArg("-allowdustoutput", true);
+    }
 
     // ********************************************************* Step 11: finished
 
