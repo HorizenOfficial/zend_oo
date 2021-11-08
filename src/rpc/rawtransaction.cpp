@@ -67,7 +67,9 @@ UniValue TxJoinSplitToJSON(const CTransaction& tx) {
         UniValue joinsplit(UniValue::VOBJ);
 
         joinsplit.pushKV("vpub_old", ValueFromAmount(jsdescription.vpub_old));
+        joinsplit.pushKV("vpub_oldZat", jsdescription.vpub_old);
         joinsplit.pushKV("vpub_new", ValueFromAmount(jsdescription.vpub_new));
+        joinsplit.pushKV("vpub_newZat", jsdescription.vpub_new);
 
         joinsplit.pushKV("anchor", jsdescription.anchor.GetHex());
 
@@ -118,7 +120,10 @@ UniValue TxJoinSplitToJSON(const CTransaction& tx) {
 
 void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
 {
-    entry.pushKV("txid", tx.GetHash().GetHex());
+
+    uint256 txid = tx.GetHash();
+    entry.pushKV("txid", txid.GetHex());
+    entry.pushKV("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION));
     entry.pushKV("version", tx.nVersion);
     entry.pushKV("locktime", (int64_t)tx.GetLockTime());
     UniValue vin(UniValue::VARR);
@@ -133,6 +138,22 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
             o.pushKV("asm", txin.scriptSig.ToString());
             o.pushKV("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
             in.pushKV("scriptSig", o);
+
+#ifdef ENABLE_ADDRESS_INDEXING
+            // Add address and value info if spentindex enabled
+            CSpentIndexValue spentInfo;
+            CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
+            if (GetSpentIndex(spentKey, spentInfo)) {
+                in.pushKV("value", ValueFromAmount(spentInfo.satoshis));
+                in.pushKV("valueZat", spentInfo.satoshis);
+                if (spentInfo.addressType == 1) {
+                    in.pushKV("address", CBitcoinAddress(CKeyID(spentInfo.addressHash)).ToString());
+                } else if (spentInfo.addressType == 2)  {
+                    in.pushKV("address", CBitcoinAddress(CScriptID(spentInfo.addressHash)).ToString());
+                }
+            }
+#endif // ENABLE_ADDRESS_INDEXING
+
         }
         in.pushKV("sequence", (int64_t)txin.nSequence);
         vin.push_back(in);
@@ -155,6 +176,18 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
         UniValue o(UniValue::VOBJ);
         ScriptPubKeyToJSON(txout.scriptPubKey, o, true);
         out.pushKV("scriptPubKey", o);
+
+#ifdef ENABLE_ADDRESS_INDEXING
+        // Add spent information if spentindex is enabled
+        CSpentIndexValue spentInfo;
+        CSpentIndexKey spentKey(txid, i);
+        if (GetSpentIndex(spentKey, spentInfo)) {
+            out.pushKV("spentTxId", spentInfo.txid.GetHex());
+            out.pushKV("spentIndex", (int)spentInfo.inputIndex);
+            out.pushKV("spentHeight", spentInfo.blockHeight);
+        }
+#endif // ENABLE_ADDRESS_INDEXING
+
         vout.push_back(out);
     }
     entry.pushKV("vout", vout);
@@ -174,20 +207,25 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry)
         if (mi != mapBlockIndex.end() && (*mi).second) {
             CBlockIndex* pindex = (*mi).second;
             if (chainActive.Contains(pindex)) {
+                entry.pushKV("height", pindex->nHeight);
                 entry.pushKV("confirmations", 1 + chainActive.Height() - pindex->nHeight);
                 entry.pushKV("time", pindex->GetBlockTime());
                 entry.pushKV("blocktime", pindex->GetBlockTime());
-            }
-            else
+            } else {
+                entry.pushKV("height", -1);
                 entry.pushKV("confirmations", 0);
+            }
         }
     }
 }
 
 void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& entry)
 {
-    entry.pushKV("txid", cert.GetHash().GetHex());
+    uint256 certId = cert.GetHash();
+    entry.pushKV("txid", certId.GetHex());
+    entry.pushKV("size", (int)::GetSerializeSize(cert, SER_NETWORK, PROTOCOL_VERSION));
     entry.pushKV("version", cert.nVersion);
+    entry.pushKV("locktime", (int64_t)cert.GetLockTime());
     UniValue vin(UniValue::VARR);
     BOOST_FOREACH(const CTxIn& txin, cert.GetVin()) {
         UniValue in(UniValue::VOBJ);
@@ -197,6 +235,22 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
         o.pushKV("asm", txin.scriptSig.ToString());
         o.pushKV("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
         in.pushKV("scriptSig", o);
+
+#ifdef ENABLE_ADDRESS_INDEXING
+        // Add address and value info if spentindex enabled
+        CSpentIndexValue spentInfo;
+        CSpentIndexKey spentKey(txin.prevout.hash, txin.prevout.n);
+        if (GetSpentIndex(spentKey, spentInfo)) {
+            in.pushKV("value", ValueFromAmount(spentInfo.satoshis));
+            in.pushKV("valueZat", spentInfo.satoshis);
+            if (spentInfo.addressType == 1) {
+                in.pushKV("address", CBitcoinAddress(CKeyID(spentInfo.addressHash)).ToString());
+            } else if (spentInfo.addressType == 2)  {
+                in.pushKV("address", CBitcoinAddress(CScriptID(spentInfo.addressHash)).ToString());
+            }
+        }
+#endif // ENABLE_ADDRESS_INDEXING
+
         in.pushKV("sequence", (int64_t)txin.nSequence);
         vin.push_back(in);
     }
@@ -211,6 +265,18 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
         UniValue o(UniValue::VOBJ);
         ScriptPubKeyToJSON(txout.scriptPubKey, o, true);
         out.pushKV("scriptPubKey", o);
+
+#ifdef ENABLE_ADDRESS_INDEXING
+        // Add spent information if spentindex is enabled
+        CSpentIndexValue spentInfo;
+        CSpentIndexKey spentKey(certId, i);
+        if (GetSpentIndex(spentKey, spentInfo)) {
+            out.pushKV("spentTxId", spentInfo.txid.GetHex());
+            out.pushKV("spentIndex", (int)spentInfo.inputIndex);
+            out.pushKV("spentHeight", spentInfo.blockHeight);
+        }
+#endif // ENABLE_ADDRESS_INDEXING
+
         if (cert.IsBackwardTransfer(i))
         {
             out.pushKV("backwardTransfer", true);
@@ -255,11 +321,14 @@ void CertToJSON(const CScCertificate& cert, const uint256 hashBlock, UniValue& e
         if (mi != mapBlockIndex.end() && (*mi).second) {
             CBlockIndex* pindex = (*mi).second;
             if (chainActive.Contains(pindex)) {
+                entry.pushKV("height", pindex->nHeight);
                 entry.pushKV("confirmations", 1 + chainActive.Height() - pindex->nHeight);
+                entry.pushKV("time", pindex->GetBlockTime());
                 entry.pushKV("blocktime", pindex->GetBlockTime());
             }
             else
             {
+                entry.pushKV("height", -1);
                 entry.pushKV("confirmations", 0);
             }
         }
@@ -287,8 +356,8 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
 
             "\nResult (if verbose > 0):\n"
             "{\n"
-            "  \"hex\": \"data\",                 (string) the serialized, hex-encoded data for 'txid'\n"
             "  \"txid\": \"id\",                  (string) the transaction id (same as provided)\n"
+            "  \"size\": n,                       (numeric) the size of the transaction in bytes\n"
             "  \"version\": n,                    (numeric) the version\n"
             "  \"locktime\": ttt,                 (numeric) the lock time\n"
             "  \"vin\": [                         (array of json objects)\n"
@@ -303,7 +372,7 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
             "     }\n"
             "     ,...\n"
             "  ],\n"
-            "  \"vcsw_ccin\" : [                  (array of json objects) Ceased sidechain withdrawal inputs\n"
+            "  \"vcsw_ccin\" : [                  (array of json objects, only for version -4) Ceased sidechain withdrawal inputs\n"
             "     {\n"
             "       \"value\": x.xxx,             (numeric) The value in " + CURRENCY_UNIT + "\n"
             "       \"scId\": \"hex\",            (string) The sidechain id\n"
@@ -326,6 +395,24 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
             "     }\n"
             "     ,...\n"
             "  ],\n"
+            "  \"cert\" : {                                   (json object, present only for version -5)\n"
+            "       \"scid\" : \"hex\",                       (string) The sidechain id\n"
+            "       \"epochNumber\": n,                       (numeric) The withdrawal epoch number\n"
+            "       \"quality\": q,                           (numeric) The certificate quality\n"
+            "       \"endEpochCumScTxCommTreeRoot\": \"hex\", (string) The root of the cumulative scTxCommitment tree\n"
+            "       \"scProof\": \"hex\",                     (string) The SNARK proof of the certificate\n"
+            "       \"vFieldElementCertificateField\": [      (json array of strings)\n"
+            "           \"hex\"                               (string) data used to verify the SNARK proof of the certificate\n"
+            "           ,...\n"
+            "       ],\n"
+            "       \"vBitVectorCertificateField\": [         (json array of strings)\n"
+            "           \"hex\"                               (string) data used to verify the SNARK proof of the certificate\n"
+            "           ,...\n"
+            "       ],\n"
+            "       \"ftScFee\": x.xxx,                       (numeric) The value in " + CURRENCY_UNIT + " of fee due to sidechain actors when creating a FT\n"
+            "       \"mbtrScFee\": x.xxx,                     (numeric) The value in " + CURRENCY_UNIT + " of fee due to sidechain actors when creating a MBTR\n"
+            "       \"totalAmount\": x.xxx,                   (numeric) The total amount in " + CURRENCY_UNIT + " of all certifcate backward transfers\n"
+            "  },\n"
             "  \"vout\" : [                       (array of json objects)\n"
             "     {\n"
             "       \"value\": x.xxx,             (numeric) the value in " + CURRENCY_UNIT + "\n"
@@ -340,10 +427,11 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
             "           ,...\n"
             "         ]\n"
             "       }\n"
+            "       \"backwardTransfer\": flag    (bool, only for version -5) present and set to true only if the output refers to a backward transfer\n"
             "     }\n"
             "     ,...\n"
             "  ],\n"
-            "  \"vsc_ccout\" : [           (array of json objects) Sidechain creation crosschain outputs\n"
+            "  \"vsc_ccout\" : [                  (array of json objects, only for version -4) Sidechain creation crosschain outputs\n"
             "     {\n"
             "       \"scid\" : \"hex\",                 (string) The sidechain id\n"
             "       \"n\" : n,                          (numeric) crosschain output index\n"
@@ -360,12 +448,28 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
             "     }\n"
             "     ,...\n"
             "  ],\n"
-            "  \"vft_ccout\" : [           (array of json objects) Sidechain forward transfer crosschain outputs\n"
+            "  \"vft_ccout\" : [           (array of json objects, only for version -4) Sidechain forward transfer crosschain outputs\n"
             "     {\n"
             "       \"scid\" : \"hex\",           (string) The sidechain id\n"
             "       \"value\" : x.xxx,            (numeric) The value in " + CURRENCY_UNIT + "\n"
             "       \"n\" : n,                    (numeric) crosschain output index\n"
             "       \"address\" : \"hex\"         (string) The sidechain receiver address\n"
+            "     }\n"
+            "     ,...\n"
+            "  ],\n"
+            "  \"vmbtr_out\" : [           (array of json objects, only for version -4) Mainchain backward transfer request outputs\n"
+            "     {\n"
+            "       \"scid\" : \"hex\",           (string) The sidechain id\n"
+            "       \"n\" : n,                    (numeric) crosschain output index\n"
+            "       \"mcDestinationAddress\": {   (json object) The Horizen address where to send the backward transfer\n"
+            "         \"pubkeyhash\": \"hex\",        (string) The corresponding public key hash\n"
+            "         \"taddr\": \"taddr\"            (string) The transparent address\n"
+            "       }\n"
+            "       \"scFee\" : x.xxx,            (numeric) The value in " + CURRENCY_UNIT + "\n"
+            "       \"vScRequestData\" : [        (array of strings)\n"
+            "           \"data\"                  (string) The hexadecimal data representing a SC reference\n"
+            "            ,...\n"
+            "         ]\n"
             "     }\n"
             "     ,...\n"
             "  ],\n"
@@ -397,9 +501,11 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
             "     ,...\n"
             "  ],\n"
             "  \"blockhash\": \"hash\",           (string) the block hash\n"
+            "  \"height\": n,                     (numeric) The block height\n"
             "  \"confirmations\": n,              (numeric) The confirmations\n"
             "  \"time\": ttt,                     (numeric) The transaction time in seconds since epoch (Jan 1 1970 GMT)\n"
             "  \"blocktime\": ttt                 (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n"
+            "  \"hex\": \"data\",                 (string) the serialized, hex-encoded data for 'txid'\n"
             "}\n"
 
             "\nExamples:\n"
@@ -407,7 +513,6 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
             + HelpExampleCli("getrawtransaction", "\"mytxid\" 1")
             + HelpExampleRpc("getrawtransaction", "\"mytxid\", 1")
         );
-    LOCK(cs_main);
 
     uint256 hash = ParseHashV(params[0], "parameter 1");
 
@@ -415,12 +520,15 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
     if (params.size() > 1)
         fVerbose = (params[1].get_int() != 0);
 
-    // allocated by the callee
     std::unique_ptr<CTransactionBase> pTxBase;
     
     uint256 hashBlock{};
-    if (!GetTxBaseObj(hash, pTxBase, hashBlock, true) || !pTxBase)
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
+
+    {
+        LOCK(cs_main);
+        if (!GetTxBaseObj(hash, pTxBase, hashBlock, true) || !pTxBase)
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
+    }
 
     std::string strHex = EncodeHex(pTxBase);
 
@@ -442,92 +550,6 @@ UniValue getrawtransaction(const UniValue& params, bool fHelp)
     }
     
     result.pushKV("hex", strHex);
-    return result;
-}
-
-UniValue getrawcertificate(const UniValue& params, bool fHelp)
-{
-    if (fHelp || params.size() < 1 || params.size() > 2)
-        throw runtime_error(
-            "getrawcertificate \"certid\" ( verbose )\n"
-            "\nNOTE: By default this function only works sometimes. This is when the certificate is in the mempool\n"
-            "or there is an unspent output in the utxo for this certificate. To make it always work,\n"
-            "you need to maintain a transaction index, using the -txindex command line option.\n"
-            "\nReturn the raw certificate data.\n"
-            "\nIf verbose=0, returns a string that is serialized, hex-encoded data for 'certid'.\n"
-            "If verbose is non-zero, returns an Object with information about 'certid'.\n"
-
-            "\nArguments:\n"
-            "1. \"certid\"      (string, required) The certificate id\n"
-            "2. verbose       (numeric, optional, default=0) If 0, return a string, other return a json object\n"
-
-            "\nResult (if verbose is not set or set to 0):\n"
-            "\"data\"      (string) The serialized, hex-encoded data for 'certid'\n"
-
-            "\nResult (if verbose > 0):\n"
-            "{\n"
-            "  \"hex\" : \"data\",         (string) The serialized, hex-encoded data for 'certid'\n"
-            "  \"certid\" : \"id\",        (string) The transaction id (same as provided)\n"
-            "  \"version\" : n,          (numeric) The version\n"
-            "  \"cert\" :                (json object)\n"
-            "     {\n"
-            "       \"scid\" : \"sc id\",                      (string) the sidechain id\n"
-            "       \"epochNumber\": epn,                      (numeric) the withdrawal epoch number this certificate refers to\n"
-            "       \"quality\": n,                            (numeric) the quality of this withdrawal certificate. \n"
-            "       \"endEpochCumScTxCommTreeRoot\" : \"ecum\" (string) The hex string representation of the field element corresponding to the root of the cumulative scTxCommitment tree stored at the block marking the end of the referenced epoch\n"
-            "       \"scProof\": \"scp\"                       (string) SNARK proof whose verification key wCertVk was set upon sidechain registration\n"
-            "       \"totalAmount\" : x.xxx                    (numeric) The total value of the certificate in " + CURRENCY_UNIT + "\n"
-            "     }\n"
-            "  \"vout\" : [              (array of json objects)\n"
-            "     {\n"
-            "       \"value\" : x.xxx,            (numeric) The value in " + CURRENCY_UNIT + "\n"
-            "       \"valueZat\" : xxxx,          (numeric) The value in Zat\n"
-            "       \"n\" : n,                    (numeric) index\n"
-            "       \"scriptPubKey\" : {          (json object)\n"
-            "         \"asm\" : \"asm\",            (string) the asm\n"
-            "         \"hex\" : \"hex\",            (string) the hex\n"
-            "         \"type\" : \"pubkeyhash\",    (string) The type, eg 'pubkeyhash'\n"
-            "         \"addresses\" : [           (json array of string)\n"
-            "           \"horizenaddress\"        (string) Horizen address\n"
-            "           ,...\n"
-            "         ]\n"
-            "       }\n"
-            "       --- optional fields present only if this vout is a backward transfer:\n" 
-            "       \"backwardTransfer\" : true  (bool)\n" 
-            "     }\n"
-            "     ,...\n"
-            "  ],\n"
-            "  \"blockhash\" : \"hash\",   (string) the block hash\n"
-            "  \"confirmations\" : n,    (numeric) The confirmations\n"
-            "  \"blocktime\" : ttt       (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n"
-            "}\n"
-
-            "\nExamples:\n"
-            + HelpExampleCli("getrawcertificate", "\"mycertid\"")
-            + HelpExampleCli("getrawcertificate", "\"mycertid\" 1")
-            + HelpExampleRpc("getrawcertificate", "\"mycertid\", 1")
-        );
-    LOCK(cs_main);
-
-    uint256 hash = ParseHashV(params[0], "parameter 1");
-
-    bool fVerbose = false;
-    if (params.size() > 1)
-        fVerbose = (params[1].get_int() != 0);
-
-    CScCertificate cert;
-    uint256 hashBlock;
-    if (!GetCertificate(hash, cert, hashBlock, true))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about certificate");
-
-    string strHex = EncodeHexCert(cert);
-
-    if (!fVerbose)
-        return strHex;
-
-    UniValue result(UniValue::VOBJ);
-    result.pushKV("hex", strHex);
-    CertToJSON(cert, hashBlock, result);
     return result;
 }
 
@@ -925,6 +947,7 @@ UniValue decoderawtransaction(const UniValue& params, bool fHelp)
             "\nResult:\n"                                         
             "{\n"                                                 
             "  \"txid\" : \"id\",                                 (string) The transaction id\n"
+            "  \"size\": n,                                       (numeric) the size of the transaction in bytes\n"
             "  \"version\" : n,                                   (numeric) The version\n"
             "  \"locktime\" : ttt,                                (numeric) The lock time\n"
             "  \"vin\" : [                                        (array of json objects)\n"
@@ -939,7 +962,7 @@ UniValue decoderawtransaction(const UniValue& params, bool fHelp)
             "     }\n"
             "     ,...\n"
             "  ],\n"
-            "  \"vcsw_ccin\" : [                                  (array of json objects) Ceased sidechain withdrawal inputs\n"
+            "  \"vcsw_ccin\" : [                                  (array of json objects, only for version -4) Ceased sidechain withdrawal inputs\n"
             "     {\n"                                            
             "       \"value\": x.xxx,                             (numeric) The value in " + CURRENCY_UNIT + "\n"
             "       \"scId\": \"hex\",                            (string) The sidechain id\n"
@@ -962,6 +985,24 @@ UniValue decoderawtransaction(const UniValue& params, bool fHelp)
             "     }\n"
             "     ,...\n"
             "  ],\n"
+            "  \"cert\" : {                                   (json object, present only for version -5)\n"
+            "       \"scid\" : \"hex\",                       (string) The sidechain id\n"
+            "       \"epochNumber\": n,                       (numeric) The withdrawal epoch number\n"
+            "       \"quality\": q,                           (numeric) The certificate quality\n"
+            "       \"endEpochCumScTxCommTreeRoot\": \"hex\", (string) The root of the cumulative scTxCommitment tree\n"
+            "       \"scProof\": \"hex\",                     (string) The SNARK proof of the certificate\n"
+            "       \"vFieldElementCertificateField\": [      (json array of strings)\n"
+            "           \"hex\"                               (string) data used to verify the SNARK proof of the certificate\n"
+            "           ,...\n"
+            "       ],\n"
+            "       \"vBitVectorCertificateField\": [         (json array of strings)\n"
+            "           \"hex\"                               (string) data used to verify the SNARK proof of the certificate\n"
+            "           ,...\n"
+            "       ],\n"
+            "       \"ftScFee\": x.xxx,                       (numeric) The value in " + CURRENCY_UNIT + " of fee due to sidechain actors when creating a FT\n"
+            "       \"mbtrScFee\": x.xxx,                     (numeric) The value in " + CURRENCY_UNIT + " of fee due to sidechain actors when creating a MBTR\n"
+            "       \"totalAmount\": x.xxx,                   (numeric) The total amount in " + CURRENCY_UNIT + " of all certifcate backward transfers\n"
+            "  },\n"
             "  \"vout\" : [                                       (array of json objects)\n"
             "     {\n"
             "       \"value\" : x.xxx,                            (numeric) The value in " + CURRENCY_UNIT + "\n"
@@ -975,22 +1016,23 @@ UniValue decoderawtransaction(const UniValue& params, bool fHelp)
             "           \"xxxxxxxx\"                              (string) Horizen address\n"
             "           ,...\n"
             "         ]\n"
-            "       }\n"
+            "       },\n"
+            "       \"backwardTransfer\": flag                    (bool, only for version -5) present and set to true only if the output refers to a backward transfer\n"
             "     }\n"
             "     ,...\n"
             "  ],\n"
-            "  \"vsc_ccout\" : [                                  (array of json objects) Sidechain creation crosschain outputs\n"
+            "  \"vsc_ccout\" : [                                  (array of json objects, only for version -4) Sidechain creation crosschain outputs\n"
             "     {\n"
             "       \"scid\" : \"hex\",                           (string) The sidechain id\n"
             "       \"n\" : n,                                    (numeric) crosschain output index\n"
             "       \"withdrawalEpochLength\" : n,                (numeric) Sidechain withdrawal epoch length\n"
-            "       \"value\" : x.xxx,                            (numeric) The value in " + CURRENCY_UNIT + "\n"
+            "       \"value\" : x.xxx,                            (numeric) The value of the funds transferred to SC in " + CURRENCY_UNIT + "\n"
             "       \"address\" : \"hex\",                        (string) The sidechain receiver address\n"
-            "       \"certProvingSystem\" : \"provingSystem\"     (string) The type of proving system to be used for certificate verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
+            "       \"certProvingSystem\" : \"provingSystem\"     (string) The type of proving system to be used for certificate verification\n"
             "       \"wCertVk\" : \"hex\",                        (string) The sidechain certificate snark proof verification key\n"
             "       \"customData\" : \"hex\",                     (string) The sidechain declaration custom data\n"
             "       \"constant\" : \"hex\",                       (string) The sidechain certificate snark proof constant data\n"
-            "       \"cswProvingSystem\" : \"provingSystem\"      (string) The type of proving system to be used for CSW verification, allowed values:\n" + Sidechain::ProvingSystemTypeHelp() + "\n"
+            "       \"cswProvingSystem\" : \"provingSystem\"      (string) The type of proving system to be used for CSW verification\n"
             "       \"wCeasedVk\" : \"hex\"                       (string) The ceased sidechain withdrawal input snark proof verification key\n"
             "       \"ftScFee\" :                                 (numeric) The fee in " + CURRENCY_UNIT + " required to create a Forward Transfer to sidechain\n"
             "       \"mbtrScFee\"                                 (numeric) The fee in " + CURRENCY_UNIT + " required to create a Mainchain Backward Transfer Request to sidechain\n"
@@ -998,12 +1040,28 @@ UniValue decoderawtransaction(const UniValue& params, bool fHelp)
             "     }\n"
             "     ,...\n"
             "  ],\n"
-            "  \"vft_ccout\" : [                                  (array of json objects) Sidechain forward transfer crosschain outputs\n"
+            "  \"vft_ccout\" : [                                  (array of json objects, only for version -4) Sidechain forward transfer crosschain outputs\n"
             "     {\n"
             "       \"scid\" : \"hex\",                           (string) The sidechain id\n"
             "       \"value\" : x.xxx,                            (numeric) The value in " + CURRENCY_UNIT + "\n"
             "       \"n\" : n,                                    (numeric) crosschain output index\n"
             "       \"address\" : \"hex\"                         (string) The sidechain receiver address\n"
+            "     }\n"
+            "     ,...\n"
+            "  ],\n"
+            "  \"vmbtr_out\" : [                                  (array of json objects, only for version -4) Mainchain backward transfer request outputs\n"
+            "     {\n"
+            "       \"scid\" : \"hex\",                           (string) The sidechain id\n"
+            "       \"n\" : n,                                    (numeric) crosschain output index\n"
+            "       \"mcDestinationAddress\": {                   (json object) The Horizen address where to send the backward transfer\n"
+            "         \"pubkeyhash\": \"hex\",                        (string) The corresponding public key hash\n"
+            "         \"taddr\": \"taddr\"                            (string) The transparent address\n"
+            "       }\n"                                         
+            "       \"scFee\" : x.xxx,                            (numeric) The value in " + CURRENCY_UNIT + "\n"
+            "       \"vScRequestData\" : [                        (array of strings)\n"
+            "           \"data\"                                  (string) The hexadecimal data representing a SC reference\n"
+            "            ,...\n"
+            "         ]\n"
             "     }\n"
             "     ,...\n"
             "  ],\n"
@@ -1312,31 +1370,6 @@ UniValue createrawcertificate(const UniValue& params, bool fHelp)
     return EncodeHexCert(rawCert);
 }
 
-
-UniValue decoderawcertificate(const UniValue& params, bool fHelp)
-{   
-    if (fHelp || params.size() != 1)
-        throw runtime_error(
-            "decoderawcertificate \"hexstring\"\n"
-
-            "\nExamples:\n"
-            + HelpExampleCli("decoderawcertificate", "\"hexstring\"")
-            + HelpExampleRpc("decoderawcertificate", "\"hexstring\"")
-        );
-
-    LOCK(cs_main);
-    RPCTypeCheck(params, boost::assign::list_of(UniValue::VSTR));
-
-    CScCertificate cert;
-
-    if (!DecodeHexCert(cert, params[0].get_str()))
-        throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
-
-    UniValue result(UniValue::VOBJ);
-    CertToJSON(cert, uint256(), result);
-
-    return result;
-}
 
 UniValue decodescript(const UniValue& params, bool fHelp)
 {   

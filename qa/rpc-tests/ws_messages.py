@@ -143,8 +143,16 @@ class ws_messages(BitcoinTestFramework):
         mcTest = CertTestUtils(self.options.tmpdir, self.options.srcdir)
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
+        cmdInput = {
+            "withdrawalEpochLength": EPOCH_LENGTH,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant
+        }
 
-        ret = self.nodes[1].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[1].sc_create(cmdInput)
+
         creating_tx = ret['txid']
         scid = ret['scid']
         scid_swapped = str(swap_bytes(scid))
@@ -160,7 +168,8 @@ class ws_messages(BitcoinTestFramework):
 
         # Fwd Transfer to Sc
         mc_return_address = self.nodes[0].getnewaddress()
-        fwd_tx = self.nodes[0].dep_sc_send("abcd", fwt_amount, scid, mc_return_address)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid, 'mcReturnAddress': mc_return_address}]
+        fwd_tx = self.nodes[0].sc_send(cmdInput)
         mark_logs("Node0 transfers {} coins to SC with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -205,8 +214,8 @@ class ws_messages(BitcoinTestFramework):
         decoded_coinbase = self.nodes[2].getrawtransaction(coinbase, 1)
         miner_quota = decoded_coinbase['vout'][0]['value']
         assert_equal((Decimal('7.5') + CERT_FEE), miner_quota)
-        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['last ftScFee'], FT_SC_FEE)
-        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['last mbtrScFee'], MBTR_SC_FEE)
+        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['lastFtScFee'], FT_SC_FEE)
+        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['lastMbtrScFee'], MBTR_SC_FEE)
 
         # ----------------------------------------------------------------"
         # Test get single block
@@ -398,8 +407,15 @@ class ws_messages(BitcoinTestFramework):
         sc2_vk = mcTest.generate_params("sc2")
         sc2_constant = generate_random_field_element_hex()
         SC2_EPOCH_LENGTH = 20
+        cmdInput = {
+            "withdrawalEpochLength": SC2_EPOCH_LENGTH,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": sc2_vk,
+            "constant": sc2_constant
+        }
 
-        ret = self.nodes[1].dep_sc_create(SC2_EPOCH_LENGTH, "dada", creation_amount, sc2_vk, "", sc2_constant)
+        ret = self.nodes[1].sc_create(cmdInput)
         creating_tx_sc2 = ret['txid']
         scid2 = ret['scid']
         mark_logs("Node 1 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx_sc2), self.nodes, DEBUG_MODE)
@@ -413,7 +429,8 @@ class ws_messages(BitcoinTestFramework):
 
         # Fwd Transfer to Sc
         mc_return_address = self.nodes[0].getnewaddress()
-        fwd_tx = self.nodes[0].dep_sc_send("abcd", fwt_amount, scid2, mc_return_address)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid2, 'mcReturnAddress': mc_return_address}]
+        fwd_tx = self.nodes[0].sc_send(cmdInput)
         mark_logs("Node0 transfers {} coins to SC with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -452,7 +469,6 @@ class ws_messages(BitcoinTestFramework):
         assert_equal(cert1_quality, mempool_cert_['quality'])
         assert_equal(epoch_number, mempool_cert_['epoch'])
         assert_equal(cert_1_epoch_0, mempool_cert_['certHash'])
-        assert_equal(decoded_cert_mempool_1['hex'], mempool_cert_['rawCertificateHex'])
         assert_equal(CERT_FEE, Decimal(mempool_cert_['fee']))
         assert_equal({}, chain_cert_)
 
@@ -463,7 +479,6 @@ class ws_messages(BitcoinTestFramework):
         assert_equal(cert1_quality, chain_cert_['quality'])
         assert_equal(epoch_number, chain_cert_['epoch'])
         assert_equal(cert_1_epoch_0, chain_cert_['certHash'])
-        assert_equal(decoded_cert_mempool_1['hex'], chain_cert_['rawCertificateHex'])
         assert_equal({}, mempool_cert_)
 
         #Create proof for WCert
@@ -484,13 +499,11 @@ class ws_messages(BitcoinTestFramework):
         assert_equal(cert_2_quality, mempool_cert_['quality'])
         assert_equal(epoch_number, mempool_cert_['epoch'])
         assert_equal(cert_2_epoch_0, mempool_cert_['certHash'])
-        assert_equal(decoded_cert_mempool_2['hex'], mempool_cert_['rawCertificateHex'])
         assert_equal(CERT_FEE, Decimal(mempool_cert_['fee']))
         assert_equal(cert1_quality, chain_cert_['quality'])
         assert_equal(epoch_number, chain_cert_['epoch'])
         assert_equal(cert_1_epoch_0, chain_cert_['certHash'])
-        assert_equal(decoded_cert_mempool_1['hex'], chain_cert_['rawCertificateHex'])
-
+        
         self.nodes[0].generate(SC2_EPOCH_LENGTH)
         epoch_number, cum_tree_hash = get_epoch_data(scid2, self.nodes[0], SC2_EPOCH_LENGTH)
         self.sync_all()
@@ -500,7 +513,6 @@ class ws_messages(BitcoinTestFramework):
         assert_equal(cert_2_quality, chain_cert_['quality'])
         assert_equal(0, chain_cert_['epoch'])
         assert_equal(cert_2_epoch_0, chain_cert_['certHash'])
-        assert_equal(decoded_cert_mempool_2['hex'], chain_cert_['rawCertificateHex'])
         assert_equal({}, mempool_cert_)
 
 

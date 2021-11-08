@@ -6,8 +6,8 @@
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.test_framework import MINIMAL_SC_HEIGHT
 from test_framework.authproxy import JSONRPCException
-from test_framework.util import assert_true, assert_false, assert_equal, mark_logs, swap_bytes
-from test_framework.mininode import COIN, hash256, ser_string
+from test_framework.util import COIN, assert_true, assert_false, assert_equal, mark_logs, swap_bytes
+from test_framework.mininode import hash256, ser_string
 from test_framework.mc_test.mc_test import *
 
 from binascii import a2b_hex, b2a_hex
@@ -161,7 +161,9 @@ class GetBlockTemplateProposalTest(BitcoinTestFramework):
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
 
-        ret = self.nodes[1].dep_sc_create(SC_EPOCH_LENGTH, "dada", SC_CREATION_AMOUNT, vk, "bb" * 1024, constant)
+        cmdInput = {'withdrawalEpochLength': SC_EPOCH_LENGTH, 'toaddress': "dada", 'amount': SC_CREATION_AMOUNT, 'wCertVk': vk,
+                    'customData': "bb" * 1024, 'constant': constant}
+        ret = self.nodes[1].sc_create(cmdInput)
         creating_tx = ret['txid']
         scid = ret['scid']
         self.sync_all()

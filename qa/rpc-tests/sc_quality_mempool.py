@@ -86,15 +86,31 @@ class quality_mempool(BitcoinTestFramework):
         vk_tag_2 = "sc2"
         vk_2 = mcTest.generate_params(vk_tag_2)
         constant_2 = generate_random_field_element_hex()
+        cmdInput = {
+            "withdrawalEpochLength": EPOCH_LENGTH,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": vk_1,
+            "constant": constant_1,
+        }
 
-        ret = self.nodes[1].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk_1, "", constant_1)
+        ret = self.nodes[1].sc_create(cmdInput)
         creating_tx_1 = ret['txid']
         scid_1 = ret['scid']
         scid1_swapped = str(swap_bytes(scid_1))
         mark_logs("Node 1 created the SC spending {} coins via tx {}.".format(creation_amount, creating_tx_1), self.nodes, DEBUG_MODE)
         self.sync_all()
 
-        ret = self.nodes[1].dep_sc_create(EPOCH_LENGTH, "baba", creation_amount, vk_2, "", constant_2)
+        cmdInput = {
+            "withdrawalEpochLength": EPOCH_LENGTH,
+            "toaddress": "baba",
+            "amount": creation_amount,
+            "wCertVk": vk_2,
+            "constant": constant_2,
+            "minconf": 0
+        }
+
+        ret = self.nodes[1].sc_create(cmdInput)
         creating_tx_2 = ret['txid']
         scid_2 = ret['scid']
         scid2_swapped = str(swap_bytes(scid_2))
@@ -121,13 +137,14 @@ class quality_mempool(BitcoinTestFramework):
         assert_equal(bal_before_sc_creation, bal_after_sc_creation + creation_amount + creation_amount - fee_sc_creation_1 - fee_sc_creation_2)
 
         assert_equal(self.nodes[0].getscinfo(scid_1)['items'][0]['balance'], Decimal(0))
-        assert_equal(self.nodes[0].getscinfo(scid_1)['items'][0]['immature amounts'][0]['amount'], creation_amount)
+        assert_equal(self.nodes[0].getscinfo(scid_1)['items'][0]['immatureAmounts'][0]['amount'], creation_amount)
 
         # Fwd Transfer to SC 1
         bal_before_fwd_tx = self.nodes[0].getbalance("", 0)
         mc_return_address = self.nodes[0].getnewaddress()
         mark_logs("Node0 balance before fwd tx: {}".format(bal_before_fwd_tx), self.nodes, DEBUG_MODE)
-        fwd_tx = self.nodes[0].dep_sc_send("abcd", fwt_amount, scid_1, mc_return_address)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid_1, 'mcReturnAddress': mc_return_address}]
+        fwd_tx = self.nodes[0].sc_send(cmdInput)
         mark_logs("Node0 transfers {} coins to SC 1 with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -139,7 +156,8 @@ class quality_mempool(BitcoinTestFramework):
         bal_before_fwd_tx = self.nodes[0].getbalance("", 0)
         mc_return_address = self.nodes[0].getnewaddress()
         mark_logs("Node0 balance before fwd tx: {}".format(bal_before_fwd_tx), self.nodes, DEBUG_MODE)
-        fwd_tx = self.nodes[0].dep_sc_send("abcd", fwt_amount, scid_2, mc_return_address)
+        cmdInput = [{'toaddress': "abcd", 'amount': fwt_amount, "scid": scid_2, 'mcReturnAddress': mc_return_address}]
+        fwd_tx = self.nodes[0].sc_send(cmdInput)
         mark_logs("Node0 transfers {} coins to SC 2 with tx {}...".format(fwt_amount, fwd_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
 
@@ -155,14 +173,14 @@ class quality_mempool(BitcoinTestFramework):
         assert_equal(bal_before_fwd_tx, bal_after_fwd_tx + fwt_amount - fee_fwt - Decimal(MINER_REWARD_POST_H200))
 
         assert_equal(self.nodes[0].getscinfo(scid_1)['items'][0]['balance'], Decimal(0))
-        assert_equal(self.nodes[0].getscinfo(scid_1)['items'][0]['immature amounts'][0]['amount'], creation_amount)
-        assert_equal(self.nodes[0].getscinfo(scid_1)['items'][0]['immature amounts'][1]['amount'], fwt_amount)
+        assert_equal(self.nodes[0].getscinfo(scid_1)['items'][0]['immatureAmounts'][0]['amount'], creation_amount)
+        assert_equal(self.nodes[0].getscinfo(scid_1)['items'][0]['immatureAmounts'][1]['amount'], fwt_amount)
 
         mark_logs("Node0 generating more blocks to achieve end of withdrawal epoch", self.nodes, DEBUG_MODE)
         self.nodes[0].generate(EPOCH_LENGTH - 3)
         self.sync_all()
         assert_equal(self.nodes[0].getscinfo(scid_1)['items'][0]['balance'], creation_amount + fwt_amount) # Sc balance has matured
-        assert_equal(len(self.nodes[0].getscinfo(scid_1)['items'][0]['immature amounts']), 0)
+        assert_equal(len(self.nodes[0].getscinfo(scid_1)['items'][0]['immatureAmounts']), 0)
 
         epoch_number_1, epoch_cum_tree_hash_1 = get_epoch_data(scid_1, self.nodes[0], EPOCH_LENGTH)
 

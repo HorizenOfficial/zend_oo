@@ -125,6 +125,12 @@ testScripts=(
   'sc_stale_ft_and_mbtr.py'
   'sc_cert_getblocktemplate.py'
   'sc_cert_bt_immature_balances.py'
+  'sc_rpc_cmds_fee_handling.py'
+  'sc_cert_listsinceblock.py'
+  'sc_cert_dust.py'
+  'txindex.py'
+  'getblockexpanded.py'
+  'sc_rpc_cmds_json_output.py'
 );
 testScriptsExt=(
   'getblocktemplate_longpoll.py'
@@ -165,6 +171,14 @@ fi
 
 if [ "x$ENABLE_PROTON" = "x1" ]; then
   testScripts+=('proton_test.py')
+fi
+
+if [ "x$ENABLE_ADDRESS_INDEX" = "x1" ]; then
+  testScripts+=('addressindex.py'
+                'spentindex.py'
+                'timestampindex.py'
+                'sc_cert_addressindex.py'
+                'sc_cert_addrmempool.py')
 fi
 
 # include extended tests

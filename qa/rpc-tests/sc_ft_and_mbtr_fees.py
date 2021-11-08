@@ -84,9 +84,23 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         ftFee = Decimal(-ftScFee)
         mbtrFee = Decimal(mbtrScFee)
+        cmdInput = {
+            "withdrawalEpochLength": withdrawalEpochLength,
+            "toaddress": address,
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant,
+            'customData': custom_data,
+            'wCeasedVk': cswVk,
+            'vFieldElementCertificateFieldConfig': feCfg,
+            'vBitVectorCertificateFieldConfig': bvCfg,
+            'forwardTransferScFee': ftFee,
+            'mainchainBackwardTransferScFee': mbtrFee,
+            'mainchainBackwardTransferRequestDataLength': mbtrRequestDataLength
+        }
 
         try:
-            ret = self.nodes[1].dep_sc_create(withdrawalEpochLength, address, creation_amount, vk, custom_data, constant, cswVk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
+            ret = self.nodes[1].sc_create(cmdInput)
             assert_true(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -102,9 +116,23 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
         errorString = ""
         ftFee = Decimal(MAX_MONEY + 1)
         mbtrFee = Decimal(mbtrScFee)
+        cmdInput = {
+            "withdrawalEpochLength": withdrawalEpochLength,
+            "toaddress": address,
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant,
+            'customData': custom_data,
+            'wCeasedVk': cswVk,
+            'vFieldElementCertificateFieldConfig': feCfg,
+            'vBitVectorCertificateFieldConfig': bvCfg,
+            'forwardTransferScFee': ftFee,
+            'mainchainBackwardTransferScFee': mbtrFee,
+            'mainchainBackwardTransferRequestDataLength': mbtrRequestDataLength
+        }
 
         try:
-            ret = self.nodes[1].dep_sc_create(withdrawalEpochLength, address, creation_amount, vk, custom_data, constant, cswVk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
+            ret = self.nodes[1].sc_create(cmdInput)
             assert_true(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -119,9 +147,23 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         ftFee = Decimal(ftScFee)
         mbtrFee = Decimal(-mbtrScFee)
+        cmdInput = {
+            "withdrawalEpochLength": withdrawalEpochLength,
+            "toaddress": address,
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant,
+            'customData': custom_data,
+            'wCeasedVk': cswVk,
+            'vFieldElementCertificateFieldConfig': feCfg,
+            'vBitVectorCertificateFieldConfig': bvCfg,
+            'forwardTransferScFee': ftFee,
+            'mainchainBackwardTransferScFee': mbtrFee,
+            'mainchainBackwardTransferRequestDataLength': mbtrRequestDataLength
+        }
 
         try:
-            ret = self.nodes[1].dep_sc_create(withdrawalEpochLength, address, creation_amount, vk, custom_data, constant, cswVk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
+            ret = self.nodes[1].sc_create(cmdInput)
             assert_true(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -137,9 +179,23 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
         errorString = ""
         ftFee = Decimal(ftScFee)
         mbtrFee = Decimal(MAX_MONEY + 1)
+        cmdInput = {
+            "withdrawalEpochLength": withdrawalEpochLength,
+            "toaddress": address,
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant,
+            'customData': custom_data,
+            'wCeasedVk': cswVk,
+            'vFieldElementCertificateFieldConfig': feCfg,
+            'vBitVectorCertificateFieldConfig': bvCfg,
+            'forwardTransferScFee': ftFee,
+            'mainchainBackwardTransferScFee': mbtrFee,
+            'mainchainBackwardTransferRequestDataLength': mbtrRequestDataLength
+        }
 
         try:
-            ret = self.nodes[1].dep_sc_create(withdrawalEpochLength, address, creation_amount, vk, custom_data, constant, cswVk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
+            ret = self.nodes[1].sc_create(cmdInput)
             assert_true(False)
         except JSONRPCException, e:
             errorString = e.error['message']
@@ -155,9 +211,23 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
         errorString = ""
         ftFee = Decimal(ftScFee)
         mbtrFee = Decimal(mbtrScFee)
+        cmdInput = {
+            "withdrawalEpochLength": withdrawalEpochLength,
+            "toaddress": address,
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant,
+            'customData': custom_data,
+            'wCeasedVk': cswVk,
+            'vFieldElementCertificateFieldConfig': feCfg,
+            'vBitVectorCertificateFieldConfig': bvCfg,
+            'forwardTransferScFee': ftFee,
+            'mainchainBackwardTransferScFee': mbtrFee,
+            'mainchainBackwardTransferRequestDataLength': mbtrRequestDataLength
+        }
 
         try:
-            ret = self.nodes[1].dep_sc_create(withdrawalEpochLength, address, creation_amount, vk, custom_data, constant, cswVk, feCfg, bvCfg, ftFee, mbtrFee, mbtrRequestDataLength)
+            ret = self.nodes[1].sc_create(cmdInput)
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs(errorString,self.nodes,DEBUG_MODE)
@@ -184,8 +254,8 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
         assert_equal(scinfo0, scinfo1)
 
         mark_logs("Verify that sidechain configuration is as expected", self.nodes, DEBUG_MODE)
-        assert_equal(scinfo0['last ftScFee'], ftFee)
-        assert_equal(scinfo0['last mbtrScFee'], mbtrFee)
+        assert_equal(scinfo0['lastFtScFee'], ftFee)
+        assert_equal(scinfo0['lastMbtrScFee'], mbtrFee)
         assert_equal(scinfo0['mbtrRequestDataLength'], mbtrRequestDataLength)
 
         self.sync_all()
@@ -345,16 +415,16 @@ class SCFtAndMbtrFeesTest(BitcoinTestFramework):
 
         # Check that Node 1 has updated the sidechain fees
         mark_logs("\nCheck that node 1 has updated the sidechain fees", self.nodes, DEBUG_MODE)
-        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['past ftScFee'], ftFee)
-        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['last ftScFee'], newFtFee)
-        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['past mbtrScFee'], mbtrFee)
-        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['last mbtrScFee'], newMbtrFee)
+        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['pastFtScFee'], ftFee)
+        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['lastFtScFee'], newFtFee)
+        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['pastMbtrScFee'], mbtrFee)
+        assert_equal(self.nodes[1].getscinfo(scid)['items'][0]['lastMbtrScFee'], newMbtrFee)
 
         # Check that Node 0 still has the old fees (since it is not connected to node 1)
         mark_logs("\nCheck that node 0 has not updated the sidechain fees", self.nodes, DEBUG_MODE)
         tmp = self.nodes[0].getscinfo(scid)['items'][0]
-        assert_equal(self.nodes[0].getscinfo(scid)['items'][0]['last ftScFee'], ftFee)
-        assert_equal(self.nodes[0].getscinfo(scid)['items'][0]['last mbtrScFee'], mbtrFee)
+        assert_equal(self.nodes[0].getscinfo(scid)['items'][0]['lastFtScFee'], ftFee)
+        assert_equal(self.nodes[0].getscinfo(scid)['items'][0]['lastMbtrScFee'], mbtrFee)
 
 
         # ---------------------------------------------------------------------------------------

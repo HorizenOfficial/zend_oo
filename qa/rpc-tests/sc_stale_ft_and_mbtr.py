@@ -110,9 +110,9 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
             f_max = Decimal('0.0')
             for i in scFeesList:
                 f_min = min(f_min, i['forwardTxScFee'])
-                m_min = min(m_min, i['   mbtrTxScFee'])
+                m_min = min(m_min, i['mbtrTxScFee'])
                 f_max = max(f_max, i['forwardTxScFee'])
-                m_max = max(m_max, i['   mbtrTxScFee'])
+                m_max = max(m_max, i['mbtrTxScFee'])
             return f_min, m_min, f_max, m_max
 
         '''
@@ -181,10 +181,24 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         errorString = ""
         ftScFee   = FT_SC_FEES[0]
         mbtrScFee = MBTR_SC_FEES[0]
+        cmdInput = {
+            "withdrawalEpochLength": withdrawalEpochLength,
+            "toaddress": address,
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant,
+            'customData': custom_data,
+            'wCeasedVk': cswVk,
+            'vFieldElementCertificateFieldConfig': feCfg,
+            'vBitVectorCertificateFieldConfig': bvCfg,
+            'forwardTransferScFee': ftScFee,
+            'mainchainBackwardTransferScFee': mbtrScFee,
+            'mainchainBackwardTransferRequestDataLength': mbtrRequestDataLength
+        }
+
 
         try:
-            ret = self.nodes[1].dep_sc_create(withdrawalEpochLength, address, creation_amount, vk,
-                custom_data, constant, cswVk, feCfg, bvCfg, ftScFee, mbtrScFee, mbtrRequestDataLength)
+            ret = self.nodes[1].sc_create(cmdInput)
         except JSONRPCException, e:
             errorString = e.error['message']
             mark_logs(errorString,self.nodes,DEBUG_MODE)
@@ -287,7 +301,6 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
 
         cert = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_1, ftScFee, mbtrScFee, CERT_FEE)
-
         self.sync_all()
 
         mark_logs("cert={}, epoch={}, ftScFee={}, mbtrScFee={}".format(cert, epoch_number, ftScFee, mbtrScFee), self.nodes, DEBUG_MODE)
@@ -307,7 +320,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         assert_true(txFT in self.nodes[0].getrawmempool(True))
         assert_true(txMbtr in self.nodes[0].getrawmempool(True))
 
-        scFeesList = self.nodes[0].getscinfo(scid)['items'][0]['sc fees']
+        scFeesList = self.nodes[0].getscinfo(scid)['items'][0]['scFees']
         f_min, m_min, f_max, m_max = get_sc_fee_min_max_value(scFeesList)
         assert_equal(f_min, FT_SC_FEES[0])
         assert_equal(m_min, MBTR_SC_FEES[0])
@@ -327,7 +340,6 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
 
         cert = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
             epoch_cum_tree_hash, proof, amount_cert_1, ftScFee, mbtrScFee, CERT_FEE)
-
         self.sync_all()
 
         mark_logs("cert={}, epoch={}, ftScFee={}, mbtrScFee={}".format(cert, epoch_number, ftScFee, mbtrScFee), self.nodes, DEBUG_MODE)
@@ -347,7 +359,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         assert_true(txFT in self.nodes[0].getrawmempool(True))
         assert_true(txMbtr in self.nodes[0].getrawmempool(True))
 
-        assert_equal(scFeesList, self.nodes[0].getscinfo(scid)['items'][0]['sc fees'])
+        assert_equal(scFeesList, self.nodes[0].getscinfo(scid)['items'][0]['scFees'])
 
         #------------------------------------------------------------------------------------------------
         # flood the mempool with non-free and hi-prio txes so that next blocks (with small max size) will
@@ -381,7 +393,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         self.nodes[1].generate(1)
         self.sync_all()
 
-        scFeesList = self.nodes[0].getscinfo(scid)['items'][0]['sc fees']
+        scFeesList = self.nodes[0].getscinfo(scid)['items'][0]['scFees']
         f_min, m_min, f_max, m_max = get_sc_fee_min_max_value(scFeesList)
         assert_equal(f_min, FT_SC_FEES[0])
         assert_equal(m_min, MBTR_SC_FEES[0])
@@ -413,7 +425,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         bl = self.nodes[0].generate(1)[-1]
         self.sync_all()
 
-        scFeesList = self.nodes[0].getscinfo(scid)['items'][0]['sc fees']
+        scFeesList = self.nodes[0].getscinfo(scid)['items'][0]['scFees']
         f_min, m_min, f_max, m_max = get_sc_fee_min_max_value(scFeesList)
         assert_equal(f_min, FT_SC_FEES[3])
         assert_equal(m_min, MBTR_SC_FEES[3])
@@ -441,7 +453,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         bbh = self.nodes[0].getbestblockhash()
         assert_equal(bl, bbh)
 
-        scFeesList2 = self.nodes[0].getscinfo(scid)['items'][0]['sc fees']
+        scFeesList2 = self.nodes[0].getscinfo(scid)['items'][0]['scFees']
         assert_equal(scFeesList, scFeesList2)
 
         ftScFee   = FT_SC_FEES[6]
@@ -507,7 +519,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         self.nodes[1].generate(1)
         self.sync_all()
 
-        scFeesList = self.nodes[0].getscinfo(scid)['items'][0]['sc fees']
+        scFeesList = self.nodes[0].getscinfo(scid)['items'][0]['scFees']
         f_min, m_min, f_max, m_max = get_sc_fee_min_max_value(scFeesList)
         assert_equal(f_min, FT_SC_FEES[4])
         assert_equal(m_min, MBTR_SC_FEES[4])
@@ -538,7 +550,7 @@ class SCStaleFtAndMbtrTest(BitcoinTestFramework):
         bl = self.nodes[3].generate(1)[-1]
         self.sync_all()
 
-        scFeesList = self.nodes[0].getscinfo(scid)['items'][0]['sc fees']
+        scFeesList = self.nodes[0].getscinfo(scid)['items'][0]['scFees']
         f_min, m_min, f_max, m_max = get_sc_fee_min_max_value(scFeesList)
         assert_equal(f_min, FT_SC_FEES[5])
         assert_equal(m_min, MBTR_SC_FEES[5])

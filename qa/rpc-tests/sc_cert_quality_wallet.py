@@ -84,8 +84,15 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
         mcTest = CertTestUtils(self.options.tmpdir, self.options.srcdir)
         vk = mcTest.generate_params("sc1")
         constant = generate_random_field_element_hex()
+        cmdInput = {
+            "withdrawalEpochLength": EPOCH_LENGTH,
+            "toaddress": "dada",
+            "amount": creation_amount,
+            "wCertVk": vk,
+            "constant": constant,
+        }
 
-        ret = self.nodes[0].dep_sc_create(EPOCH_LENGTH, "dada", creation_amount, vk, "", constant)
+        ret = self.nodes[0].sc_create(cmdInput)
         creating_tx = ret['txid']
         scid = ret['scid']
         scid_swapped = str(swap_bytes(scid))
@@ -127,9 +134,9 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         scinfo = self.nodes[2].getscinfo(scid, False, False)
         assert_equal(bwt_amount_1, creation_amount - scinfo['items'][0]['balance'])
-        assert_equal(bwt_amount_1, scinfo['items'][0]['last certificate amount'])
-        assert_equal(cert_epoch_0_1, scinfo['items'][0]['last certificate hash'])
-        assert_equal(quality, scinfo['items'][0]['last certificate quality'])
+        assert_equal(bwt_amount_1, scinfo['items'][0]['lastCertificateAmount'])
+        assert_equal(cert_epoch_0_1, scinfo['items'][0]['lastCertificateHash'])
+        assert_equal(quality, scinfo['items'][0]['lastCertificateQuality'])
 
         winfo = self.nodes[2].getwalletinfo()
         assert_equal(Decimal("0"), winfo['balance'])
@@ -142,7 +149,7 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         amount_cert_2 = [{"address": addr_node2, "amount": bwt_amount_2}]
 
-        mark_logs("Node 0 sends cert of quality {} with bwt of {} coins for Node2 address".format(quality, amount_cert_2[0]["amount"], amount_cert_2[0]["address"]), self.nodes, DEBUG_MODE)
+        mark_logs("Node 0 sends cert of quality {} with bwt of {} coins for Node2 address {}".format(quality, amount_cert_2[0]["amount"], amount_cert_2[0]["address"]), self.nodes, DEBUG_MODE)
         try:
             cert_epoch_0_2 = self.nodes[0].sc_send_certificate(scid, epoch_number, quality,
                 epoch_cum_tree_hash, proof, amount_cert_2, FT_SC_FEE, MBTR_SC_FEE, CERT_FEE)
@@ -159,9 +166,9 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         scinfo = self.nodes[2].getscinfo(scid, False, False)
         assert_equal(bwt_amount_2, creation_amount - scinfo['items'][0]['balance'])
-        assert_equal(bwt_amount_2, scinfo['items'][0]['last certificate amount'])
-        assert_equal(cert_epoch_0_2, scinfo['items'][0]['last certificate hash'])
-        assert_equal(quality, scinfo['items'][0]['last certificate quality'])
+        assert_equal(bwt_amount_2, scinfo['items'][0]['lastCertificateAmount'])
+        assert_equal(cert_epoch_0_2, scinfo['items'][0]['lastCertificateHash'])
+        assert_equal(quality, scinfo['items'][0]['lastCertificateQuality'])
 
         winfo = self.nodes[2].getwalletinfo()
         assert_equal(Decimal("0"), winfo['balance'])
@@ -245,9 +252,9 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         scinfo = self.nodes[2].getscinfo(scid, False, False)
         assert_equal(bwt_amount_4 + bwt_amount_2, creation_amount - scinfo['items'][0]['balance'])
-        assert_equal(bwt_amount_4, scinfo['items'][0]['last certificate amount'])
-        assert_equal(cert_epoch_1_4, scinfo['items'][0]['last certificate hash'])
-        assert_equal(quality_h, scinfo['items'][0]['last certificate quality'])
+        assert_equal(bwt_amount_4, scinfo['items'][0]['lastCertificateAmount'])
+        assert_equal(cert_epoch_1_4, scinfo['items'][0]['lastCertificateHash'])
+        assert_equal(quality_h, scinfo['items'][0]['lastCertificateQuality'])
 
         winfo = self.nodes[2].getwalletinfo()
         assert_equal(bwt_amount_2, winfo['balance'])
@@ -280,9 +287,9 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         scinfo = self.nodes[2].getscinfo(scid, False, False)
         assert_equal(bwt_amount_5 + bwt_amount_4 + bwt_amount_2, creation_amount - scinfo['items'][0]['balance'])
-        assert_equal(bwt_amount_5, scinfo['items'][0]['last certificate amount'])
-        assert_equal(cert_epoch_2_5, scinfo['items'][0]['last certificate hash'])
-        assert_equal(quality, scinfo['items'][0]['last certificate quality'])
+        assert_equal(bwt_amount_5, scinfo['items'][0]['lastCertificateAmount'])
+        assert_equal(cert_epoch_2_5, scinfo['items'][0]['lastCertificateHash'])
+        assert_equal(quality, scinfo['items'][0]['lastCertificateQuality'])
 
         winfo = self.nodes[2].getwalletinfo()
         assert_equal(bwt_amount_2 + bwt_amount_4, winfo['balance'])
@@ -303,9 +310,9 @@ class sc_cert_quality_wallet(BitcoinTestFramework):
 
         scinfo = self.nodes[2].getscinfo(scid, False, False)
         assert_equal(bwt_amount_5 + bwt_amount_4 + bwt_amount_2, creation_amount - scinfo['items'][0]['balance'])
-        assert_equal(bwt_amount_5, scinfo['items'][0]['last certificate amount'])
-        assert_equal(cert_epoch_2_5, scinfo['items'][0]['last certificate hash'])
-        assert_equal(quality, scinfo['items'][0]['last certificate quality'])
+        assert_equal(bwt_amount_5, scinfo['items'][0]['lastCertificateAmount'])
+        assert_equal(cert_epoch_2_5, scinfo['items'][0]['lastCertificateHash'])
+        assert_equal(quality, scinfo['items'][0]['lastCertificateQuality'])
 
         winfo = self.nodes[2].getwalletinfo()
         assert_equal(bwt_amount_2 + bwt_amount_4, winfo['balance'])

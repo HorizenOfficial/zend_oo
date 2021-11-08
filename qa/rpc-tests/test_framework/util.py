@@ -24,6 +24,7 @@ import re
 import codecs
 from authproxy import AuthServiceProxy, JSONRPCException
 
+COIN = 100000000 # 1 zec in zatoshis
 
 def p2p_port(n):
     return 11000 + n + os.getpid()%999
@@ -511,9 +512,9 @@ def dump_sc_info_record(info, i, debug=0):
     if debug == 0:
         return
     print "  Node %d - balance: %f" % (i, info["balance"])
-    print "    created at block: %s (%d)" % (info["created at block height"], info["created at block height"])
-    print "    created in tx:    %s" % info["creating tx hash"]
-    print "    immature amounts: %s" % info["immature amounts"]
+    print "    created at block: %s (%d)" % (info["createdAtBlockHeight"], info["createdAtBlockHeight"])
+    print "    created in tx:    %s" % info["creatingTxHash"]
+    print "    immatureAmounts: %s" % info["immatureAmounts"]
 
 def dump_sc_info(nodes,nNodes,scId="",debug=0):
     if debug == 0:
@@ -540,14 +541,14 @@ def mark_logs(msg,nodes,debug=0):
         node.dbg_log(msg)
 
 def get_end_epoch_height(scid, node, epochLen):
-    sc_creating_height = node.getscinfo(scid)['items'][0]['created at block height']
+    sc_creating_height = node.getscinfo(scid)['items'][0]['createdAtBlockHeight']
     current_height = node.getblockcount()
     epoch_number = (current_height - sc_creating_height + 1) // epochLen - 1
     end_epoch_height = sc_creating_height - 1 + ((epoch_number + 1) * epochLen)
     return end_epoch_height
 
 def get_epoch_data(scid, node, epochLen):
-    sc_creating_height = node.getscinfo(scid)['items'][0]['created at block height']
+    sc_creating_height = node.getscinfo(scid)['items'][0]['createdAtBlockHeight']
     current_height = node.getblockcount()
     epoch_number = (current_height - sc_creating_height + 1) // epochLen - 1
     end_epoch_block_hash = node.getblockhash(sc_creating_height - 1 + ((epoch_number + 1) * epochLen))
@@ -596,7 +597,7 @@ def advance_epoch(mcTest, node, sync_call,
 
     try:
         cert = node.sc_send_certificate(scid, epoch_number, cert_quality,
-            epoch_cum_tree_hash, proof, [], ftScFee, mbtrScFee, cert_fee, vCfe, vCmt)
+            epoch_cum_tree_hash, proof, [], ftScFee, mbtrScFee, cert_fee, "", vCfe, vCmt)
     except JSONRPCException, e:
         errorString = e.error['message']
         print "Send certificate failed with reason {}".format(errorString)
@@ -622,4 +623,7 @@ def get_total_amount_from_listaddressgroupings(input_list):
             #print "Adding addr={}, val={}".format(addr, val)
             tot_amount += val
     return tot_amount
+
+def to_satoshis(decimalAmount):
+    return int(round(decimalAmount * COIN))
 

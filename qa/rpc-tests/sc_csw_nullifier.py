@@ -512,8 +512,17 @@ class CswNullifierTest(BitcoinTestFramework):
         vk2 = certMcTest.generate_params("sc2")
         cswVk2 = cswMcTest.generate_params("sc2")
         constant2 = generate_random_field_element_hex()
+        cmdInput = {
+            "withdrawalEpochLength": sc_epoch_len,
+            "toaddress": "dada",
+            "amount": sc_cr_amount,
+            "wCertVk": vk2,
+            "constant": constant2,
+            'customData': "abcdef",
+            'wCeasedVk': cswVk2,
+        }
 
-        ret = self.nodes[0].dep_sc_create(sc_epoch_len, "dada", sc_cr_amount, vk2, "abcdef", constant2, cswVk2)
+        ret = self.nodes[0].sc_create(cmdInput)
         creating_tx = ret['txid']
         mark_logs("Node 0 created SC spending {} coins via tx1 {}.".format(sc_cr_amount, creating_tx), self.nodes, DEBUG_MODE)
         self.sync_all()
@@ -599,7 +608,7 @@ class CswNullifierTest(BitcoinTestFramework):
 
         ret = self.nodes[0].getscinfo(scid2, False, True)['items'][0]
         assert_equal(ret['state'], "CEASED")
-        assert_equal(ret['last certificate epoch'], 1)
+        assert_equal(ret['lastCertificateEpoch'], 1)
 
         try:
             assert_true(self.nodes[1].getactivecertdatahash(scid2)['certDataHash'])
