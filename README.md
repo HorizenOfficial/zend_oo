@@ -1,5 +1,7 @@
-Zen 3.0.0-beta1
+This repository is archived, Zendoo is out of beta and has been included in https://github.com/HorizenOfficial/zen.
 ================
+Zen 3.0.0-beta1
+----------------
 What is Horizen?
 ----------------
 Horizen is an inclusive and scalable platform where everyone is empowered and rewarded for their contributions. Horizen’s sidechain platform enables real-world applications mapped onto a public blockchain architecture with the largest node network in the industry. Horizen’s Sidechain-SDK provides developers with all necessary components to deploy their own fully customizable blockchains on Horizen’s open sidechain protocol, Zendoo.
